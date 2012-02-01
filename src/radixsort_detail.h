@@ -139,18 +139,7 @@ public:
      */
     void enqueue(const cl::CommandQueue &commandQueue,
                  const cl::Buffer &keys, const cl::Buffer &values,
-                 ::size_t elements, unsigned int maxBits,
-                 const VECTOR_CLASS<cl::Event> *events,
-                 cl::Event *event);
-
-    /**
-     * Enqueue a sort operation on a command queue, without specifying a bound on
-     * the number of bits. 
-     * @see @ref clogs::Radixsort::enqueue.
-     */
-    void enqueue(const cl::CommandQueue &commandQueue,
-                 const cl::Buffer &keys, const cl::Buffer &values,
-                 ::size_t elements,
+                 ::size_t elements, unsigned int maxBits = 0,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
                  cl::Event *event = NULL);
 

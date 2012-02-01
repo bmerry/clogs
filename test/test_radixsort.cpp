@@ -584,7 +584,7 @@ void TestRadixsort::testSort(size_t size, size_t tmpKeysSize, size_t tmpValuesSi
         sortedValues[i] = hostValues[hostOrder[i]];
     }
 
-    sort.enqueue(queue, devKeys, devValues, size, NULL, NULL);
+    sort.enqueue(queue, devKeys, devValues, size);
     clogs::Test::Array<KeyTag> resultKeys(queue, devKeys, size);
     clogs::Test::Array<ValueTag> resultValues(queue, devValues, size);
 

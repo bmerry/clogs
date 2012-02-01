@@ -151,14 +151,14 @@ void TestScan::testSimple(const clogs::Type &type, size_t size, OffsetType useOf
 
     /* Compute on device */
     if (useOffset == OFFSET_BUFFER)
-        scan.enqueue(queue, dValues, size, dOffset, 1, NULL, NULL);
+        scan.enqueue(queue, dValues, size, dOffset, 1);
     else if (useOffset == OFFSET_HOST)
-        scan.enqueue(queue, dValues, size, &hOffset[1], NULL, NULL);
+        scan.enqueue(queue, dValues, size, &hOffset[1]);
     else
-        scan.enqueue(queue, dValues, size, NULL, NULL);
+        scan.enqueue(queue, dValues, size, NULL);
 
     vector<T> result(size + 1);
-    queue.enqueueReadBuffer(dValues, CL_TRUE, 0, (size + 1) * sizeof(T), &result[0], NULL, NULL);
+    queue.enqueueReadBuffer(dValues, CL_TRUE, 0, (size + 1) * sizeof(T), &result[0]);
     CLOGS_ASSERT_VECTORS_EQUAL(hValues, result);
 }
 
@@ -206,14 +206,14 @@ void TestScan::testVector(const clogs::Type &type, size_t size, OffsetType useOf
 
     /* Compute on device */
     if (useOffset == OFFSET_BUFFER)
-        scan.enqueue(queue, dValues, size, dOffset, 0, NULL, NULL);
+        scan.enqueue(queue, dValues, size, dOffset, 0);
     else if (useOffset == OFFSET_HOST)
-        scan.enqueue(queue, dValues, size, &hOffset, NULL, NULL);
+        scan.enqueue(queue, dValues, size, &hOffset);
     else
-        scan.enqueue(queue, dValues, size, NULL, NULL);
+        scan.enqueue(queue, dValues, size, NULL);
 
     vector<T> result(size + 1);
-    queue.enqueueReadBuffer(dValues, CL_TRUE, 0, (size + 1) * sizeof(T), &result[0], NULL, NULL);
+    queue.enqueueReadBuffer(dValues, CL_TRUE, 0, (size + 1) * sizeof(T), &result[0]);
     for (size_t i = 0; i < size; i++)
         for (unsigned int j = 0; j < type.getLength(); j++)
             CPPUNIT_ASSERT_EQUAL(hValues[i].s[j], result[i].s[j]);
@@ -223,7 +223,7 @@ void TestScan::testReadOnly()
 {
     clogs::Scan scan(context, device, clogs::TYPE_UINT);
     cl::Buffer buffer(context, CL_MEM_READ_ONLY, 16);
-    scan.enqueue(queue, buffer, 4, NULL, NULL);
+    scan.enqueue(queue, buffer, 4);
     queue.finish();
 }
 
@@ -231,7 +231,7 @@ void TestScan::testTooSmallBuffer()
 {
     clogs::Scan scan(context, device, clogs::TYPE_UINT);
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, 4);
-    scan.enqueue(queue, buffer, 4, NULL, NULL);
+    scan.enqueue(queue, buffer, 4);
     queue.finish();
 }
 
@@ -239,7 +239,7 @@ void TestScan::testBadBuffer()
 {
     clogs::Scan scan(context, device, clogs::TYPE_UINT);
     cl::Buffer buffer;
-    scan.enqueue(queue, buffer, 4, NULL, NULL);
+    scan.enqueue(queue, buffer, 4);
     queue.finish();
 }
 
@@ -247,7 +247,7 @@ void TestScan::testZero()
 {
     clogs::Scan scan(context, device, clogs::TYPE_UINT);
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, 4);
-    scan.enqueue(queue, buffer, 0, NULL, NULL);
+    scan.enqueue(queue, buffer, 0);
     queue.finish();
 }
 
@@ -266,7 +266,7 @@ void TestScan::testOffsetWriteOnly()
     clogs::Scan scan(context, device, clogs::TYPE_UINT);
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
     cl::Buffer offsetBuffer(context, CL_MEM_WRITE_ONLY, 16);
-    scan.enqueue(queue, buffer, 4, offsetBuffer, 0, NULL, NULL);
+    scan.enqueue(queue, buffer, 4, offsetBuffer, 0);
     queue.finish();
 }
 
@@ -275,7 +275,7 @@ void TestScan::testOffsetTooSmall()
     clogs::Scan scan(context, device, clogs::TYPE_UINT);
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
     cl::Buffer offsetBuffer(context, CL_MEM_READ_ONLY, 15);
-    scan.enqueue(queue, buffer, 4, offsetBuffer, 3, NULL, NULL);
+    scan.enqueue(queue, buffer, 4, offsetBuffer, 3);
     queue.finish();
 }
 
@@ -301,13 +301,13 @@ void BenchmarkScan::benchmark()
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, elements * sizeof(cl_uint));
 
     /* Do one run to get everything warmed up */
-    scan.enqueue(queue, buffer, elements, NULL, NULL);
+    scan.enqueue(queue, buffer, elements);
     queue.finish();
 
     Timer t;
     for (unsigned int pass = 0; pass < passes; pass++)
     {
-        scan.enqueue(queue, buffer, elements, NULL, NULL);
+        scan.enqueue(queue, buffer, elements);
     }
     queue.finish();
     double rate = double(elements) * passes / t.getElapsed();

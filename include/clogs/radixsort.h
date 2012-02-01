@@ -88,11 +88,16 @@ public:
     /**
      * Enqueue a scan operation on a command queue.
      *
+     * If the range of the keys is known to be smaller than the range of the
+     * the type holding them, passing an appropriate @a maxBits can improve
+     * performance. If no maximum is known, passing 0 (the default) indicates
+     * that the worst case should be assumed.
+     *
      * @param commandQueue         The command queue to use.
      * @param keys                 The keys to sort.
      * @param values               The values associated with the keys.
      * @param elements             The number of elements to sort.
-     * @param maxBits              Upper bound on the number of bits in any key.
+     * @param maxBits              Upper bound on the number of bits in any key, or 0.
      * @param events               Events to wait for before starting.
      * @param event                Event that will be signaled on completion.
      *
@@ -103,28 +108,14 @@ public:
      * @pre
      * - @a commandQueue was created with the context and device given to the constructor.
      * - @a keys and @a values do not overlap in memory.
-     * - All keys are strictly less than 2<sup>@a maxBits</sup>.
+     * - @a maxBits is zero, or all keys are strictly less than 2<sup>@a maxBits</sup>.
      * @post
      * - After execution, the keys will be sorted (with stability), and the values will be
      *   in the same order as the keys.
      */
     void enqueue(const cl::CommandQueue &commandQueue,
                  const cl::Buffer &keys, const cl::Buffer &values,
-                 ::size_t elements, unsigned int maxBits,
-                 const VECTOR_CLASS<cl::Event> *events,
-                 cl::Event *event);
-
-    /**
-     * Enqueue a sort operation on a command queue, without specifying a bound on
-     * the number of bits. This overload is provided for simplicity in case no
-     * information is available on the range of the keys, but it may be
-     * significantly less efficient than the generic version.
-     *
-     * @see @ref enqueue for details.
-     */
-    void enqueue(const cl::CommandQueue &commandQueue,
-                 const cl::Buffer &keys, const cl::Buffer &values,
-                 ::size_t elements,
+                 ::size_t elements, unsigned int maxBits = 0,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
                  cl::Event *event = NULL);
 

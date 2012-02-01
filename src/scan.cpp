@@ -95,25 +95,15 @@ public:
     Scan(const cl::Context &context, const cl::Device &device, const Type &type);
 
     /**
-     * Enqueue a scan operation on a command queue.
-     * @see @ref clogs::Scan::enqueue.
-     */
-    void enqueue(const cl::CommandQueue &commandQueue,
-                 const cl::Buffer &buffer,
-                 ::size_t elements,
-                 const VECTOR_CLASS<cl::Event> *events,
-                 cl::Event *event);
-
-    /**
      * Enqueue a scan operation on a command queue, with a CPU offset.
      * @see @ref clogs::Scan::enqueue.
      */
     void enqueue(const cl::CommandQueue &commandQueue,
                  const cl::Buffer &buffer,
                  ::size_t elements,
-                 const void *offset,
-                 const VECTOR_CLASS<cl::Event> *events,
-                 cl::Event *event);
+                 const void *offset = NULL,
+                 const VECTOR_CLASS<cl::Event> *events = NULL,
+                 cl::Event *event = NULL);
 
     /**
      * Enqueue a scan operation on a command queue, with an offset in a buffer.
@@ -124,8 +114,8 @@ public:
                  ::size_t elements,
                  const cl::Buffer &offsetBuffer,
                  cl_uint offsetIndex,
-                 const VECTOR_CLASS<cl::Event> *events,
-                 cl::Event *event);
+                 const VECTOR_CLASS<cl::Event> *events = NULL,
+                 cl::Event *event = NULL);
 };
 
 Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type)
@@ -289,15 +279,6 @@ void Scan::enqueueInternal(const cl::CommandQueue &commandQueue,
 void Scan::enqueue(const cl::CommandQueue &commandQueue,
                    const cl::Buffer &buffer,
                    ::size_t elements,
-                   const VECTOR_CLASS<cl::Event> *events,
-                   cl::Event *event)
-{
-    enqueueInternal(commandQueue, buffer, elements, NULL, NULL, 0, events, event);
-}
-
-void Scan::enqueue(const cl::CommandQueue &commandQueue,
-                   const cl::Buffer &buffer,
-                   ::size_t elements,
                    const void *offset,
                    const VECTOR_CLASS<cl::Event> *events,
                    cl::Event *event)
@@ -326,15 +307,6 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
 Scan::~Scan()
 {
     delete detail_;
-}
-
-void Scan::enqueue(const cl::CommandQueue &commandQueue,
-                   const cl::Buffer &buffer,
-                   ::size_t elements,
-                   const VECTOR_CLASS<cl::Event> *events,
-                   cl::Event *event)
-{
-    detail_->enqueue(commandQueue, buffer, elements, events, event);
 }
 
 void Scan::enqueue(const cl::CommandQueue &commandQueue,

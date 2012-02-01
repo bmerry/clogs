@@ -84,9 +84,15 @@ public:
     /**
      * Enqueue a scan operation on a command queue.
      *
+     * An initial offset may optionally be passed in @a offset, which will be
+     * added to all elements of the result. The pointer must point to the
+     * type of element specified to the constructor. If no offset is desired,
+     * @c NULL may be passed instead.
+     *
      * @param commandQueue         The command queue to use.
      * @param buffer               The buffer to scan.
      * @param elements             The number of elements to scan.
+     * @param offset               The offset to add to all elements, or @c NULL.
      * @param events               Events to wait for before starting.
      * @param event                Event that will be signaled on completion.
      *
@@ -97,42 +103,14 @@ public:
      * - @a commandQueue was created with the context and device given to the constructor.
      * @post
      * - After execution, element @c i will be replaced by the sum of all elements strictly
-     *   before @c i.
+     *   before @c i, plus the @a offset (if any).
      */
     void enqueue(const cl::CommandQueue &commandQueue,
                  const cl::Buffer &buffer,
                  ::size_t elements,
-                 const VECTOR_CLASS<cl::Event> *events,
-                 cl::Event *event);
-
-    /**
-     * Enqueue a scan operation on a command queue, with a CPU offset.
-     *
-     * The offset is passed in a void pointer, which must point to an element of the
-     * type passed to the constructor.
-     *
-     * @param commandQueue         The command queue to use.
-     * @param buffer               The buffer to scan.
-     * @param elements             The number of elements to scan.
-     * @param offset               The offset to add to all elements.
-     * @param events               Events to wait for before starting.
-     * @param event                Event that will be signaled on completion.
-     *
-     * @throw cl::Error            If @a buffer is not read-write.
-     * @throw cl::Error            If the element range overruns the buffer.
-     * @throw cl::Error            If @a elements is zero.
-     * @pre
-     * - @a commandQueue was created with the context and device given to the constructor.
-     * @post
-     * - After execution, element @c i will be replaced by the sum of all elements strictly
-     *   before @c i, plus the @a offset.
-     */
-    void enqueue(const cl::CommandQueue &commandQueue,
-                 const cl::Buffer &buffer,
-                 ::size_t elements,
-                 const void *offset,
-                 const VECTOR_CLASS<cl::Event> *events,
-                 cl::Event *event);
+                 const void *offset = NULL,
+                 const VECTOR_CLASS<cl::Event> *events = NULL,
+                 cl::Event *event = NULL);
 
     /**
      * Enqueue a scan operation on a command queue, with an offset in a buffer.
@@ -170,8 +148,8 @@ public:
                  ::size_t elements,
                  const cl::Buffer &offsetBuffer,
                  cl_uint offsetIndex,
-                 const VECTOR_CLASS<cl::Event> *events,
-                 cl::Event *event);
+                 const VECTOR_CLASS<cl::Event> *events = NULL,
+                 cl::Event *event = NULL);
 };
 
 } // namespace clogs

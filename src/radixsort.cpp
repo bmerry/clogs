@@ -144,8 +144,8 @@ void Radixsort::enqueue(
     if (elements == 0)
         throw cl::Error(CL_INVALID_GLOBAL_WORK_SIZE, "clogs::Radixsort::enqueue: elements is zero");
     if (maxBits == 0)
-        throw cl::Error(CL_INVALID_GLOBAL_WORK_SIZE, "clogs::Radixsort::enqueue: maxBits is zero");
-    if (maxBits > CHAR_BIT * keySize)
+        maxBits = CHAR_BIT * keySize;
+    else if (maxBits > CHAR_BIT * keySize)
         throw cl::Error(CL_INVALID_VALUE, "clogs::Radixsort::enqueue: maxBits is too large");
 
     const cl::Context &context = queue.getInfo<CL_QUEUE_CONTEXT>();
@@ -206,16 +206,6 @@ void Radixsort::enqueue(
     }
     if (event != NULL)
         *event = next;
-}
-
-void Radixsort::enqueue(
-    const cl::CommandQueue &queue,
-    const cl::Buffer &keys, const cl::Buffer &values,
-    ::size_t elements,
-    const VECTOR_CLASS<cl::Event> *events,
-    cl::Event *event)
-{
-    enqueue(queue, keys, values, elements, keySize * 8, events, event);
 }
 
 void Radixsort::setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &values)
@@ -344,16 +334,6 @@ void Radixsort::enqueue(
     cl::Event *event)
 {
     detail_->enqueue(commandQueue, keys, values, elements, maxBits, events, event);
-}
-
-void Radixsort::enqueue(
-    const cl::CommandQueue &commandQueue,
-    const cl::Buffer &keys, const cl::Buffer &values,
-    ::size_t elements,
-    const VECTOR_CLASS<cl::Event> *events,
-    cl::Event *event)
-{
-    detail_->enqueue(commandQueue, keys, values, elements, events, event);
 }
 
 void Radixsort::setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &values)
