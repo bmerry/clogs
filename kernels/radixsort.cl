@@ -1,0 +1,1094 @@
+/**
+ * @file
+ *
+ * Kernels for radix sorting.
+ */
+
+/**
+ * Tests whether a value is a power of 2. This macro is suitable for use in
+ * preprocessor expressions.
+ * @warning Do not use with an argument that has side effects.
+ */
+#define IS_POWER2(x) ((x) > 0 && ((x) & ((x) - 1)) == 0)
+
+/**
+ * Maximum of two values, usable as a preprocessor expression.
+ */
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+/**
+ * @def KEY_T
+ * @hideinitializer
+ * The type of the keys.
+ */
+
+/**
+ * @def VALUE_T
+ * @hideinitializer
+ * The type of the values.
+ */
+
+/**
+ * @def WARP_SIZE
+ * @hideinitializer
+ * The number of workitems for which operations occur in lock-step. It is
+ * permissible for this to be a factor of the true warp size for the hardware,
+ * as long as communication between each group of @c WARP_SIZE elements is
+ * synchronized without the use of @c barrier.
+ */
+
+/**
+ * @def REDUCE_WORK_GROUP_SIZE
+ * @hideinitializer
+ * The work group size for the initial reduction kernel.
+ */
+
+/**
+ * @def SCAN_WORK_GROUP_SIZE
+ * @hideinitializer
+ * The work group size for the middle scan kernel.
+ */
+
+/**
+ * @def SCAN_BLOCKS
+ * @hideinitializer
+ * The maximum number of blocks into which the full range is subdivided. The
+ * initial reduction and final scatter use an array of up to @c SCAN_BLOCKS
+ * partial sums per radix.
+ */
+
+/**
+ * @def SCATTER_WORK_GROUP_SIZE
+ * @hideinitializer
+ * The work group size for the final scatter kernel.
+ */
+
+/**
+ * @def SCATTER_WORK_SCALE
+ * @hideinitializer
+ * The number of elements to process per workitem in the final scatter kernel.
+ */
+
+/**
+ * @def SCATTER_SLICE
+ * @hideinitializer
+ * The number of workitems that the scatter kernel uses in cooperation with
+ * each other.
+ */
+
+/**
+ * @def RADIX_BITS
+ * @hideinitializer
+ * The number of bits to extract from the key in each sorting pass.
+ */
+
+#ifndef KEY_T
+# error "KEY_T must be specified"
+# define KEY_T uint /* Keep doxygen happy */
+#endif
+
+#ifndef RADIX_BITS
+# error "RADIX_BITS must be specified"
+# define RADIX_BITS 1 /* Keep doxygen happy */
+#endif
+
+/// The sort radix
+#define RADIX (1U << (RADIX_BITS))
+
+#ifndef WARP_SIZE
+# error "WARP_SIZE must be specified"
+# define WARP_SIZE 1 /* Keep doxygen happy */
+#endif
+#if !IS_POWER2(WARP_SIZE)
+# error "WARP_SIZE must be a power of 2"
+#endif
+
+#ifndef REDUCE_WORK_GROUP_SIZE
+# error "REDUCE_WORK_GROUP_SIZE must be specified"
+# define REDUCE_WORK_GROUP_SIZE 1 /* Keep doxygen happy */
+#endif
+#if !IS_POWER2(REDUCE_WORK_GROUP_SIZE)
+# error "REDUCE_WORK_GROUP_SIZE must be a power of 2"
+#endif
+#if REDUCE_WORK_GROUP_SIZE < RADIX
+# error "REDUCE_WORK_GROUP_SIZE must be at least RADIX"
+#endif
+
+#ifndef SCAN_BLOCKS
+# error "SCAN_BLOCKS is required"
+# define SCAN_BLOCKS 2 /* Keep doxygen happy */
+#endif
+#ifndef SCAN_WORK_GROUP_SIZE
+# error "SCAN_WORK_GROUP_SIZE is required"
+# define SCAN_WORK_GROUP_SIZE 1 /* Keep doxygen happy */
+#endif
+#if !IS_POWER2(SCAN_WORK_GROUP_SIZE)
+# error "SCAN_WORK_GROUP_SIZE must be a power of 2"
+#endif
+#if SCAN_BLOCKS * RADIX % SCAN_WORK_GROUP_SIZE != 0
+# error "SCAN_WORK_GROUP_SIZE must divide into SCAN_BLOCKS * RADIX"
+#endif
+#if SCAN_WORK_GROUP_SIZE < RADIX
+# error "SCAN_WORK_GROUP_SIZE must be at least RADIX"
+#endif
+
+#ifndef SCATTER_WORK_SCALE
+# error "SCATTER_WORK_SCALE must be specified"
+# define SCATTER_WORK_SCALE 1 /* Keep doxygen happy */
+#endif
+#ifndef SCATTER_WORK_GROUP_SIZE
+# error "SCATTER_WORK_GROUP_SIZE must be specified"
+# define SCATTER_WORK_GROUP_SIZE 1 /* Keep doxygen happy */
+#endif
+#if !IS_POWER2(SCATTER_WORK_GROUP_SIZE)
+# error "SCATTER_WORK_GROUP_SIZE must be a power of 2"
+#endif
+#if RADIX < 4
+# error "RADIX must be at least 4"
+#endif
+#ifndef SCATTER_SLICE
+# error "SCATTER_SLICE must be specified"
+# define SCATTER_SLICE 1 /* Keep doxygen happy */
+#endif
+#if !IS_POWER2(SCATTER_SLICE)
+# error "SCATTER_SLICE must be a power of 2"
+#endif
+#if SCATTER_WORK_GROUP_SIZE % SCATTER_SLICE != 0
+# error "SCATTER_WORK_GROUP_SIZE must be a multiple of SCATTER_SLICE"
+#endif
+#if SCATTER_SLICE < RADIX
+# error "SCATTER_SLICE must be at least RADIX"
+#endif
+
+/**
+ * Shorthand for defining a kernel with a fixed work group size.
+ * This is needed to unconfuse Doxygen's parser.
+ */
+#define KERNEL(size) __kernel __attribute__((reqd_work_group_size(size, 1, 1)))
+
+/**
+ * Extract keys and compute histograms for a range.
+ * For each of @a len keys, extracts the @ref RADIX_BITS bits starting from
+ * @a firstBit to determine a bucket. These are summed to give a histogram,
+ * which is written out to <code>out + RADIX * groupid</code>.
+ *
+ * @pre @a len is a multiple of @c REDUCE_WORK_GROUP_SIZE
+ * @todo Take advantage of WARP_SIZE
+ * @todo Rewrite using slices (as for scatter)
+ * @todo Rewrite using @c uchar for per-tile counts
+ */
+KERNEL(REDUCE_WORK_GROUP_SIZE)
+void radixsortReduce(__global uint *out, __global const KEY_T *keys,
+                     uint len, uint total, uint firstBit)
+{
+    const uint lid = get_local_id(0);
+    const uint group = get_group_id(0);
+    const uint base = group * len;
+    const uint end = min(base + len, total);
+    out += group * RADIX;
+
+    /* Per-radix counts. Initially they are per-workitem, which are then
+     * reduced to single counts.
+     */
+    __local uint hist[RADIX][REDUCE_WORK_GROUP_SIZE];
+
+    /* Zero out hist */
+    for (uint i = 0; i < RADIX; i++)
+    {
+        hist[i][lid] = 0;
+    }
+
+    /* Accumulate all chunks into the histogram */
+    for (uint i = base + lid; i < end; i += REDUCE_WORK_GROUP_SIZE)
+    {
+        const KEY_T key = keys[i];
+        const uint bucket = (key >> firstBit) & (RADIX - 1);
+        hist[bucket][lid]++;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    const uint ratio = REDUCE_WORK_GROUP_SIZE / RADIX;
+    const uint digit = lid / ratio;
+    const uint c = lid & (ratio - 1);
+
+    uint sum = 0;
+    for (uint i = 0; i < RADIX; i++)
+    {
+        sum += hist[digit][i * ratio + c];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    hist[digit][c] = sum;
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    /* Reduce all histograms in parallel.
+     */
+#pragma unroll
+    for (uint scale = ratio / 2; scale >= 1; scale >>= 1)
+    {
+        if (c < scale)
+        {
+            sum += hist[digit][c + scale];
+            hist[digit][c] = sum;
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    /* Write back results, which are in hist[?][0]. Note: this currently causes a
+     * total bank conflict, but padding the array would cause conflicts during the
+     * more expensive accumulation phase.
+     */
+    if (lid < RADIX)
+        out[lid] = hist[lid][0];
+}
+
+/**
+ * Column-wise exclusive scan of histograms at top level.
+ *
+ * @param[in,out] histogram       The per-block histograms, with @ref RADIX counts per block.
+ * @param         blocks          Number of blocks to scan
+ *
+ * @pre @a blocks <= @c SCAN_BLOCKS
+ * @note @a histogram must have space allocated for @c SCAN_BLOCKS blocks even if fewer are
+ * used, and the remaining space has undefined values on return.
+ */
+KERNEL(SCAN_WORK_GROUP_SIZE)
+void radixsortScan(__global uint *histogram, uint blocks)
+{
+    __local uint hist[SCAN_BLOCKS * RADIX];
+    __local uint sums[RADIX];
+
+    const uint lid = get_local_id(0);
+    /* Load the data from global memory */
+    for (uint i = 0; i < blocks * RADIX; i += SCAN_WORK_GROUP_SIZE)
+        hist[i + lid] = histogram[i + lid];
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    /* Sum up blocks independently for each radix and compute their scans
+     * at the same time.
+     */
+    if (lid < RADIX)
+    {
+        uint sum = 0;
+        for (uint i = 0; i < blocks * RADIX; i += RADIX)
+        {
+            uint next = hist[i + lid];
+            hist[i + lid] = sum;
+            sum += next;
+        }
+        sums[lid] = sum;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    /* Scan the radix sums - upsweep */
+    uint pos = lid + 1;
+    for (uint scale = 1; scale < RADIX / 2; scale <<= 1)
+    {
+        pos <<= 1;
+        if (pos <= RADIX)
+            sums[pos - 1] += sums[pos - scale - 1];
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    /* Make the top-level scan exclusive */
+    if (lid == 0)
+        sums[RADIX - 1] = 0;
+    // only workitem 0 accesses this element, so no barrier needed here
+
+    /* Scan the radix sums - downsweep */
+    pos <<= 1;
+    for (uint scale = RADIX / 2; scale >= 1; scale >>= 1)
+    {
+        if (pos <= RADIX)
+        {
+            const uint left = sums[pos - 1 - scale];
+            const uint right = sums[pos - 1];
+            sums[pos - 1 - scale] = right;
+            sums[pos - 1] = left + right;
+        }
+        pos >>= 1;
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    /* Transfer radix sums back to individual entries, and at the same
+     * time write them out.
+     */
+    for (uint i = 0; i < blocks * RADIX; i += SCAN_WORK_GROUP_SIZE)
+    {
+        const uint total = hist[i + lid] + sums[(i + lid) % RADIX];
+        histogram[i + lid] = total;
+    }
+}
+
+/**
+ * Number of keys processed by each iteration of each slice.
+ */
+#define SCATTER_TILE (SCATTER_SLICE * SCATTER_WORK_SCALE)
+/**
+ * Number of slices per workgroup in scatter kernel.
+ */
+#define SCATTER_SLICES (SCATTER_WORK_GROUP_SIZE / SCATTER_SLICE)
+
+/**
+ * Synchronize between groups of @a threads workitems.
+ * Unlike calling @c barrier directly, this function is fast if @a threads
+ * is less than the warp size.
+ *
+ * @pre @a threads is a power of 2.
+ */
+inline void fastsync(uint threads)
+{
+    if (threads > WARP_SIZE)
+        barrier(CLK_LOCAL_MEM_FENCE);
+}
+
+/**
+ * Tests whether a value is a power of 2.
+ */
+inline bool isPower2(uint value)
+{
+    return value > 0 && (value & (value - 1)) == 0;
+}
+
+/**
+ * Tests whether a value is a power of 4.
+ */
+inline bool isPower4(uint value)
+{
+    /* UINT_MAX/3 is 010101... in binary. */
+    return isPower2(value) && (value & (UINT_MAX / 3)) != 0;
+}
+
+/**
+ * Compute sums of sets of 4 elements.
+ * The input data is a sequence of 4 * @a sumsSize unsigned chars. Each group of 4 contiguous
+ * elements is added and written back.
+ *
+ * The function must be called by some number of workitems, which will cooperatively
+ * compute the sums. Ideally this should not be more than @ref WARP_SIZE if fewer workitems
+ * are needed, since if there are too many then the extras will repeat the work rather than
+ * branching around it.
+ *
+ * @param[in]    data          The sequence, aliased as an array of uints.
+ * @param[out]   sums          The sums.
+ * @param        sumsSize      Length of the output sequence.
+ * @param        lid           ID for this calling workitem.
+ * @param        threads       Number of workitems that are calling this function.
+ *
+ * @pre
+ * - Suitable barriers are in place for all the calling workitems to see all the data.
+ * - @a sumsSize is a power of 2.
+ * - @a threads is a power of 2.
+ * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
+ * - The sums do not overflow.
+ * @post
+ * - All workitems that participated will have visibility of all the results.
+ * @bug The inner loop isn't always being unrolled.
+ */
+inline void upsweep4(__local const volatile uint * restrict data, __local volatile uchar * restrict sums,
+                     uint sumsSize, uint lid, uint threads)
+{
+    uint rounds = 1;
+    if (sumsSize > threads)
+        rounds = sumsSize / threads; // too few workitems - make them work harder
+    else if (sumsSize < threads)
+        lid &= sumsSize - 1;         // too many workitems - repeat work
+
+    for (uint i = 0; i < rounds; i++)
+    {
+        uint in = data[lid + i * threads];
+        /* 0xaabbccdd * 0x01010101 == 0x(a+b+c+d)(b+c+d)(c+d)(d), so
+         * taking the high byte gives the sum. This works on any
+         * endian system.
+         */
+        uint out = (in * 0x01010101) >> 24;
+        sums[lid + i * threads] = out;
+    }
+    fastsync(threads);
+}
+
+/**
+ * Compute sums of sets of 2 elements.
+ * The input data is a sequence of 2 * @a sumsSize unsigned chars. Each group of 2 contiguous
+ * elements is added and written back.
+ *
+ * The function must be called by some number of workitems, which will cooperatively
+ * compute the sums. Ideally this should not be more than @ref WARP_SIZE if fewer workitems
+ * are needed, since if there are too many then the extras will repeat the work rather than
+ * branching around it.
+ *
+ * @param[in]    data          The sequence, aliased as an array of ushorts.
+ * @param[out]   sums          The sums.
+ * @param        sumsSize      Length of the output sequence.
+ * @param        lid           ID for this calling thread
+ * @param        threads       Number of workitems that are calling this function.
+ *
+ * @pre
+ * - Suitable barriers are in place for all the calling workitems to see all the data.
+ * - @a sumsSize is a power of 2.
+ * - @a threads is a power of 2.
+ * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
+ * - The sums do not overflow.
+ * @post
+ * - All workitems that participated will have visibility of all the results.
+ */
+inline void upsweep2(__local const volatile ushort * restrict data, __local volatile uchar * restrict sums,
+                     uint sumsSize, uint lid, uint threads)
+{
+    uint rounds = 1;
+    if (sumsSize > threads)
+        rounds = sumsSize / threads;
+    else if (sumsSize < threads)
+        lid &= sumsSize - 1;
+
+    for (uint i = 0; i < rounds; i++)
+    {
+        uint in = data[lid + i * threads];
+        uint out = (in * 0x0101) >> 8;
+        sums[lid + i * threads] = out;
+    }
+    fastsync(threads);
+}
+
+/**
+ * Sum up arbitrary lengths of data.
+ * The input is a sequence of @a fullSize uchars, stored at positions
+ * [@a fullSize, 2 * @a fullSize) in @a data_c. Each block of @a fullSize / @a
+ * sumsSize of them is summed and the sums are written to the range
+ * [@a sumsSize, 2 * @a sumsSize). Additionally, the values in the range
+ * [@a 2 * @a sumsSize, @a fullSize) may be overwritten with bookkeeping
+ * values that allow @ref downsweep to work.
+ *
+ * The function must be called by some number of workitems, which will cooperatively
+ * compute the sums.
+ *
+ * @param[in,out]    data_i      A <code>uint *</code> alias to @a data_c.
+ * @param[in,out]    data_s      A <code>ushort *</code> alias to @a data_c.
+ * @param[in,out]    data_c      The input and output data (see above).
+ * @param            fullSize    The number of elements to sum.
+ * @param            sumsSize    The number of sums to produce.
+ * @param            lid         ID of the calling workitem.
+ * @param            threads     Number of calling workitems.
+ *
+ * @pre
+ * - Suitable barriers are in place for all the calling workitems to see all the data.
+ * - @a fullSize and @a sumsSize are powers of 2.
+ * - @a fullSize >= @a sumsSize.
+ * - @a threads is a power of 2.
+ * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
+ * - The sums do not overflow.
+ * @post
+ * - The data will be visible to all calling workitems.
+ */
+inline void upsweep(__local volatile uint *data_i,
+                    __local volatile ushort *data_s,
+                    __local volatile uchar *data_c,
+                    uint fullSize, uint sumsSize, uint lid, uint threads)
+{
+#pragma unroll
+    for (uint scale = fullSize / 4; scale >= sumsSize; scale >>= 2)
+    {
+        upsweep4(data_i + scale, data_c + scale, scale, lid, threads);
+    }
+    if (!isPower4(fullSize / sumsSize))
+    {
+        upsweep2(data_s + sumsSize, data_c + sumsSize, sumsSize, lid, threads);
+    }
+}
+
+/**
+ * Compute exclusive scan from scanned factor-4 reduction. The input contains
+ * 4 * @a sumsSize @c uchar values, and @a sumsSize "sums". Each section of 4 input
+ * values is replaced by its exclusive scan, plus (per-element) the
+ * corresponding sum.
+ *
+ * The function must be called by some number of workitems, which will cooperatively
+ * compute the results.
+ *
+ * @note It is not required that the data are visible to the calling workitems,
+ * and on return the outputs are not guaranteed to be visible to the calling
+ * threads.
+ *
+ * @param[in,out]    data         A <code>uint *</code> alias to the input sequence, replaced by the outputs.
+ * @param[in]        sums         The sums to add back to the input sequence.
+ * @param            sumsSize     The number of sums.
+ * @param            lid          ID of the calling workitem.
+ * @param            threads      The number of calling workitems.
+ * @param            forceZero    If true, the @a sums are ignored and treated as zero.
+ *
+ * @pre
+ * - @a sumsSize is a power of 2.
+ * - @a threads is a power of 2.
+ * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
+ * - The results do not overflow.
+ */
+inline void downsweep4(__local volatile uint * restrict data, __local const volatile uchar * restrict sums,
+                       uint sumsSize, uint lid, uint threads, bool forceZero)
+{
+    uint rounds = 1;
+    if (sumsSize > threads)
+        rounds = sumsSize / threads;
+    else if (sumsSize < threads && threads <= WARP_SIZE)
+        lid &= sumsSize - 1;
+
+    fastsync(threads);
+    if (sumsSize < threads && threads > WARP_SIZE && lid >= sumsSize)
+        return;
+#pragma unroll
+    for (uint i = 0; i < rounds; i++)
+    {
+        uint old = data[lid + i * threads];
+        uint out = old * 0x01010100;
+        if (!forceZero)
+            out += sums[lid + i * threads] * 0x01010101;
+        data[lid + i * threads] = out;
+    }
+}
+
+/**
+ * Compute exclusive scan from scanned factor-2 reduction. The input contains
+ * 4 * @a sumsSize @c uchar values, and @a sumsSize "sums". Each section of 2 input
+ * values is replaced by its exclusive scan, plus (per-element) the
+ * corresponding sum.
+ *
+ * The function must be called by some number of workitems, which will cooperatively
+ * compute the results.
+ *
+ * @note It is not required that the data are visible to the calling workitems,
+ * and on return the outputs are not guaranteed to be visible to the calling
+ * workitems.
+ *
+ * @param[in,out]    data         A <code>ushort *</code> alias to the input sequence, replaced by the outputs.
+ * @param[in]        sums         The sums to add back to the input sequence.
+ * @param            sumsSize     The number of sums.
+ * @param            lid          ID of the calling workitem.
+ * @param            threads      The number of calling workitems.
+ * @param            forceZero    If true, the @a sums are ignored and treated as zero.
+ *
+ * @pre
+ * - @a sumsSize is a power of 2.
+ * - @a threads is a power of 2.
+ * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
+ * - The results do not overflow.
+ */
+inline void downsweep2(__local volatile ushort *restrict data, __local const volatile uchar * restrict sums,
+                       uint sumsSize, uint lid, uint threads, bool forceZero)
+{
+    uint rounds = 1;
+    if (sumsSize > threads)
+        rounds = sumsSize / threads;
+    else if (sumsSize < threads && threads <= WARP_SIZE)
+        lid &= sumsSize - 1;
+
+    fastsync(threads);
+    if (sumsSize < threads && threads > WARP_SIZE && lid >= sumsSize)
+        return;
+#pragma unroll
+    for (uint i = 0; i < rounds; i++)
+    {
+        uint old = data[lid + i * threads];
+        uint out = old * 0x0100;
+        if (!forceZero)
+            out += sums[lid + i * threads] * 0x0101;
+        data[lid + i * threads] = out;
+    }
+}
+
+/**
+ * Compute exclusive scan from reduced sums.
+ * The data to scan is contained in the range [@a fullSize, 2 * @a fullSize) and the
+ * computed sums in [@a sumsSize, 2 * @a sumsSize) of @a data_c. Each block of
+ * @a fullSize / @a sumsSize input values is replaced by its exclusive scan, plus (per-element)
+ * the corresponding sum.
+ *
+ * @note It is not required that the data are visible to the calling workitems,
+ * and on return the outputs are not guaranteed to be visible to the calling
+ * workitems.
+ *
+ * @param[in,out]    data_i      A <code>uint *</code> alias to @a data_c.
+ * @param[in,out]    data_s      A <code>ushort *</code> alias to @a data_c.
+ * @param[in,out]    data_c      The input and output data (see above).
+ * @param            fullSize    The number of elements to san.
+ * @param            sumsSize    The number of sums to use.
+ * @param            lid         ID of the calling workitem.
+ * @param            threads     Number of calling workitems.
+ * @param            forceZero   If true, @a sums is ignored and treated as zero.
+ *
+ * @pre
+ * - Values [2 * @a sumsSize, @a fullSize) have been computed by calling @ref upsweep with
+ *   the same @a fullSize, @a sumsSize and @a threads.
+ * - @a fullSize is a power of 2.
+ * - @a sumsSize is a power of 2.
+ * - @a fullSize >= @a sumsSize, and if @a fullSize == @a sumsSize then @a forceZero is false.
+ * - @a threads is a power of 2.
+ * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
+ * - The results do not overflow.
+ */
+inline void downsweep(__local volatile uint *data_i,
+                      __local volatile ushort *data_s,
+                      __local volatile uchar *data_c,
+                      uint fullSize, uint sumsSize, uint lid, uint threads, bool forceZero)
+{
+    if (!isPower4(fullSize / sumsSize))
+    {
+        downsweep2(data_s + sumsSize, data_c + sumsSize, sumsSize, lid, threads, forceZero);
+        sumsSize *= 2;
+        forceZero = false;
+    }
+#pragma unroll
+    for (uint scale = sumsSize; scale < fullSize; scale <<= 2)
+    {
+        downsweep4(data_i + scale, data_c + scale, scale, lid, threads, forceZero && scale == sumsSize);
+    }
+}
+
+/**
+ * Local data for a single slice of the scatter kernel.
+ */
+typedef struct
+{
+    union
+    {
+        /**
+         * Histograms (later scanned) of SCATTER_WORK_SCALE keys and their
+         * reductions, using the offsets required by @ref upsweep and
+         * @ref downsweep. The bottom-level data are arranged
+         * digit-major, workitem-minor.
+         */
+        uchar level1[SCATTER_SLICE * RADIX * 2];
+        /// Alias of @ref level1, for use in upsweep/downsweep
+        ushort level1s[SCATTER_SLICE * RADIX];
+        /// Alias of @ref level1, for use in upsweep/downsweep
+        uint level1i[SCATTER_SLICE * RADIX / 2];
+
+#ifdef VALUE_T
+        /**
+         * Values that are being sorted. This is aliased with
+         * @ref level1 purely to reduce local memory storage.
+         */
+        VALUE_T values[SCATTER_TILE];
+#endif
+    };
+
+    /// Difference between global and local memory offsets for each digit
+    uint bias[RADIX];
+    /// Global memory offset for first key of each digit
+    uint offsets[RADIX];
+    /// The sort digit extracted from the keys
+    uchar digits[SCATTER_TILE];
+    /**
+     * The permutation that needs to be applied. <code>shuf[i]</code> is the
+     * original (local) position of the element that must move to (local)
+     * position <code>i</code>.
+     */
+    uchar shuf[SCATTER_TILE];
+    /// The sort keys
+    KEY_T keys[SCATTER_TILE];
+} ScatterData;
+
+/**
+ * Scatter a single section of @a SCATTER_SLICE * @a SCATTER_WORK_SCALE input elements.
+ *
+ * @param[out]     outKeys        Radix-sorted keys.
+ * @param[out]     outValues      Values corresponding to @a outKeys.
+ * @param[in]      inKeys         Unsorted keys.
+ * @param[in]      inValues       Values corresponding to @a inKeys.
+ * @param          start          The first input key to process.
+ * @param          end            Upper bound on keys to process.
+ * @param          firstBit       First bit forming the radix to sort on.
+ * @param[in,out]  wg             Local data storage for the slice.
+ * @param          lid            ID of this workitem within the slice.
+ *
+ * @pre
+ * - <code>wg->offsets</code> contains the offset into @a outKeys and @a
+ *   outValues where the elements for each digit should be placed.
+ * - @a firstBit < 32.
+ * - @a lid takes on the values 0, 1, ..., @ref SCATTER_SLICE once each.
+ * @post
+ * - <code>wg->offsets</code> has been advanced by the number of elements
+ *   of each digit.
+ *
+ * @todo Use a serial up/downsweep first, since the loops in @ref upsweep and
+ * @ref downsweep don't seem to get unrolled. Would work best with an add @ref
+ * SCATTER_WORK_SCALE.
+ */
+inline void radixsortScatterTile(
+    __global KEY_T *outKeys,
+#ifdef VALUE_T
+    __global VALUE_T *outValues,
+#endif
+    __global const KEY_T *inKeys,
+#ifdef VALUE_T
+    __global const VALUE_T *inValues,
+#endif
+    uint start,
+    uint end,
+    uint firstBit,
+    __local volatile ScatterData *wg,
+    uint lid)
+{
+    // Number of elements in wg->level1, for convenience
+    const uint level1Size = RADIX * SCATTER_SLICE;
+
+    // Each workitem processes SCATTER_WORK_SCALE consecutive keys.
+    // For each of these, level0 contains the number of previous keys
+    // (within that set) that have the same value.
+    uint level0[SCATTER_WORK_SCALE];
+    // Index into the level1 array corresponding to the ith key processed
+    // by the correct workitem.
+    uint l1addr[SCATTER_WORK_SCALE];
+
+    /* Load keys and decode digits */
+    for (uint i = 0; i < SCATTER_WORK_SCALE; i++)
+    {
+        const uint kidx = lid + i * SCATTER_SLICE;
+        const uint addr = start + kidx;
+        const KEY_T key = (addr < end) ? inKeys[addr] : ~(KEY_T) 0;
+        const uint digit = (key >> firstBit) & (RADIX - 1);
+        wg->keys[kidx] = key;
+        wg->digits[kidx] = digit;
+    }
+
+    /* Zero out level1 array */
+    for (uint i = 0; i < RADIX / 4; i++)
+        wg->level1i[level1Size / 4 + i * SCATTER_SLICE + lid] = 0;
+
+    fastsync(SCATTER_SLICE);
+
+    for (uint i = 0; i < SCATTER_WORK_SCALE; i++)
+    {
+        const uint kidx = lid * SCATTER_WORK_SCALE + i;
+        const uint digit = wg->digits[kidx]; // SCATTER_WORK_SCALE/4-way bank conflict
+        l1addr[i] = level1Size + digit * SCATTER_SLICE + lid;
+        level0[i] = wg->level1[l1addr[i]];
+        wg->level1[l1addr[i]] = level0[i] + 1;
+    }
+    fastsync(SCATTER_SLICE);
+
+    /* Reduce, making sure that we take a stop at RADIX granularity to get digit counts */
+    upsweep(wg->level1i, wg->level1s, wg->level1, level1Size, RADIX, lid, SCATTER_SLICE);
+    upsweep(wg->level1i, wg->level1s, wg->level1, RADIX, 1, lid, SCATTER_SLICE);
+
+    const uint digitCount = wg->level1[RADIX + lid];
+
+    /* Scan */
+    downsweep(wg->level1i, wg->level1s, wg->level1, RADIX, 1, lid, SCATTER_SLICE, true);
+    downsweep(wg->level1i, wg->level1s, wg->level1, level1Size, RADIX, lid, SCATTER_SLICE, false);
+
+    fastsync(SCATTER_SLICE);
+
+    /* Compute the relationship between local and global positions.
+     * At this point, wg->level1[RADIX + lid] is a scan of the digit counts.
+     */
+    if (lid < RADIX)
+    {
+        wg->bias[lid] = wg->offsets[lid] - wg->level1[RADIX + lid]; // conflict-free
+        wg->offsets[lid] += digitCount;
+    }
+
+    /* Compute the permutation. level0 gives a workitem-scale scan of
+     * SCATTER_WORK_SCALE elements, while level1 contains the higher-level scan.
+     */
+    for (uint i = 0; i < SCATTER_WORK_SCALE; i++)
+    {
+        const uint kidx = lid * SCATTER_WORK_SCALE + i;
+        uint pos = level0[i] + wg->level1[l1addr[i]];
+        wg->shuf[pos] = kidx;
+    }
+
+    /* values and level1 share memory in a union, so we need this barrier */
+    fastsync(SCATTER_SLICE);
+
+#ifdef VALUE_T
+    /* Load values */
+    for (uint i = 0; i < SCATTER_WORK_SCALE; i++)
+    {
+        const uint kidx = i * SCATTER_SLICE + lid;
+        const uint addr = start + kidx;
+        if (addr < end)
+            wg->values[kidx] = inValues[addr]; // conflict-free
+    }
+    fastsync(SCATTER_SLICE);
+#endif
+
+    /* Scatter results to global memory */
+    for (uint i = 0; i < SCATTER_WORK_SCALE; i++)
+    {
+        const uint oidx = lid + i * SCATTER_SLICE;
+        if ((int) oidx < (int) end - (int) start)
+        {
+            const uint sh = wg->shuf[oidx];
+            const uint digit = wg->digits[sh];
+            const uint addr = oidx + wg->bias[digit];
+            outKeys[addr] = wg->keys[sh];
+#ifdef VALUE_T
+            outValues[addr] = wg->values[sh];
+#endif
+        }
+    }
+
+    // The next loop iteration will overwrite the keys, so we need to synchronize here.
+    fastsync(SCATTER_SLICE);
+}
+
+/**
+ * Scatter keys and values into output arrays.
+ *
+ * @param[out]     outKeys        Radix-sorted keys.
+ * @param[out]     outValues      Values corresponding to @a outKeys.
+ * @param[in]      inKeys         Unsorted keys.
+ * @param[in]      inValues       Values corresponding to @a inKeys.
+ * @param[in]      histogram      Scanned histogram computed by @ref radixsortScan.
+ * @param          len            Number of keys/values to process per slice.
+ * @param          total          Total size of the input and output arrays.
+ * @param          firstBit       First bit forming the radix to sort on.
+ *
+ * @pre
+ * - @a histogram contains per-slice offsets indicating where the first
+ *   key for each digit should be placed for that slice.
+ */
+KERNEL(SCATTER_WORK_GROUP_SIZE)
+void radixsortScatter(__global KEY_T * restrict outKeys,
+                      __global const KEY_T * restrict inKeys,
+                      __global const uint *histogram,
+                      uint len,
+                      uint total,
+                      uint firstBit
+#ifdef VALUE_T
+                      , __global VALUE_T *outValues
+                      , __global VALUE_T *inValues
+#endif
+                     )
+{
+    __local volatile ScatterData wd[SCATTER_SLICES];
+
+    const uint local_id = get_local_id(0);
+    const uint lid = local_id & (SCATTER_SLICE - 1);
+    const uint slice = local_id / SCATTER_SLICE;
+    const uint block = get_group_id(0) * SCATTER_SLICES + slice;
+
+    /* Read initial offsets from global memory */
+    if (lid < RADIX)
+        wd[slice].offsets[lid] = histogram[block * RADIX + lid];
+
+    uint start = block * len;
+    uint stop = start + len;
+    uint end = min(stop, total);
+    /* Caution - this loop has to be run the same number of times for each workitem,
+     * even if it means that some of them have nothing to do due to end being less
+     * than start. Without that, barriers will not operate correctly.
+     */
+    for (; start < stop; start += SCATTER_TILE)
+    {
+        radixsortScatterTile(outKeys,
+#ifdef VALUE_T
+                             outValues,
+#endif
+                             inKeys,
+#ifdef VALUE_T
+                             inValues,
+#endif
+                             start,
+                             end,
+                             firstBit,
+                             &wd[slice],
+                             lid);
+    }
+
+#undef SCATTER_SLICES
+}
+
+/********************************************************************************************
+ * Pure test code below here. Each function simply loads data into local memory, calls a
+ * function, and returns the result back to global memory.
+ * TODO: arrange build so that it is only included when building the tests
+ ********************************************************************************************/
+
+__kernel void testUpsweep2(__global const uchar *g_data, __global uchar *g_sums, uint dataSize, uint sumsSize)
+{
+    __local volatile union
+    {
+        ushort s[64];
+        uchar c[128];
+    } data;
+    __local volatile uchar sums[64];
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < dataSize; i++)
+            data.c[i] = g_data[i];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    upsweep2(data.s, sums, sumsSize, get_local_id(0), get_local_size(0));
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < sumsSize; i++)
+            g_sums[i] = sums[i];
+    }
+}
+
+__kernel void testUpsweep4(__global const uchar *g_data, __global uchar *g_sums, uint dataSize, uint sumsSize)
+{
+    __local volatile union
+    {
+        uint i[64];
+        uchar c[256];
+    } data;
+    __local volatile uchar sums[64];
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < dataSize; i++)
+            data.c[i] = g_data[i];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    upsweep4(data.i, sums, sumsSize, get_local_id(0), get_local_size(0));
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < sumsSize; i++)
+            g_sums[i] = sums[i];
+    }
+}
+
+__kernel void testUpsweep(__global const uchar *g_data, __global uchar *g_sums, uint dataSize, uint sumsSize)
+{
+    __local volatile union
+    {
+        uint i[128];
+        ushort s[256];
+        uchar c[512];
+    } data;
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < 2 * dataSize; i++)
+            data.c[i] = 0;
+        for (uint i = 0; i < dataSize; i++)
+            data.c[dataSize + i] = g_data[i];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    upsweep(data.i, data.s, data.c, dataSize, sumsSize, get_local_id(0), get_local_size(0));
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < sumsSize; i++)
+            g_sums[i] = data.c[sumsSize + i];
+    }
+}
+
+__kernel void testDownsweep2(__global uchar *g_data, __global const uchar *g_sums, uint dataSize, uint sumsSize, uint forceZero)
+{
+    __local volatile union
+    {
+        ushort s[64];
+        uchar c[128];
+    } data;
+    __local volatile uchar sums[64];
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < dataSize; i++)
+            data.c[i] = g_data[i];
+        for (uint i = 0; i < sumsSize; i++)
+            sums[i] = g_sums[i];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    downsweep2(data.s, sums, sumsSize, get_local_id(0), get_local_size(0), forceZero);
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < dataSize; i++)
+        {
+            g_data[i] = data.c[i];
+        }
+    }
+}
+
+__kernel void testDownsweep4(__global uchar *g_data, __global const uchar *g_sums, uint dataSize, uint sumsSize, uint forceZero)
+{
+    __local volatile union
+    {
+        uint i[64];
+        uchar c[256];
+    } data;
+    __local volatile uchar sums[64];
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < dataSize; i++)
+            data.c[i] = g_data[i];
+        for (uint i = 0; i < sumsSize; i++)
+            sums[i] = g_sums[i];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    downsweep4(data.i, sums, sumsSize, get_local_id(0), get_local_size(0), forceZero);
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < dataSize; i++)
+        {
+            g_data[i] = data.c[i];
+        }
+    }
+}
+
+__kernel void testDownsweep(__global uchar *g_data, __global const uchar *g_sums, uint dataSize, uint sumsSize, uint forceZero)
+{
+    __local volatile union
+    {
+        uint i[128];
+        ushort s[256];
+        uchar c[512];
+    } data;
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < 2 * dataSize; i++)
+            data.c[i] = 0;
+        // Note ordering here: if dataSize == sumsSize, we want to be sure to
+        // overwrite the incoming data with the sums.
+        for (uint i = 0; i < dataSize; i++)
+            data.c[dataSize + i] = g_data[i];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    upsweep(data.i, data.s, data.c, dataSize, sumsSize, get_local_id(0), get_local_size(0));
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < sumsSize; i++)
+            data.c[sumsSize + i] = g_sums[i];
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    downsweep(data.i, data.s, data.c, dataSize, sumsSize, get_local_id(0), get_local_size(0), forceZero);
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < dataSize; i++)
+        {
+            g_data[i] = data.c[dataSize + i];
+        }
+    }
+}

@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.3//EN" "http://www.oasis-open.org/docbook/xml/4.3/docbookx.dtd">
+<book>
+    <title>CLOGS User Manual</title>
+    <bookinfo>
+        <author>
+            <firstname>Bruce</firstname>
+            <surname>Merry</surname>
+            <email>bmerry@users.sourceforge.net</email>
+        </author>
+        <copyright>
+            <year>2012</year>
+            <holder>University of Cape Town</holder>
+        </copyright>
+        <releaseinfo>
+        </releaseinfo>
+    </bookinfo>
+    <chapter id="introduction">
+        <title>Introduction</title>
+        <para>
+            CLOGS is a library for higher-level operations on top of the OpenCL
+            C++ API. It is designed to integrate with other OpenCL code, including
+            synchronization using OpenCL events.
+        </para>
+        <para>
+            Currently only two operations are supported: radix sorting and
+            exclusive scan. Radix sort supports all the unsigned
+            integral types as keys, and all the built-in scalar and vector
+            types suitable for storage in buffers as values. Scan supports
+            all the integral types. It also supports vector types, which
+            allows for limited multi-scan capabilities.
+        </para>
+    </chapter>
+    <chapter id="installation">
+        <title>Installation</title>
+        <section id="installation.requirements">
+            <title>Requirements</title>
+            <para>
+                At present CLOGS is only supported with GCC on GNU/Linux. The
+                code for the library itself is portable, but some aspects of
+                the build system and test suite will require porting.
+            </para>
+            <para>
+                It has been tested on an NVIDIA GTX 480 and on a CPU using the
+                AMD APP SDK 2.5 and 2.6. It is expected to work on any OpenCL
+                implementation but it is untested, and it is unlikely to have
+                optimal performance.
+            </para>
+            <para>
+                The following dependencies are required to build CLOGS:
+            </para>
+            <itemizedlist>
+                <listitem><para>
+                        An OpenCL implementation and headers (including
+                        <filename type="header">CL/cl.hpp</filename>).
+                </para></listitem>
+                <listitem><para>
+                        A C++ compiler. GCC 4.4&ndash;4.6 have been tested.
+                </para></listitem>
+                <listitem><para>
+                        The Boost headers. No dynamic libraries are needed to
+                        use the CLOGS library, but the
+                        <application>boost::program_options</application>
+                        library is needed for the CLOGS test suite.
+                </para></listitem>
+                <listitem><para>
+                        <application>Doxygen</application> is required to
+                        build the reference documentation (optional).
+                </para></listitem>
+                <listitem><para>
+                        <application>xsltproc</application> is required to
+                        build the user manual (optional). It is best to also
+                        install the DocBook XSL stylesheets so that they will
+                        be sourced locally rather than from the internet,
+                        which can be extremely slow.
+                </para></listitem>
+                <listitem><para>
+                        <application>Python</application> 2.6 or later.
+                </para></listitem>
+                <listitem><para>
+                        <application>CppUnit</application> is required to
+                        build and run the test suite.
+                </para></listitem>
+            </itemizedlist>
+        </section>
+        <section id="Compiling">
+            <title>Compiling CLOGS</title>
+            <para>
+                CLOGS uses the <olink
+                    href="waf.googlecode.com/svn/docs/wafbook/single.html">waf</olink>
+                build system. The build system is included in the
+                distribution, so you do not need to download it separately.
+            </para>
+            <para>
+                The first step is to configure the build. This is done by
+                running
+            </para>
+            <screen><prompt>$ </prompt><userinput>./waf configure</userinput></screen>
+            <para>
+                This will check that the necessary headers can be found.
+                OpenCL headers are not always installed in the normal include
+                paths. You can explicitly specify the location for them by
+                running
+            </para>
+            <screen><prompt>$ </prompt><userinput>./waf configure --cl-headers=<replaceable>path</replaceable></userinput></screen>
+            <para>
+                Note that <filename
+                    class="directory"><replaceable>path</replaceable></filename> should
+                be the directory containing the <filename class="directory">CL</filename>
+                directory.
+            </para>
+            <para>
+                You can also control where CLOGS will be installed by using
+                <option>--prefix</option>, as well as the other standard
+                <application>autoconf</application> options (run <userinput>waf
+                    --help</userinput> for a list).
+            </para>
+            <para>
+                The configuration will automatically detect whether
+                <application>doxygen</application> and
+                <application>xsltproc</application> are present. However, you
+                can disable them with <option>--without-doxygen</option> and
+                <option>--without-xsltproc</option>.
+            </para>
+        </section>
+        <section id="installation.install">
+            <title>Installing CLOGS</title>
+            <para>
+                Installation is done by running <userinput>waf
+                    install</userinput>.  Unless you have changed the
+                installation directory, you will probably need to be root to do
+                this, and you will also need to run
+                <userinput>ldconfig</userinput> afterwards.
+            </para>
+            <para>
+                <application>waf</application> also supports a
+                <option>--destdir</option> option that allows the entire
+                directory tree to be placed into a subdirectory rather than
+                the root of the filesystem. This is intended for use with
+                package management tools.
+            </para>
+        </section>
+    </chapter>
+
+    <chapter id="using">
+        <title>Using CLOGS</title>
+        <section id="using.example">
+            <title>Examples</title>
+            <para>
+                We start with a simple example showing how to do a scan
+                operation. We assume that an OpenCL context, device and
+                command queue have already been created using the C++
+                bindings, and that the data to scan is already in a buffer.
+            </para>
+            <programlisting language="c++">
+#include &lt;clogs/clogs.h&gt;
+...
+clogs::Scan scanner(context, device, clogs::TYPE_UINT);
+scanner.enqueue(queue, dataBuffer, numElements, NULL, NULL);</programlisting>
+            <para>
+                The above code first allocates an object that can be used to
+                perform scans. The constructor handles compilation of the internal kernels
+                and allocation of internal storage. In this example
+                create it as it is needed, but in practise these objects are
+                quite slow to create and should be reused where possible.
+            </para>
+            <para>
+                The last line enqueues to <symbol>queue</symbol> the kernel
+                launches needed to perform the scan. The final two parameters
+                are a vector of events to wait for, and an output to return an
+                event to signal that the scan is complete. These work in the
+                same way as for many of the enqueue functions in the OpenCL
+                C++ API.
+            </para>
+            <para>
+                Now let us look at a slightly more complex sorting example.
+                Suppose we have unsigned 20-bit keys (stored in
+                <type>uint</type>s), and <type>float4</type>
+                values. In CLOGS, keys and values must be held in separate
+                buffers (which reduces overall bandwidth), so let us say that
+                keys are in <symbol>keys</symbol> and values in
+                <symbol>values</symbol>. Furthermore, let us suppose that the
+                vector <symbol>wait</symbol> contains a list of events for
+                work that will generate the keys and values, and that we want
+                an event that will be signaled when the sort is complete. Then
+                the code we want is
+            </para>
+            <programlisting language="c++">
+#include &lt;clogs/clogs.h&gt;
+...
+clogs::Radixsort sorter(context, device, clogs::TYPE_UINT, clogs::Type(clogs::TYPE_FLOAT, 4));
+sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
+</programlisting>
+            <para>
+                Notice that we used <type>clogs::Type</type> to specify the
+                type of the values. This is a type that encodes an OpenCL
+                built-in type. In this case we specified the base type
+                (<type>float</type>) and vector length (4). We could also do
+                this for the key type, but it was not necessarily since there
+                is an implicit conversion from
+                <symbol>clogs::TYPE_UINT</symbol> to <type>clogs::Type</type>.
+            </para>
+            <para>
+                Also notice that we explicitly specified how many bits are
+                used in the key. This parameter is optional, but specifying it
+                may reduce the number of passes and hence improve performance.
+                The actual number of bits used for sorting may be higher, so
+                this should only be used when the remaining bits are equal for
+                all keys.
+            </para>
+        </section>
+        <section id="using.reentrance">
+            <title>Reentrance</title>
+            <para>
+                The classes in this API (<type>clogs::Scan</type> and
+                <type>clogs::Radixsort</type>) store internal state that is
+                used by the enqueued work. There are two limitations on
+                reentrance:
+            </para>
+            <orderedlist>
+                <listitem><para>
+                        It is not safe for two host threads to call the
+                        <function>enqueue</function> method on the same object
+                        at the same time.
+                </para></listitem>
+                <listitem><para>
+                        It is not safe for the work enqueued by two calls to
+                        <function>enqueue</function> on the same object to be
+                        executed at the same time. Thus, if two calls specify
+                        different command queues or specify the same queue but
+                        it is in out-of-order execution mode, then events
+                        or other synchronization primitives need to be used to
+                        ensure that the work does not overlap.
+                </para></listitem>
+            </orderedlist>
+        </section>
+        <section id="using.errors">
+            <title>Error handling</title>
+            <para>
+                The source of CLOGS is compiled with
+                <symbol>__CL_ENABLE_EXCEPTIONS</symbol> defined, so any errors
+                caused internally will be thrown as a
+                <type>cl::Error</type>. Additionally, the reference
+                documentation lists some higher-level conditions which
+                will be signaled by throwing <type>cl::Error</type> (for
+                example, if <replaceable>numElements</replaceable> was
+                too large and would have overflowed the buffer).
+            </para>
+            <para>
+                The other type of exception that may occur is
+                <type>clogs::InternalError</type>. This is only thrown for
+                unexpected errors with the implementation, such as when
+                the source for one of the kernels fails to compile.
+            </para>
+        </section>
+        <section id="using.memory">
+            <title>Memory management</title>
+            <para>
+                Each object allocated through the API allocates a small
+                amount of OpenCL memory, whose size depends only on the arguments to
+                the constructor. Additionally, <type>clogs::Radixsort</type>
+                allocates temporary buffers as part of
+                <function>enqueue</function> to hold partially-sorted copies
+                of the keys and values.
+            </para>
+            <para>
+                For some uses, it is desirable to avoid repeatedly allocating
+                and freeing these temporary buffers, and so it is possible for
+                the user to specify buffers to use by calling
+                <function>setTemporaryBuffers</function> (see the reference
+                documentation for details).
+            </para>
+            <para>
+                The scanning and sorting objects are non-copyable, to avoid
+                accidently triggering expensive copies of OpenCL objects. They
+                need to be passed by reference.
+            </para>
+        </section>
+    </chapter>
+</book>

@@ -1,0 +1,34 @@
+div.warning, div.caution, div.note, div.tip, pre.screen, pre.programlisting, div.funcsynopsis
+{
+    background-color: #dddddd;
+    padding: 1pt 3pt;
+}
+
+div.note .title, div.tip .title, h3.author
+{
+    color: black;
+}
+
+span.symbol, span.type, span.structname
+{
+    font-family: monospace;
+}
+
+body
+{
+    text: black;
+    background: white;
+    font-size: 11pt;
+    font-family: sans-serif;
+}
+
+h1, h2, h3
+{
+    font-weight: bold;
+    color: red;
+}
+
+h1 { font-size: 1.5em; }
+h2 { font-size: 1.2em; }
+h3 { font-size: 1em;   }
+body { margin-left: 4em; margin-right: 4em; }
