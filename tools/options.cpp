@@ -26,10 +26,6 @@
  * between the test frontend and clogs-benchmark.
  */
 
-#if HAVE_CONFIG_H
-# include <config.h>
-#endif
-
 #ifndef __CL_ENABLE_EXCEPTIONS
 # define __CL_ENABLE_EXCEPTIONS
 #endif

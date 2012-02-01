@@ -41,7 +41,7 @@
 #include <cstddef>
 #include <tr1/random>
 #include <sstream>
-#include <clogs/clogs.h>
+#include <clogs/scan.h>
 #include "clogs_test.h"
 
 using namespace std;

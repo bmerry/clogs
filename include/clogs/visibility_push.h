@@ -22,37 +22,12 @@
 /**
  * @file
  *
- * OpenCL primitives.
+ * Pushes default visibility if appropriate. Note that the lack of include
+ * guards is intentional. Do not include this file directly.
  */
 
-#ifndef CLOGS_CLOGS_H
-#define CLOGS_CLOGS_H
+#include <clogs/visibility.h>
 
-#include <clogs/visibility_push.h>
-#include <CL/cl.hpp>
-#include <string>
-#include <stdexcept>
-#include <clogs/visibility_pop.h>
-
-#include <clogs/core.h>
-#include <clogs/scan.h>
-#include <clogs/radixsort.h>
-
-/**
- * @mainpage
- *
- * Please refer to the user manual for an introduction to CLOGS, or the
- * @ref clogs namespace page for reference documentation of the classes.
- */
-
-/**
- * OpenCL primitives.
- *
- * The primary classes of interest are @ref Scan and @ref Radixsort, which
- * provide the algorithms. The other classes are utilities and helpers.
- */
-namespace clogs
-{
-} // namespace clogs
-
-#endif /* !CLOGS_CLOGS_H */
+#ifdef CLOGS_DLL_DO_PUSH_POP
+# pragma GCC visibility push(default)
+#endif

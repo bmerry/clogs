@@ -22,37 +22,68 @@
 /**
  * @file
  *
- * OpenCL primitives.
+ * Utility functions that are private to the library.
  */
 
-#ifndef CLOGS_CLOGS_H
-#define CLOGS_CLOGS_H
+#ifndef UTILS_H
+#define UTILS_H
 
 #include <clogs/visibility_push.h>
-#include <CL/cl.hpp>
 #include <string>
-#include <stdexcept>
+#include <map>
+#include <vector>
+#include <CL/cl.hpp>
 #include <clogs/visibility_pop.h>
 
-#include <clogs/core.h>
-#include <clogs/scan.h>
-#include <clogs/radixsort.h>
-
-/**
- * @mainpage
- *
- * Please refer to the user manual for an introduction to CLOGS, or the
- * @ref clogs namespace page for reference documentation of the classes.
- */
-
-/**
- * OpenCL primitives.
- *
- * The primary classes of interest are @ref Scan and @ref Radixsort, which
- * provide the algorithms. The other classes are utilities and helpers.
- */
 namespace clogs
 {
+namespace detail
+{
+
+/**
+ * Returns true if @a device supports @a extension.
+ * At present, no caching is done, so this is a potentially slow operation.
+ */
+CLOGS_LOCAL bool deviceHasExtension(const cl::Device &device, const std::string &extension);
+
+/**
+ * Retrieves the kernel sources baked into the library.
+ *
+ * The implementation of this function is in generated code.
+ */
+CLOGS_LOCAL const std::map<std::string, std::string> &getSourceMap();
+
+CLOGS_LOCAL unsigned int getWarpSize(const cl::Device &device);
+
+CLOGS_LOCAL cl::Program build(
+    const cl::Context &context,
+    const std::vector<cl::Device> &devices,
+    const std::string &filename,
+    const std::map<std::string, int> &defines,
+    const std::string &options = "")
+
+template<typename T>
+static inline T roundDownPower2(T x)
+{
+    T y = 1;
+    while (y * 2 <= x)
+        y <<= 1;
+    return y;
+}
+
+template<typename T>
+static inline T roundDown(T x, T y)
+{
+    return x / y * y;
+}
+
+template<typename T>
+static inline T roundUp(T x, T y)
+{
+    return (x + y - 1) / y * y;
+}
+
+} // namespace detail
 } // namespace clogs
 
-#endif /* !CLOGS_CLOGS_H */
+#endif /* !UTILS_H */
