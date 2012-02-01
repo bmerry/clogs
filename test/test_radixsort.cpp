@@ -43,6 +43,7 @@
 #include <sstream>
 #include <clogs/radixsort.h>
 #include "clogs_test.h"
+#include "../src/radixsort_detail.h"
 
 using namespace std;
 using namespace std::tr1;
@@ -51,7 +52,7 @@ using namespace std::tr1;
  * Recompiling the program for every test is slow, so we cheat slightly by keeping
  * one sorting object around across all tests that use UINT key/value pairs.
  */
-static boost::scoped_ptr<clogs::Radixsort> g_sort;
+static boost::scoped_ptr<clogs::detail::Radixsort> g_sort;
 
 class TestRadixsort : public clogs::Test::TestFixture
 {
@@ -79,7 +80,7 @@ class TestRadixsort : public clogs::Test::TestFixture
     CPPUNIT_TEST_SUITE_END();
 
 private:
-    clogs::Radixsort *sort;
+    clogs::detail::Radixsort *sort;
 
     static void addUpsweepTests(TestSuiteBuilderContextType &context);
     static void addDownsweepTests(TestSuiteBuilderContextType &context);
@@ -253,7 +254,7 @@ void TestRadixsort::setUp()
 {
     clogs::Test::TestFixture::setUp();
     if (g_sort == NULL)
-        g_sort.reset(new clogs::Radixsort(context, device, clogs::TYPE_UINT, clogs::TYPE_UINT));
+        g_sort.reset(new clogs::detail::Radixsort(context, device, clogs::TYPE_UINT, clogs::TYPE_UINT));
     sort = g_sort.get();
 }
 
@@ -371,7 +372,7 @@ void TestRadixsort::testReduce(const size_t size)
 {
     typedef typename KeyTag::type Key;
     clogs::Type keyType = KeyTag::makeType();
-    clogs::Radixsort sort(context, device, keyType);
+    clogs::detail::Radixsort sort(context, device, keyType);
     mt19937 engine;
 
     const size_t tileSize = sort.scatterWorkGroupSize * sort.scatterWorkScale;
@@ -471,7 +472,7 @@ void TestRadixsort::testScatter(size_t size)
     clogs::Type keyType = KeyTag::makeType();
     clogs::Type valueType = ValueTag::makeType();
 
-    clogs::Radixsort sort(context, device, keyType, valueType);
+    clogs::detail::Radixsort sort(context, device, keyType, valueType);
     mt19937 engine;
 
     const size_t tileSize = sort.scatterWorkGroupSize * sort.scatterWorkScale;

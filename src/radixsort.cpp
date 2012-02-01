@@ -41,14 +41,15 @@
 #include <clogs/core.h>
 #include <clogs/radixsort.h>
 #include "utils.h"
+#include "radixsort_detail.h"
 
 namespace clogs
+{
+namespace detail
 {
 
 ::size_t Radixsort::getBlocks(::size_t elements, ::size_t len)
 {
-    using namespace clogs::detail;
-
     const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
     ::size_t blocks = (elements + len - 1) / len;
     blocks = roundUp(blocks, slicesPerWorkGroup);
@@ -227,8 +228,6 @@ Radixsort::Radixsort(
     const cl::Context &context, const cl::Device &device,
     const Type &keyType, const Type &valueType)
 {
-    using namespace clogs::detail;
-
     if (!keyType.isIntegral() || keyType.isSigned() || keyType.getLength() != 1
         || !keyType.isComputable(device) || !keyType.isStorable(device))
         throw std::invalid_argument("keyType is not valid");
@@ -325,11 +324,46 @@ Radixsort::Radixsort(
     {
         throw InternalError(std::string("Error preparing kernels for radixsort: ") + e.what());
     }
+}
 
+
+} // namespace detail
+
+Radixsort::Radixsort(
+    const cl::Context &context, const cl::Device &device,
+    const Type &keyType, const Type &valueType)
+{
+    detail_ = new detail::Radixsort(context, device, keyType, valueType);
+}
+
+void Radixsort::enqueue(
+    const cl::CommandQueue &commandQueue,
+    const cl::Buffer &keys, const cl::Buffer &values,
+    ::size_t elements, unsigned int maxBits,
+    const VECTOR_CLASS<cl::Event> *events,
+    cl::Event *event)
+{
+    detail_->enqueue(commandQueue, keys, values, elements, maxBits, events, event);
+}
+
+void Radixsort::enqueue(
+    const cl::CommandQueue &commandQueue,
+    const cl::Buffer &keys, const cl::Buffer &values,
+    ::size_t elements,
+    const VECTOR_CLASS<cl::Event> *events,
+    cl::Event *event)
+{
+    detail_->enqueue(commandQueue, keys, values, elements, events, event);
+}
+
+void Radixsort::setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &values)
+{
+    detail_->setTemporaryBuffers(keys, values);
 }
 
 Radixsort::~Radixsort()
 {
+    delete detail_;
 }
 
 } // namespace internal
