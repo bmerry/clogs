@@ -1,3 +1,23 @@
+# Copyright (c) 2012 University of Cape Town
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 APPNAME = 'clogs'
 VERSION = '1.0.0'
 out = 'build'
@@ -78,7 +98,9 @@ def configure(conf):
         configure_variant_gcc(conf)
 
 def options(opt):
-    opt.add_option('--variant', type = 'choice', dest = 'variant', default = 'release', action = 'store', help = 'build variant', choices = variants.keys())
+    opt.add_option('--variant', type = 'choice', dest = 'variant',
+            default = 'release', action = 'store',
+            help = 'build variant (release | debug | optimized)', choices = variants.keys())
     opt.add_option('--with-doxygen', dest = 'with_doxygen', action = 'store_true', help = 'Build reference documentation')
     opt.add_option('--without-doxygen', dest = 'with_doxygen', action = 'store_false', help = 'Do not build reference documentation')
     opt.add_option('--with-xsltproc', dest = 'with_xsltproc', action = 'store_true', help = 'Build user manual')
@@ -100,7 +122,7 @@ def post(bld):
         for x in outputs:
             x.sig = Utils.h_file(x.abspath())
         # Do the install right now
-        bld.install_files('${DOCDIR}', outputs, cwd = output_dir, relative_trick = True, postpone = False, add = False)
+        bld.install_files('${HTMLDIR}', outputs, cwd = output_dir, relative_trick = True, postpone = False, add = False)
 
     if bld.cmd == 'install':
         import waflib.Logs
@@ -121,7 +143,7 @@ def build(bld):
                 source = 'doc/clogs.in.css',
                 target = 'doc/clogs.css'
             )
-        bld.install_files('${DOCDIR}', ['doc/clogs.html', 'doc/clogs.css'])
+        bld.install_files('${HTMLDIR}', ['doc/clogs.html', 'doc/clogs.css'])
     if bld.env['DOXYGEN']:
         bld(
                 rule = '${DOXYGEN} ${SRC[0].abspath()}',

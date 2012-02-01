@@ -1,17 +1,36 @@
 #!/usr/bin/env python
+
+"""
+Takes OpenCL C code and turns it into constant strings in a C++ source file.
+"""
+
 from __future__ import print_function, division
 import sys
 import re
 from textwrap import dedent
 
-escape_re = re.compile(r'[\\"]')
+__author__ = "Bruce Merry"
+__copyright__ = "Copyright 2012, University of Cape Town"
+__license__ = "MIT"
+__maintainer__ = "Bruce Merry"
+__email__ = "bmerry@users.sourceforge.net"
 
-def escape(s):
-    return escape_re.sub(r'\\\g<0>', s)
+ESCAPE_RE = re.compile(r'[\\"]')
+
+def escape(string):
+    """
+    Escapes a string so that it can be safely included inside a C string.
+    The string must not contain newlines, nor characters not valid in OpenCL C.
+    """
+    return ESCAPE_RE.sub(r'\\\g<0>', string)
 
 def main(argv):
+    """
+    Main program
+    """
     if len(argv) < 2:
-        print("Usage: {0} <input.cl>... <output.cpp>".format(sys.argv[0]), file = sys.stderr)
+        print("Usage: {0} <input.cl>... <output.cpp>".format(sys.argv[0]),
+                file = sys.stderr)
         return 2
 
     with open(sys.argv[-1], 'w') as outf:
@@ -53,7 +72,8 @@ def main(argv):
             with open(i, 'r') as inf:
                 lines = inf.readlines()
                 lines = [escape(line.rstrip('\n')) for line in lines]
-                print('    g_sources["{0}"] ='.format(escape(label)), file = outf)
+                print('    g_sources["{0}"] ='.format(escape(label)),
+                        file = outf)
                 for line in lines:
                     print('        "{0}\\n"'.format(line), file = outf)
                 print('        ;', file = outf)
