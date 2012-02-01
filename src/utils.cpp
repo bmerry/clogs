@@ -76,7 +76,7 @@ cl::Program build(
     const std::vector<cl::Device> &devices,
     const std::string &filename,
     const std::map<std::string, int> &defines,
-    const std::string &options = "")
+    const std::string &options)
 {
     const std::map<std::string, std::string> &sourceMap = detail::getSourceMap();
     if (!sourceMap.count(filename))

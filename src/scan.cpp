@@ -38,6 +38,7 @@
 #include <cstddef>
 #include <map>
 #include <string>
+#include <cassert>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -46,6 +47,86 @@
 
 namespace clogs
 {
+
+namespace detail
+{
+
+/**
+ * Internal implementation of @ref clogs::Scan.
+ */
+class CLOGS_LOCAL Scan
+{
+private:
+    ::size_t reduceWorkGroupSize;    ///< Work group size for the initial reduce phase
+    ::size_t scanWorkGroupSize;      ///< Work group size for the final scan phase
+    ::size_t scanWorkScale;          ///< Elements for work item for the final scan phase
+    ::size_t maxBlocks;              ///< Maximum number of items in the middle phase
+    ::size_t elementSize;            ///< Size of the element type
+    cl::Program program;             ///< Program containing the kernels
+    cl::Kernel reduceKernel;         ///< Initial reduction kernel
+    cl::Kernel scanSmallKernel;      ///< Middle-phase scan kernel
+    cl::Kernel scanSmallKernelOffset; ///< Middle-phase scan kernel with offset support
+    cl::Kernel scanKernel;           ///< Final scan kernel
+    cl::Buffer sums;                 ///< Reductions of the blocks for middle phase
+
+    /**
+     * Implementation of @ref enqueueInternal, supporting both offsetting and
+     * non-offsetting. If @a offsetBuffer is not @c NULL, we are doing offseting.
+     */
+    void enqueueInternal(
+        const cl::CommandQueue &commandQueue,
+        const cl::Buffer &buffer,
+        ::size_t elements,
+        const void *offsetCPU,
+        const cl::Buffer *offsetBuffer,
+        cl_uint offsetIndex,
+        const VECTOR_CLASS<cl::Event> *events,
+        cl::Event *event);
+
+    /* Prevent copying */
+    Scan(const Scan &);
+    Scan &operator=(const Scan &);
+
+public:
+    /**
+     * Constructor.
+     * @see @ref clogs::Scan::Scan
+     */
+    Scan(const cl::Context &context, const cl::Device &device, const Type &type);
+
+    /**
+     * Enqueue a scan operation on a command queue.
+     * @see @ref clogs::Scan::enqueue.
+     */
+    void enqueue(const cl::CommandQueue &commandQueue,
+                 const cl::Buffer &buffer,
+                 ::size_t elements,
+                 const VECTOR_CLASS<cl::Event> *events,
+                 cl::Event *event);
+
+    /**
+     * Enqueue a scan operation on a command queue, with a CPU offset.
+     * @see @ref clogs::Scan::enqueue.
+     */
+    void enqueue(const cl::CommandQueue &commandQueue,
+                 const cl::Buffer &buffer,
+                 ::size_t elements,
+                 const void *offset,
+                 const VECTOR_CLASS<cl::Event> *events,
+                 cl::Event *event);
+
+    /**
+     * Enqueue a scan operation on a command queue, with an offset in a buffer.
+     * @see clogs::Scan::enqueue.
+     */
+    void enqueue(const cl::CommandQueue &commandQueue,
+                 const cl::Buffer &buffer,
+                 ::size_t elements,
+                 const cl::Buffer &offsetBuffer,
+                 cl_uint offsetIndex,
+                 const VECTOR_CLASS<cl::Event> *events,
+                 cl::Event *event);
+};
 
 Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type)
 {
@@ -235,8 +316,46 @@ void Scan::enqueue(const cl::CommandQueue &commandQueue,
     enqueueInternal(commandQueue, buffer, elements, NULL, &offsetBuffer, offsetIndex, events, event);
 }
 
+} // namespace detail
+
+Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type)
+{
+    detail_ = new detail::Scan(context, device, type);
+}
+
 Scan::~Scan()
 {
+    delete detail_;
+}
+
+void Scan::enqueue(const cl::CommandQueue &commandQueue,
+                   const cl::Buffer &buffer,
+                   ::size_t elements,
+                   const VECTOR_CLASS<cl::Event> *events,
+                   cl::Event *event)
+{
+    detail_->enqueue(commandQueue, buffer, elements, events, event);
+}
+
+void Scan::enqueue(const cl::CommandQueue &commandQueue,
+                   const cl::Buffer &buffer,
+                   ::size_t elements,
+                   const void *offset,
+                   const VECTOR_CLASS<cl::Event> *events,
+                   cl::Event *event)
+{
+    detail_->enqueue(commandQueue, buffer, elements, offset, events, event);
+}
+
+void Scan::enqueue(const cl::CommandQueue &commandQueue,
+                   const cl::Buffer &buffer,
+                   ::size_t elements,
+                   const cl::Buffer &offsetBuffer,
+                   cl_uint offsetIndex,
+                   const VECTOR_CLASS<cl::Event> *events,
+                   cl::Event *event)
+{
+    detail_->enqueue(commandQueue, buffer, elements, offsetBuffer, offsetIndex, events, event);
 }
 
 } // namespace clogs

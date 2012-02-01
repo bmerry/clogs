@@ -37,6 +37,7 @@
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
+#include "utils.h"
 
 namespace clogs
 {
@@ -113,6 +114,8 @@ bool Type::isSigned() const
 
 bool Type::isStorable(const cl::Device &device) const
 {
+    using namespace clogs::detail;
+
     switch (baseType)
     {
     case TYPE_VOID:
@@ -142,6 +145,8 @@ bool Type::isStorable(const cl::Device &device) const
 
 bool Type::isComputable(const cl::Device &device) const
 {
+    using namespace clogs::detail;
+
     switch (baseType)
     {
     case TYPE_VOID:

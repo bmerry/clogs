@@ -38,6 +38,11 @@
 namespace clogs
 {
 
+namespace detail
+{
+    class Scan;
+} // namespace detail
+
 /**
  * Exclusive scan (prefix sum) primitive.
  *
@@ -55,35 +60,11 @@ namespace clogs
 class CLOGS_API Scan
 {
 private:
-    ::size_t reduceWorkGroupSize;    ///< Work group size for the initial reduce phase
-    ::size_t scanWorkGroupSize;      ///< Work group size for the final scan phase
-    ::size_t scanWorkScale;          ///< Elements for work item for the final scan phase
-    ::size_t maxBlocks;              ///< Maximum number of items in the middle phase
-    ::size_t elementSize;            ///< Size of the element type
-    cl::Program program;             ///< Program containing the kernels
-    cl::Kernel reduceKernel;         ///< Initial reduction kernel
-    cl::Kernel scanSmallKernel;      ///< Middle-phase scan kernel
-    cl::Kernel scanSmallKernelOffset; ///< Middle-phase scan kernel with offset support
-    cl::Kernel scanKernel;           ///< Final scan kernel
-    cl::Buffer sums;                 ///< Reductions of the blocks for middle phase
-
-    /**
-     * Implementation of @ref enqueueInternal, supporting both offsetting and
-     * non-offsetting. If @a offsetBuffer is not @c NULL, we are doing offseting.
-     */
-    CLOGS_LOCAL void enqueueInternal(
-        const cl::CommandQueue &commandQueue,
-        const cl::Buffer &buffer,
-        ::size_t elements,
-        const void *offsetCPU,
-        const cl::Buffer *offsetBuffer,
-        cl_uint offsetIndex,
-        const VECTOR_CLASS<cl::Event> *events,
-        cl::Event *event);
+    detail::Scan *detail_;
 
     /* Prevent copying */
-    CLOGS_LOCAL Scan(const Scan &);
-    CLOGS_LOCAL Scan &operator=(const Scan &);
+    Scan(const Scan &);
+    Scan &operator=(const Scan &);
 
 public:
     /**

@@ -60,7 +60,7 @@ CLOGS_LOCAL cl::Program build(
     const std::vector<cl::Device> &devices,
     const std::string &filename,
     const std::map<std::string, int> &defines,
-    const std::string &options = "")
+    const std::string &options = "");
 
 template<typename T>
 static inline T roundDownPower2(T x)

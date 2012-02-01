@@ -34,6 +34,8 @@
 #include <cstddef>
 #include <map>
 #include <string>
+#include <cassert>
+#include <climits>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -45,6 +47,8 @@ namespace clogs
 
 ::size_t Radixsort::getBlocks(::size_t elements, ::size_t len)
 {
+    using namespace clogs::detail;
+
     const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
     ::size_t blocks = (elements + len - 1) / len;
     blocks = roundUp(blocks, slicesPerWorkGroup);
@@ -223,6 +227,8 @@ Radixsort::Radixsort(
     const cl::Context &context, const cl::Device &device,
     const Type &keyType, const Type &valueType)
 {
+    using namespace clogs::detail;
+
     if (!keyType.isIntegral() || keyType.isSigned() || keyType.getLength() != 1
         || !keyType.isComputable(device) || !keyType.isStorable(device))
         throw std::invalid_argument("keyType is not valid");
