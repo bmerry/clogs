@@ -31,6 +31,7 @@
     <xsl:param name="table.borders.with.css" select="'1'"/>
     <xsl:param name="html.stylesheet" select="'clogs-user.css'"/>
     <xsl:param name="html.stylesheet.type" select="'text/css'"/>
+    <xsl:param name="use.svg" select="1"/>
     <xsl:template match="/book/bookinfo/releaseinfo">
         <releaseinfo>
             <xsl:value-of select="$clogs.version"/>

@@ -336,6 +336,23 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
         </section>
     </chapter>
 
+    <chapter id="performance">
+        <title>Performance</title>
+        <para>
+            CLOGS has had relatively little performance tuning, and in
+            particular has not been tuned on any system other than NVIDIA's
+            Fermi architecture. It is not yet as fast as some CUDA sorting
+            implementations.
+        </para>
+        <informalfigure>
+            <mediaobject>
+                <imageobject>
+                    <imagedata format="SVG" fileref="clogs-benchmark.svg"/>
+                </imageobject>
+            </mediaobject>
+        </informalfigure>
+    </chapter>
+
     <chapter id="license">
         <title>License</title>
         <para>

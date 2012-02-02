@@ -148,7 +148,7 @@ def build(bld):
             target = 'src/kernels.cpp')
     if bld.env['XSLTPROC']:
         bld(
-                rule = '${XSLTPROC} --stringparam clogs.version ' + VERSION + ' -o ${TGT} ${SRC}',
+                rule = '${XSLTPROC} --xinclude --stringparam clogs.version ' + VERSION + ' -o ${TGT} ${SRC}',
                 source = ['doc/clogs-user-xml.xsl', 'doc/clogs-user.xml'],
                 target = 'doc/clogs-user.html')
         bld(
@@ -156,7 +156,12 @@ def build(bld):
                 source = 'doc/clogs-user.in.css',
                 target = 'doc/clogs-user.css'
             )
-        bld.install_files('${HTMLDIR}', ['doc/clogs-user.html', 'doc/clogs-user.css'])
+        bld(
+                rule = simple_copy,
+                source = 'doc/benchmark/1.0.0/clogs-benchmark.svg',
+                target = 'doc/images/clogs-benchmark.svg'
+            )
+        bld.install_files('${HTMLDIR}', ['doc/clogs-user.html', 'doc/clogs-user.css', 'doc/clogs-benchmark.svg'])
     if bld.env['DOXYGEN']:
         bld(
                 rule = '${DOXYGEN} ${SRC[0].abspath()}',
