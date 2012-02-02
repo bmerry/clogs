@@ -415,7 +415,7 @@ static void runSort(const cl::CommandQueue &queue, const po::variables_map &vm)
 
     cl::Buffer valueBuffer = randomBuffer(queue, engine, elements, valueType);
     cl::Buffer tmpValueBuffer1, tmpValueBuffer2;
-    std::size_t valueBufferSize;
+    std::size_t valueBufferSize = 0;
     if (valueBuffer())
     {
         valueBufferSize = valueBuffer.getInfo<CL_MEM_SIZE>();
