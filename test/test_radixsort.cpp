@@ -120,11 +120,12 @@ public:
     /**
      * Test the whole sorting process.
      * @param size          Number of elements to sort.
+     * @param bits          Number of bits to put in the sort key.
      * @param tmpKeysSize   Size of buffer to create for temporary keys (0 to disable).
      * @param tmpValuesSize Size of buffer to create for temporary values (0 to disable).
      */
     template<typename KeyTag, typename ValueTag>
-    void testSort(size_t size, size_t tmpKeys, size_t tmpValues);
+    void testSort(size_t size, unsigned int bits, size_t tmpKeys, size_t tmpValues);
 
     /// Calls testScan with the maximum supported block size
     void testScanMaxSize();
@@ -233,7 +234,18 @@ void TestRadixsort::addScatterSortTests(TestSuiteBuilderContextType &context)
         std::ostringstream name;
         name << "testSort(" << KeyTag::makeType().getName() << "," << ValueTag::makeType().getName() << ")::" << size;
 #define MEMBER testSort<KeyTag, ValueTag>
-        CLOGS_TEST_BIND_NAME_FULL(MEMBER, name.str(), size, 0, 0);
+        CLOGS_TEST_BIND_NAME_FULL(MEMBER, name.str(), size, 0, 0, 0);
+#undef MEMBER
+    }
+    /* Test for less than the full number of bits. */
+    unsigned int maxBits = std::numeric_limits<typename KeyTag::scalarType>::digits;
+    for (unsigned int bits = 1; bits < maxBits; bits++)
+    {
+        const size_t size = 0x12345;
+        std::ostringstream name;
+        name << "testSort(" << KeyTag::makeType().getName() << "," << ValueTag::makeType().getName() << ")::" << size << "," << bits;
+#define MEMBER testSort<KeyTag, ValueTag>
+        CLOGS_TEST_BIND_NAME_FULL(MEMBER, name.str(), size, bits, 0, 0);
 #undef MEMBER
     }
 }
@@ -549,7 +561,7 @@ public:
 };
 
 template<typename KeyTag, typename ValueTag>
-void TestRadixsort::testSort(size_t size, size_t tmpKeysSize, size_t tmpValuesSize)
+void TestRadixsort::testSort(size_t size, unsigned int bits, size_t tmpKeysSize, size_t tmpValuesSize)
 {
     typedef typename KeyTag::type Key;
     typedef typename ValueTag::type Value;
@@ -566,7 +578,14 @@ void TestRadixsort::testSort(size_t size, size_t tmpKeysSize, size_t tmpValuesSi
         sort.setTemporaryBuffers(tmpKeys, tmpValues);
     mt19937 engine;
 
-    clogs::Test::Array<KeyTag> hostKeys(engine, size);
+    Key minKey = 0;
+    Key maxKey;
+    if (bits == 0 || bits >= (unsigned int) std::numeric_limits<Key>::digits)
+        maxKey = std::numeric_limits<Key>::max();
+    else
+        maxKey = (Key(1) << bits) - 1;
+
+    clogs::Test::Array<KeyTag> hostKeys(engine, size, minKey, maxKey);
     clogs::Test::Array<ValueTag> hostValues(engine, size);
     vector<cl_uint> hostOrder(size);
     for (size_t i = 0; i < size; i++)
@@ -584,7 +603,7 @@ void TestRadixsort::testSort(size_t size, size_t tmpKeysSize, size_t tmpValuesSi
         sortedValues[i] = hostValues[hostOrder[i]];
     }
 
-    sort.enqueue(queue, devKeys, devValues, size);
+    sort.enqueue(queue, devKeys, devValues, size, bits);
     clogs::Test::Array<KeyTag> resultKeys(queue, devKeys, size);
     clogs::Test::Array<ValueTag> resultValues(queue, devValues, size);
 
@@ -594,17 +613,17 @@ void TestRadixsort::testSort(size_t size, size_t tmpKeysSize, size_t tmpValuesSi
 
 void TestRadixsort::testTmpKeys()
 {
-    testSort<clogs::Test::TypeTag<clogs::TYPE_UINT>, clogs::Test::TypeTag<clogs::TYPE_VOID> >(128, 128, 0);
+    testSort<clogs::Test::TypeTag<clogs::TYPE_UINT>, clogs::Test::TypeTag<clogs::TYPE_VOID> >(128, 0, 128, 0);
 }
 
 void TestRadixsort::testTmpValues()
 {
-    testSort<clogs::Test::TypeTag<clogs::TYPE_UINT>, clogs::Test::TypeTag<clogs::TYPE_INT, 2> >(128, 0, 128);
+    testSort<clogs::Test::TypeTag<clogs::TYPE_UINT>, clogs::Test::TypeTag<clogs::TYPE_INT, 2> >(128, 0, 0, 128);
 }
 
 void TestRadixsort::testTmpSmall()
 {
-    testSort<clogs::Test::TypeTag<clogs::TYPE_UINT>, clogs::Test::TypeTag<clogs::TYPE_FLOAT, 4> >(128, 127, 127);
+    testSort<clogs::Test::TypeTag<clogs::TYPE_UINT>, clogs::Test::TypeTag<clogs::TYPE_FLOAT, 4> >(128, 0, 127, 127);
 }
 
 /*******************************************************/

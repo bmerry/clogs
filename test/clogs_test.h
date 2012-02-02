@@ -190,10 +190,13 @@ public:
      * Constructor that populates with random values.
      * @todo Currently this will only work with integral types.
      */
-    Array(std::tr1::mt19937 &engine, size_t size) : std::vector<value_type>(size)
+    Array(std::tr1::mt19937 &engine, size_t size,
+          typename Tag::scalarType minValue = std::numeric_limits<typename Tag::scalarType>::min(),
+          typename Tag::scalarType maxValue = std::numeric_limits<typename Tag::scalarType>::max())
+        : std::vector<value_type>(size)
     {
         typedef typename Tag::scalarType T;
-        std::tr1::uniform_int<T> dist(std::numeric_limits<T>::min(), std::numeric_limits<T>::max());
+        std::tr1::uniform_int<T> dist(minValue, maxValue);
         std::tr1::variate_generator<std::tr1::mt19937 &, std::tr1::uniform_int<T> > gen(engine, dist);
         for (size_t i = 0; i < size; i++)
             for (size_t j = 0; j < Tag::length; j++)
