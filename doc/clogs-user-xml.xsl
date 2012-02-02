@@ -29,7 +29,7 @@
     <xsl:param name="section.label.includes.component.label" select="'1'"/>
     <xsl:param name="funcsynopsis.style">ansi</xsl:param>
     <xsl:param name="table.borders.with.css" select="'1'"/>
-    <xsl:param name="html.stylesheet" select="'clogs.css'"/>
+    <xsl:param name="html.stylesheet" select="'clogs-user.css'"/>
     <xsl:param name="html.stylesheet.type" select="'text/css'"/>
     <xsl:template match="/book/bookinfo/releaseinfo">
         <releaseinfo>

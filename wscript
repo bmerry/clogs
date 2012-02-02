@@ -18,6 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import shutil
+
 APPNAME = 'clogs'
 VERSION = '1.0.0'
 out = 'build'
@@ -110,8 +112,10 @@ def options(opt):
     opt.load('gnu_dirs')
 
 def post(bld):
-    # This is a rather hacky way to ensure that 'waf install' will install the
-    # doxygen build. 
+    """
+    This is a rather hacky way to ensure that 'waf install' will install the
+    doxygen build.
+    """
     from waflib import Utils
     if bld.env['DOXYGEN']:
         output_dir = bld.bldnode.find_dir('doc')
@@ -128,6 +132,15 @@ def post(bld):
         import waflib.Logs
         waflib.Logs.warn('If you installed to a standard library location, you should now run ldconfig.')
 
+def simple_copy(task):
+    """
+    Wrapper around shutils.copy2 that allows it to be used as rule function.
+    This is more portable than calling cp via the shell.
+    """
+    src = task.inputs[0].abspath()
+    tgt = task.outputs[0].abspath()
+    shutil.copy2(src, tgt)
+
 def build(bld):
     bld(
             rule = 'python ${SRC} ${TGT}',
@@ -136,14 +149,14 @@ def build(bld):
     if bld.env['XSLTPROC']:
         bld(
                 rule = '${XSLTPROC} --stringparam clogs.version ' + VERSION + ' -o ${TGT} ${SRC}',
-                source = ['doc/xhtml-single.xsl', 'doc/clogs.xml'],
-                target = 'doc/clogs.html')
+                source = ['doc/clogs-user-xml.xsl', 'doc/clogs-user.xml'],
+                target = 'doc/clogs-user.html')
         bld(
-                rule = 'cp ${SRC} ${TGT}',
-                source = 'doc/clogs.in.css',
-                target = 'doc/clogs.css'
+                rule = simple_copy,
+                source = 'doc/clogs-user.in.css',
+                target = 'doc/clogs-user.css'
             )
-        bld.install_files('${HTMLDIR}', ['doc/clogs.html', 'doc/clogs.css'])
+        bld.install_files('${HTMLDIR}', ['doc/clogs-user.html', 'doc/clogs-user.css'])
     if bld.env['DOXYGEN']:
         bld(
                 rule = '${DOXYGEN} ${SRC[0].abspath()}',
