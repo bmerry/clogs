@@ -65,8 +65,8 @@
             </para>
             <para>
                 It has been tested on an NVIDIA GTX 480 and on a CPU using the
-                AMD APP SDK 2.5 and 2.6. It is expected to work on any OpenCL
-                implementation but it is untested, and it is unlikely to have
+                AMD APP SDK. It is expected to work on any OpenCL
+                implementation but this is untested, and it is unlikely to have
                 optimal performance.
             </para>
             <para>
@@ -78,13 +78,16 @@
                         <filename type="header">CL/cl.hpp</filename>).
                 </para></listitem>
                 <listitem><para>
-                        A C++ compiler. GCC 4.4-4.6 have been tested.
+                        A C++ compiler. GCC 4.6 has been tested. Older versions
+                        off GCC 4.x should work fine too, but it is not tested
+                        regularly.
                 </para></listitem>
                 <listitem><para>
                         The Boost headers. No dynamic libraries are needed to
                         use the CLOGS library, but the
                         <application>boost::program_options</application>
-                        library is needed for the CLOGS test suite.
+                        library is needed for the CLOGS test suite and
+                        benchmark application.
                 </para></listitem>
                 <listitem><para>
                         <application>Doxygen</application> is required to
@@ -256,6 +259,13 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
                 Both of the classes we can covered so far have additional
                 features, which are described in the reference manual.
             </para>
+        </section>
+        <section>
+            For a complete example of using the API, refer to
+            <filename>tools/clogs-benchmark.cpp</filename>, which is a tool
+            for benchmarking the performance of CLOGS when sorting. This tool
+            is also installed when you install CLOGS, so you can obtain
+            estimates of sorting performance from the command-line.
         </section>
         <section id="using.reentrance">
             <title>Reentrance</title>
