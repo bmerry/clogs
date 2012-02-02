@@ -21,7 +21,7 @@
 import shutil
 
 APPNAME = 'clogs'
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 out = 'build'
 
 variants = {
@@ -161,7 +161,11 @@ def build(bld):
                 source = 'doc/benchmark/1.0.0/clogs-benchmark.svg',
                 target = 'doc/images/clogs-benchmark.svg'
             )
-        bld.install_files('${HTMLDIR}', ['doc/clogs-user.html', 'doc/clogs-user.css', 'doc/clogs-benchmark.svg'])
+        output_dir = bld.bldnode.find_dir('doc')
+        bld.install_files('${HTMLDIR}',
+                output_dir.ant_glob('clogs-user.*') + output_dir.ant_glob('images/**/*'),
+                cwd = bld.bldnode.find_dir('doc'),
+                relative_trick = True)
     if bld.env['DOXYGEN']:
         bld(
                 rule = '${DOXYGEN} ${SRC[0].abspath()}',

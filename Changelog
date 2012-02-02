@@ -1,0 +1,7 @@
+1.0.1
+-----
+* Fix a packaging error that prevented installation from working when building docs
+
+1.0.0
+-----
+* First public release
