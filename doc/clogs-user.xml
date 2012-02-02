@@ -260,12 +260,15 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
                 features, which are described in the reference manual.
             </para>
         </section>
-        <section>
-            For a complete example of using the API, refer to
-            <filename>tools/clogs-benchmark.cpp</filename>, which is a tool
-            for benchmarking the performance of CLOGS when sorting. This tool
-            is also installed when you install CLOGS, so you can obtain
-            estimates of sorting performance from the command-line.
+        <section id="using.benchmark">
+            <title>Benchmark application</title>
+            <para>
+                For a complete example of using the API, refer to
+                <filename>tools/clogs-benchmark.cpp</filename>, which is a tool
+                for benchmarking the performance of CLOGS when sorting. This tool
+                is also installed when you install CLOGS, so you can obtain
+                estimates of sorting performance from the command-line.
+            </para>
         </section>
         <section id="using.reentrance">
             <title>Reentrance</title>
@@ -342,7 +345,10 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
             CLOGS has had relatively little performance tuning, and in
             particular has not been tuned on any system other than NVIDIA's
             Fermi architecture. It is not yet as fast as some CUDA sorting
-            implementations.
+            implementations. The graph below gives an indication of sorting
+            rates on one GPU. Note that the Y axis is the rate, not the
+            time: it needs a <emphasis>lot</emphasis> to achieve maximum
+            throughput.
         </para>
         <informalfigure>
             <mediaobject>
