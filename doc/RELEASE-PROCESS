@@ -1,0 +1,10 @@
+- Build and run the test suite
+- Update the version number in wscript
+- Run new benchmarks
+- Rebuild the documentation
+- Upload new documentation to Sourceforge page
+- Check that the wiki page is up to date
+- Create a new version in trac
+- Upload the tarball to the file release system
+- Mark the new release as the latest version
+- Tag the release
