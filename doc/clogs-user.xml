@@ -177,29 +177,46 @@
             <title>Examples</title>
             <para>
                 We start with a simple example showing how to do a scan
-                operation. We assume that an OpenCL context, device and
+                (prefix sum) operation. This operation is typically
+                combined with an algorithm that produces a variable amount of
+                output per work item, to allocate positions in an output
+                buffer. In a first pass, each work-item writes the number of
+                output elements to a buffer, which we'll call
+                <varname>counts</varname>. A prefix sum is then run over
+                <varname>counts</varname>, which replaces each value with
+                the sum of all values strictly before it.  The second pass of
+                the algorithm then uses the values in
+                <varname>counts</varname> as the initial positions to start
+                writing output to another buffer.
+            </para>
+            <para>
+                In the sample code, we assume that an OpenCL context, device and
                 command queue have already been created using the C++
-                bindings, and that the data to scan is already in a buffer.
+                bindings, and that the <varname>counts</varname> array has
+                already been written.
             </para>
             <programlisting language="c++">
 #include &lt;clogs/clogs.h&gt;
 ...
 clogs::Scan scanner(context, device, clogs::TYPE_UINT);
-scanner.enqueue(queue, dataBuffer, numElements, NULL, NULL);</programlisting>
+...
+scanner.enqueue(queue, dataBuffer, numElements);</programlisting>
             <para>
                 The above code first allocates an object that can be used to
-                perform scans. The constructor handles compilation of the internal kernels
-                and allocation of internal storage. In this example
-                create it as it is needed, but in practise these objects are
-                quite slow to create and should be reused where possible.
+                perform scans. The constructor handles compilation of the
+                internal kernels and allocation of internal storage. These
+                objects are quite slow to create and should be reused where
+                possible.
             </para>
             <para>
-                The last line enqueues to <symbol>queue</symbol> the kernel
-                launches needed to perform the scan. The final two parameters
-                are a vector of events to wait for, and an output to return an
-                event to signal that the scan is complete. These work in the
-                same way as for many of the enqueue functions in the OpenCL
-                C++ API.
+                The last line enqueues to <varname>queue</varname> the kernel
+                launches needed to perform the scan. There are several
+                optional parameters we have not shown. These include a vector
+                of events to wait for, and an output parameter which returns
+                an event that is signaled when the scan is complete. These
+                work in the same way as the other enqueuing functions in
+                the OpenCL C++ API, and allow scans to be combined with other
+                kernel launches in a dependency graph.
             </para>
             <para>
                 Now let us look at a slightly more complex sorting example.
@@ -207,9 +224,9 @@ scanner.enqueue(queue, dataBuffer, numElements, NULL, NULL);</programlisting>
                 <type>uint</type>s), and <type>float4</type>
                 values. In CLOGS, keys and values must be held in separate
                 buffers (which reduces overall bandwidth), so let us say that
-                keys are in <symbol>keys</symbol> and values in
-                <symbol>values</symbol>. Furthermore, let us suppose that the
-                vector <symbol>wait</symbol> contains a list of events for
+                keys are in <varname>keys</varname> and values in
+                <varname>values</varname>. Furthermore, let us suppose that the
+                vector <varname>wait</varname> contains a list of events for
                 work that will generate the keys and values, and that we want
                 an event that will be signaled when the sort is complete. Then
                 the code we want is
@@ -222,7 +239,7 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
 </programlisting>
             <para>
                 Notice that we used <type>clogs::Type</type> to specify the
-                type of the values. This is a type that encodes an OpenCL
+                type of the values. This is a C++ type that encodes an OpenCL
                 built-in type. In this case we specified the base type
                 (<type>float</type>) and vector length (4). We could also do
                 this for the key type, but it was not necessarily since there
@@ -231,11 +248,13 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
             </para>
             <para>
                 Also notice that we explicitly specified how many bits are
-                used in the key. This parameter is optional, but specifying it
-                may reduce the number of passes and hence improve performance.
-                The actual number of bits used for sorting may be higher, so
-                this should only be used when the remaining bits are equal for
-                all keys.
+                used in the key. This parameter is optional (passing zero
+                is the same as not passing it), but specifying it may reduce
+                the number of passes and hence improve performance.
+            </para>
+            <para>
+                Both of the classes we can covered so far have additional
+                features, which are described in the reference manual.
             </para>
         </section>
         <section id="using.reentrance">
