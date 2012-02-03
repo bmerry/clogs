@@ -1,5 +1,6 @@
 - Build and run the test suite
 - Update the version number in wscript
+- Nuke old versions, check that the new version can install cleanly
 - Run new benchmarks
 - Rebuild the documentation
 - Upload new documentation to Sourceforge page
@@ -8,3 +9,4 @@
 - Upload the tarball to the file release system
 - Mark the new release as the latest version
 - Tag the release
+- Update project info on freecode.com
