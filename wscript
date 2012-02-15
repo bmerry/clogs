@@ -161,7 +161,8 @@ def build(bld):
                 source = 'doc/benchmark/1.0.0/clogs-benchmark.svg',
                 target = 'doc/images/clogs-benchmark.svg'
             )
-        output_dir = bld.bldnode.find_dir('doc')
+        output_dir = bld.bldnode.find_or_declare('doc')
+        output_dir.mkdir()
         bld.install_files('${HTMLDIR}',
                 output_dir.ant_glob('clogs-user.*') + output_dir.ant_glob('images/**/*'),
                 cwd = bld.bldnode.find_dir('doc'),
