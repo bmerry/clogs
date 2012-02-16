@@ -1,3 +1,7 @@
+1.0.2
+-----
+* Fix a build system error that caused builds to fail when documentation was built from a pristine installation
+
 1.0.1
 -----
 * Fix a packaging error that prevented installation from working when building docs

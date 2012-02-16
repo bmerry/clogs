@@ -1,6 +1,7 @@
 - Build and run the test suite
 - Update the version number in wscript
-- Nuke old versions, check that the new version can install cleanly
+- Nuke old versions
+- Run './waf dist' and check that the new version can install cleanly
 - Run new benchmarks
 - Rebuild the documentation
 - Upload new documentation to Sourceforge page
