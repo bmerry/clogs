@@ -116,6 +116,15 @@ def configure(conf):
     conf.check_cxx(header_name = 'CL/cl.hpp', use = 'OPENCL')
     conf.check_cxx(header_name = 'cppunit/Test.h', lib = 'cppunit', mandatory = False)
 
+    conf.check_cxx(
+        function_name = 'QueryPerformanceCounter', header_name = 'windows.h',
+        uselib_store = 'TIMER',
+        mandatory = False)
+    conf.check_cxx(
+        function_name = 'clock_gettime', header_name = 'time.h', lib = 'rt',
+        uselib_store = 'TIMER',
+        mandatory = False)
+
     # Don't care about the defines, just insist the headers are there
     conf.undefine('HAVE_BOOST_FOREACH_HPP')
     conf.undefine('HAVE_BOOST_PROGRAM_OPTIONS_HPP')
@@ -221,12 +230,11 @@ def build(bld):
         bld.program(
                 source = bld.path.ant_glob('test/*.cpp') + ['tools/options.cpp', 'tools/timer.cpp'],
                 target = 'clogs-test',
-                lib = ['cppunit', 'rt'],
-                use = 'PROGRAM_OPTIONS OPENCL CLOGS-ST',
+                lib = ['cppunit'],
+                use = 'PROGRAM_OPTIONS OPENCL CLOGS-ST TIMER',
                 install_path = None)
     bld.program(
             source = bld.path.ant_glob('tools/*.cpp'),
             target = 'clogs-benchmark',
-            lib = ['cppunit', 'rt'],
-            use = 'PROGRAM_OPTIONS OPENCL CLOGS-SH')
+            use = 'PROGRAM_OPTIONS OPENCL CLOGS-SH TIMER')
     bld.install_files('${INCLUDEDIR}/clogs', bld.path.ant_glob('include/clogs/*.h'))
