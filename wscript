@@ -19,6 +19,8 @@
 # SOFTWARE.
 
 import shutil
+import os
+import waflib.Errors
 
 APPNAME = 'clogs'
 VERSION = '1.0.2'
@@ -72,6 +74,22 @@ def configure_variant_gcc(conf):
         conf.env.append_value('LINKFLAGS', '-s')
     conf.env.append_value('CFLAGS', ccflags)
     conf.env.append_value('CXXFLAGS', ccflags)
+    conf.env['LIB_PROGRAM_OPTIONS'] = ['boost_program_options-mt']
+
+def configure_variant_msvc(conf):
+    ccflags = ['/EHsc', '/MD']
+    linkflags = []
+    if conf.env['optimize']:
+        ccflags.append('/O2')
+    if conf.env['debuginfo']:
+        ccflags.append('/Zi')
+        linkflags.append('/DEBUG')
+    conf.env.append_value('CFLAGS', ccflags)
+    conf.env.append_value('CXXFLAGS', ccflags)
+    conf.env.append_value('LINKFLAGS', linkflags)
+    if 'LIBPATH' in os.environ:
+        for item in os.environ['LIBPATH'].split(os.pathsep):
+            conf.env.append_value('LIBPATH', item)
 
 def configure(conf):
     conf.load('gnu_dirs')
@@ -82,27 +100,30 @@ def configure(conf):
     if conf.options.with_xsltproc is not False:
         conf.find_program('xsltproc', mandatory = conf.options.with_xsltproc)
 
+    for (key, value) in variants[conf.options.variant].items():
+        conf.env[key] = value
+    configure_variant(conf)
+    if conf.env['CXX_NAME'] == 'gcc':
+        configure_variant_gcc(conf)
+    elif conf.env['CXX_NAME'] == 'msvc':
+        configure_variant_msvc(conf)
+
     if conf.options.cl_headers:
         conf.env.append_value('INCLUDES_OPENCL', [conf.options.cl_headers])
     conf.env.append_value('LIB_OPENCL', ['OpenCL'])
     conf.check_cxx(header_name = 'boost/foreach.hpp')
-    conf.check_cxx(header_name = 'boost/program_options.hpp', lib = 'boost_program_options-mt')
+    conf.check_cxx(header_name = 'boost/program_options.hpp', use = 'PROGRAM_OPTIONS')
     conf.check_cxx(header_name = 'CL/cl.hpp', use = 'OPENCL')
     # Don't care about the defines, just insist the headers are there
     conf.undefine('HAVE_BOOST_FOREACH_HPP')
     conf.undefine('HAVE_BOOST_PROGRAM_OPTIONS_HPP')
     conf.undefine('HAVE_CL_CL_HPP')
 
-    for (key, value) in variants[conf.options.variant].items():
-        conf.env[key] = value
-    configure_variant(conf)
-    if conf.env['CXX_NAME'] == 'gcc':
-        configure_variant_gcc(conf)
-
 def options(opt):
     opt.add_option('--variant', type = 'choice', dest = 'variant',
             default = 'release', action = 'store',
-            help = 'build variant (release | debug | optimized)', choices = variants.keys())
+            help = 'build variant (release | debug | optimized)',
+            choices = list(variants.keys()))
     opt.add_option('--with-doxygen', dest = 'with_doxygen', action = 'store_true', help = 'Build reference documentation')
     opt.add_option('--without-doxygen', dest = 'with_doxygen', action = 'store_false', help = 'Do not build reference documentation')
     opt.add_option('--with-xsltproc', dest = 'with_xsltproc', action = 'store_true', help = 'Build user manual')
@@ -196,12 +217,12 @@ def build(bld):
     bld.program(
             source = bld.path.ant_glob('test/*.cpp') + ['tools/options.cpp', 'tools/timer.cpp'],
             target = 'clogs-test',
-            lib = ['boost_program_options-mt', 'cppunit', 'rt'],
-            use = 'OPENCL CLOGS-ST',
+            lib = ['cppunit', 'rt'],
+            use = 'PROGRAM_OPTIONS OPENCL CLOGS-ST',
             install_path = None)
     bld.program(
             source = bld.path.ant_glob('tools/*.cpp'),
             target = 'clogs-benchmark',
-            lib = ['boost_program_options-mt', 'cppunit', 'rt'],
-            use = 'OPENCL CLOGS-SH')
+            lib = ['cppunit', 'rt'],
+            use = 'PROGRAM_OPTIONS OPENCL CLOGS-SH')
     bld.install_files('${INCLUDEDIR}/clogs', bld.path.ant_glob('include/clogs/*.h'))
