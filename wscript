@@ -114,6 +114,8 @@ def configure(conf):
     conf.check_cxx(header_name = 'boost/foreach.hpp')
     conf.check_cxx(header_name = 'boost/program_options.hpp', use = 'PROGRAM_OPTIONS')
     conf.check_cxx(header_name = 'CL/cl.hpp', use = 'OPENCL')
+    conf.check_cxx(header_name = 'cppunit/Test.h', lib = 'cppunit', mandatory = False)
+
     # Don't care about the defines, just insist the headers are there
     conf.undefine('HAVE_BOOST_FOREACH_HPP')
     conf.undefine('HAVE_BOOST_PROGRAM_OPTIONS_HPP')
@@ -199,6 +201,7 @@ def build(bld):
         bld.add_post_fun(post)
     clogs_stlib = bld.stlib(
             source = bld.path.ant_glob('src/*.cpp') + ['src/kernels.cpp'],
+            defines = ['CLOGS_DLL_DO_STATIC'],
             target = 'clogs',
             includes = 'include',
             export_includes = 'include',
@@ -207,19 +210,20 @@ def build(bld):
             use = 'OPENCL')
     clogs_shlib = bld.shlib(
             source = bld.path.ant_glob('src/*.cpp') + ['src/kernels.cpp'],
-            defines = ['CLOGS_DLL_DO_EXPORTS'],
+            defines = ['CLOGS_DLL_DO_EXPORT'],
             target = 'clogs',
             includes = 'include',
             export_includes = 'include',
             name = 'CLOGS-SH',
             use = 'OPENCL',
             vnum = VERSION)
-    bld.program(
-            source = bld.path.ant_glob('test/*.cpp') + ['tools/options.cpp', 'tools/timer.cpp'],
-            target = 'clogs-test',
-            lib = ['cppunit', 'rt'],
-            use = 'PROGRAM_OPTIONS OPENCL CLOGS-ST',
-            install_path = None)
+    if bld.env['HAVE_CPPUNIT_TEST_H']:
+        bld.program(
+                source = bld.path.ant_glob('test/*.cpp') + ['tools/options.cpp', 'tools/timer.cpp'],
+                target = 'clogs-test',
+                lib = ['cppunit', 'rt'],
+                use = 'PROGRAM_OPTIONS OPENCL CLOGS-ST',
+                install_path = None)
     bld.program(
             source = bld.path.ant_glob('tools/*.cpp'),
             target = 'clogs-benchmark',

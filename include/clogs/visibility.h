@@ -49,11 +49,15 @@
 # endif
 #endif
 
-/* CLOGS_DLL_BUILD is defined by the build system when building the library */
+#ifdef CLOGS_DLL_DO_STATIC  /* defined by build system in static lib builds */
+# define CLOGS_API CLOGS_DLL_LOCAL
+#else
+/* CLOGS_DLL_DO_EXPORT is defined by the build system when building the library */
 #ifdef CLOGS_DLL_DO_EXPORT
 # define CLOGS_API CLOGS_DLL_EXPORT
 #else
 # define CLOGS_API CLOGS_DLL_IMPORT
+#endif
 #endif
 #define CLOGS_LOCAL CLOGS_DLL_LOCAL
 

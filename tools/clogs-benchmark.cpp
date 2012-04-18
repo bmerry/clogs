@@ -25,7 +25,7 @@
 
 #include <clogs/clogs.h>
 #include <boost/program_options.hpp>
-#include <tr1/random>
+#include <boost/tr1/random.hpp>
 #include <iostream>
 #include <algorithm>
 #include <limits>
@@ -156,7 +156,7 @@ static cl::Buffer randomBuffer(
 {
     const cl::Context &context = queue.getInfo<CL_QUEUE_CONTEXT>();
 
-    if (elements > std::numeric_limits<size_t>::max() / (length * sizeof(T)))
+    if (elements > (std::numeric_limits<size_t>::max)() / (length * sizeof(T)))
     {
         std::cerr << "Number of elements is too large for size_t.\n";
         exit(1);
@@ -185,8 +185,8 @@ static cl::Buffer randomBuffer(
     if (std::numeric_limits<T>::is_integer)
     {
         return randomBuffer(queue, engine, elements, length,
-                            std::numeric_limits<T>::min(),
-                            std::numeric_limits<T>::max());
+                            (std::numeric_limits<T>::min)(),
+                            (std::numeric_limits<T>::max)());
     }
     else
     {
