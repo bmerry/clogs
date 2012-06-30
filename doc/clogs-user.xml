@@ -353,7 +353,17 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
         <informalfigure>
             <mediaobject>
                 <imageobject>
-                    <imagedata format="SVG" fileref="clogs-benchmark.svg"/>
+                    <imagedata format="SVG" fileref="clogs-benchmark-480gtx.svg"/>
+                </imageobject>
+            </mediaobject>
+        </informalfigure>
+        <para>
+            The performance on AMD GPUs will need a lot of work:
+        </para>
+        <informalfigure>
+            <mediaobject>
+                <imageobject>
+                    <imagedata format="SVG" fileref="clogs-benchmark-hd6790.svg"/>
                 </imageobject>
             </mediaobject>
         </informalfigure>
