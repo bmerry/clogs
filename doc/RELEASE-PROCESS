@@ -1,10 +1,12 @@
 - Build and run the test suite
 - Update the version number in wscript
-- Nuke old versions
+- Update the Changelog
+- Nuke old versions: rm -rf /usr/local/share/doc/clogs
 - Run './waf dist' and check that the new version can install cleanly
 - Run new benchmarks
 - Rebuild the documentation
-- Upload new documentation to Sourceforge page
+- Upload new documentation to Sourceforge page (install it first):
+    rsync -va --delete /usr/local/share/doc/clogs/ bmerry@web.sourceforge.net:/home/project-web/clogs/htdocs/doc/
 - Check that the wiki page is up to date
 - Create a new version in trac
 - Upload the tarball to the file release system

@@ -23,7 +23,7 @@ import os
 import waflib.Errors
 
 APPNAME = 'clogs'
-VERSION = '1.0.2'
+VERSION = '1.0.3'
 out = 'build'
 
 variants = {
