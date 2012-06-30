@@ -174,7 +174,7 @@ void Radixsort::enqueue(
     const cl::Buffer *nextValues = &tmpValues;
 
     // block size must be a multiple of this
-    const ::size_t tileSize = (std::max)(reduceWorkGroupSize, scatterWorkScale * scatterWorkGroupSize);
+    const ::size_t tileSize = std::max(reduceWorkGroupSize, scatterWorkScale * scatterWorkGroupSize);
     const ::size_t blockSize = (elements + tileSize * maxBlocks - 1) / (tileSize * maxBlocks) * tileSize;
     const ::size_t blocks = getBlocks(elements, blockSize);
     assert(blocks <= maxBlocks);
@@ -256,16 +256,16 @@ Radixsort::Radixsort(
         scatterWorkGroupSize = 64;
     }
 
-    reduceWorkGroupSize = (std::min)(reduceWorkGroupSize, maxWorkGroupSize);
-    reduceWorkGroupSize = (std::max)(reduceWorkGroupSize, ::size_t(radix));
+    reduceWorkGroupSize = std::min(reduceWorkGroupSize, maxWorkGroupSize);
+    reduceWorkGroupSize = std::max(reduceWorkGroupSize, ::size_t(radix));
     reduceWorkGroupSize = roundDownPower2(reduceWorkGroupSize);
 
-    scanWorkGroupSize = (std::min)(scanWorkGroupSize, maxWorkGroupSize);
-    scanWorkGroupSize = (std::max)(scanWorkGroupSize, ::size_t(radix));
+    scanWorkGroupSize = std::min(scanWorkGroupSize, maxWorkGroupSize);
+    scanWorkGroupSize = std::max(scanWorkGroupSize, ::size_t(radix));
     scanWorkGroupSize = roundDownPower2(scanWorkGroupSize);
 
-    scatterSlice = (std::max)(warpSize, ::size_t(radix));
-    scatterWorkGroupSize = (std::max)(scatterWorkGroupSize, scatterSlice);
+    scatterSlice = std::max(warpSize, ::size_t(radix));
+    scatterWorkGroupSize = std::max(scatterWorkGroupSize, scatterSlice);
     scatterWorkGroupSize = roundDown(scatterWorkGroupSize, scatterSlice);
     // TODO: adjust based on local memory availability. That might need
     // autotuning though.
@@ -275,7 +275,7 @@ Radixsort::Radixsort(
     if (radix < scanWorkGroupSize)
         maxBlocks = roundUp(maxBlocks, scanWorkGroupSize / radix);
     // maximum that will fit in local memory
-    maxBlocks = (std::min)(maxBlocks, ::size_t(device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / radix - 1) / 4);
+    maxBlocks = std::min(maxBlocks, ::size_t(device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / radix - 1) / 4);
     // must have an exact multiple of the workitem count in scan phase
     if (radix < scanWorkGroupSize)
         maxBlocks = roundDown(maxBlocks, scanWorkGroupSize / radix);

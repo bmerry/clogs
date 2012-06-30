@@ -87,3 +87,11 @@ static inline T roundUp(T x, T y)
 } // namespace clogs
 
 #endif /* !UTILS_H */
+
+// windows.h defines these as macros, which break when used as std::min
+#ifdef min
+# undef min
+#endif
+#ifdef max
+# undef max
+#endif

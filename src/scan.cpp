@@ -141,17 +141,17 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
             maxBlocks = 2U;
     }
 
-    workGroupSize = (std::min)(workGroupSize, maxWorkGroupSize);
-    workGroupSize = (std::min)(workGroupSize, localMemElements / 2 - 1);
+    workGroupSize = std::min(workGroupSize, maxWorkGroupSize);
+    workGroupSize = std::min(workGroupSize, localMemElements / 2 - 1);
     workGroupSize = roundDownPower2(workGroupSize);
     reduceWorkGroupSize = workGroupSize;
     scanWorkGroupSize = workGroupSize;
 
-    scanWorkScale = (std::min)(scanWorkScale, localMemElements / workGroupSize);
+    scanWorkScale = std::min(scanWorkScale, localMemElements / workGroupSize);
     scanWorkScale = roundDownPower2(scanWorkScale);
 
-    maxBlocks = (std::min)(maxBlocks, 2 * maxWorkGroupSize);
-    maxBlocks = (std::min)(maxBlocks, localMemElements);
+    maxBlocks = std::min(maxBlocks, 2 * maxWorkGroupSize);
+    maxBlocks = std::min(maxBlocks, localMemElements);
     maxBlocks = roundDownPower2(maxBlocks);
 
     std::map<std::string, int> defines;
@@ -219,7 +219,7 @@ void Scan::enqueueInternal(const cl::CommandQueue &commandQueue,
         throw cl::Error(CL_INVALID_GLOBAL_WORK_SIZE, "clogs::Scan::enqueue: elements is zero");
 
     // block size must be a multiple of this
-    const ::size_t tileSize = (std::max)(reduceWorkGroupSize, scanWorkScale * scanWorkGroupSize);
+    const ::size_t tileSize = std::max(reduceWorkGroupSize, scanWorkScale * scanWorkGroupSize);
 
     /* Ensure that blockSize * blocks >= elements while blockSize is a multiply of tileSize */
     const ::size_t blockSize = roundUp(elements, tileSize * maxBlocks) / maxBlocks;
