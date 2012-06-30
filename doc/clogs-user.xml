@@ -59,15 +59,16 @@
         <section id="installation.requirements">
             <title>Requirements</title>
             <para>
-                At present CLOGS is only supported with GCC on GNU/Linux. The
-                code for the library itself is portable, but some aspects of
-                the build system and test suite will require porting.
+                At present CLOGS is only supported with GCC on GNU/Linux and
+                with Visual C++ 2010 on Windows. The code for the library
+                itself is portable, but some aspects of the build system and
+                test suite require porting.
             </para>
             <para>
-                It has been tested on an NVIDIA GTX 480 and on a CPU using the
-                AMD APP SDK. It is expected to work on any OpenCL
-                implementation but this is untested, and it is unlikely to have
-                optimal performance.
+                It has been tested on an NVIDIA GeForce 480 GTX, an AMD Radeon HD 6790
+                and on a CPU using the AMD APP SDK. It is expected to work on
+                any OpenCL implementation but this is untested, and it is
+                unlikely to have optimal performance.
             </para>
             <para>
                 The following dependencies are required to build CLOGS:
@@ -78,9 +79,9 @@
                         <filename type="header">CL/cl.hpp</filename>).
                 </para></listitem>
                 <listitem><para>
-                        A C++ compiler. GCC 4.6 has been tested. Older versions
-                        off GCC 4.x should work fine too, but it is not tested
-                        regularly.
+                        A C++ compiler. GCC 4.6 and Visual C++ 2010 has been
+                        tested. Older versions should work fine too, but it is
+                        not tested regularly.
                 </para></listitem>
                 <listitem><para>
                         The Boost headers. No dynamic libraries are needed to
@@ -105,7 +106,7 @@
                 </para></listitem>
                 <listitem><para>
                         <application>CppUnit</application> is required to
-                        build and run the test suite.
+                        build and run the test suite (optional).
                 </para></listitem>
             </itemizedlist>
         </section>
@@ -121,19 +122,23 @@
                 The first step is to configure the build. This is done by
                 running
             </para>
-            <screen><prompt>$ </prompt><userinput>./waf configure</userinput></screen>
+            <screen><prompt>$ </prompt><userinput>python waf configure</userinput></screen>
             <para>
                 This will check that the necessary headers can be found.
                 OpenCL headers are not always installed in the normal include
                 paths. You can explicitly specify the location for them by
                 running
             </para>
-            <screen><prompt>$ </prompt><userinput>./waf configure --cl-headers=<replaceable>path</replaceable></userinput></screen>
+            <screen><prompt>$ </prompt><userinput>python waf configure --cl-headers=<replaceable>path</replaceable></userinput></screen>
             <para>
                 Note that <filename
                     class="directory"><replaceable>path</replaceable></filename> should
                 be the directory containing the <filename class="directory">CL</filename>
-                directory.
+                directory. If other libraries also need to be added to the
+                include or link paths, you should use compiler-specific
+                environment variables, such as <envar>INCLUDE</envar> and
+                <envar>LIBPATH</envar> for MSVC or <envar>CPATH</envar> and
+                <envar>LIBRARY_PATH</envar> for GCC.
             </para>
             <para>
                 You can control where CLOGS will be installed by using
@@ -158,11 +163,11 @@
         <section id="installation.install">
             <title>Installing CLOGS</title>
             <para>
-                Installation is done by running <userinput>waf
-                    install</userinput>.  Unless you have changed the
+                Installation is done by running <userinput>python waf
+                    install</userinput>. Unless you have changed the
                 installation directory, you will probably need to be root to do
                 this, and you will also need to run
-                <userinput>ldconfig</userinput> afterwards.
+                <userinput>ldconfig</userinput> afterwards on a GNU system.
             </para>
             <para>
                 <application>waf</application> also supports a
