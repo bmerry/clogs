@@ -36,6 +36,7 @@
 #include <string>
 #include <cassert>
 #include <climits>
+#include <algorithm>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>

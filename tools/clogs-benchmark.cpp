@@ -25,7 +25,7 @@
 
 #include <clogs/clogs.h>
 #include <boost/program_options.hpp>
-#include <tr1/random>
+#include <boost/tr1/random.hpp>
 #include <iostream>
 #include <algorithm>
 #include <limits>
@@ -34,6 +34,7 @@
 #include <stdexcept>
 #include "timer.h"
 #include "options.h"
+#include "../src/utils.h"
 
 namespace po = boost::program_options;
 

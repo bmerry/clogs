@@ -68,7 +68,8 @@ def main(argv):
             Init::Init()
             {'''), file = outf)
         for i in sys.argv[1:-1]:
-            label = re.sub(r'\.\./kernels/', '', i)
+            label = re.sub(r'\\', '/', i) # Fix up Windows separators
+            label = re.sub(r'\.\./kernels/', '', label)
             with open(i, 'r') as inf:
                 lines = inf.readlines()
                 lines = [escape(line.rstrip('\n')) for line in lines]
