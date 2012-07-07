@@ -159,7 +159,8 @@ void reduce(__global SCAN_T *out, __global const SCAN_T *in, uint len)
         out[group] = sums[0];
 }
 
-inline void scanExclusiveSmallBottom(__local SCAN_T v[SCAN_BLOCKS], uint lid)
+// v has size SCAN_BLOCKS
+inline void scanExclusiveSmallBottom(__local SCAN_T *v, uint lid)
 {
     /* Upsweep */
     uint pos = lid + 1;
