@@ -10,6 +10,11 @@
 - Check that the wiki page is up to date
 - Create a new version in trac
 - Upload the tarball to the file release system
+    sftp bmerry@frs.sourceforge.net
+    cd /home/frs/project/clogs
+    mkdir <release>
+    cd <release>
+    put clogs-<release>.tar.bz2
 - Mark the new release as the latest version
 - Tag the release
 - Update project info on freecode.com
