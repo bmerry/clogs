@@ -39,14 +39,14 @@
 #include <vector>
 #include <algorithm>
 #include <cstddef>
-#include <boost/tr1/random.hpp>
+#include "../src/tr1_random.h"
 #include <sstream>
 #include <clogs/radixsort.h>
 #include "clogs_test.h"
 #include "../src/radixsort_detail.h"
 
 using namespace std;
-using namespace std::tr1;
+using namespace RANDOM_NAMESPACE;
 
 /*
  * Recompiling the program for every test is slow, so we cheat slightly by keeping

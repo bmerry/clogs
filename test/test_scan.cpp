@@ -39,13 +39,13 @@
 #include <stdexcept>
 #include <vector>
 #include <cstddef>
-#include <boost/tr1/random.hpp>
+#include "../src/tr1_random.h"
 #include <sstream>
 #include <clogs/scan.h>
 #include "clogs_test.h"
 
 using namespace std;
-using namespace std::tr1;
+using namespace RANDOM_NAMESPACE;
 
 enum OffsetType
 {

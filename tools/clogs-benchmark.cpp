@@ -25,7 +25,6 @@
 
 #include <clogs/clogs.h>
 #include <boost/program_options.hpp>
-#include <boost/tr1/random.hpp>
 #include <iostream>
 #include <algorithm>
 #include <limits>
@@ -35,6 +34,7 @@
 #include "timer.h"
 #include "options.h"
 #include "../src/utils.h"
+#include "../src/tr1_random.h"
 
 namespace po = boost::program_options;
 
@@ -131,27 +131,27 @@ template<typename T>
 class uniform
 {
 public:
-    typedef std::tr1::uniform_int<T> type;
+    typedef RANDOM_NAMESPACE::uniform_int<T> type;
 };
 
 template<>
 class uniform<float>
 {
 public:
-    typedef std::tr1::uniform_real<float> type;
+    typedef RANDOM_NAMESPACE::uniform_real<float> type;
 };
 
 template<>
 class uniform<double>
 {
 public:
-    typedef std::tr1::uniform_real<double> type;
+    typedef RANDOM_NAMESPACE::uniform_real<double> type;
 };
 
 template<typename T>
 static cl::Buffer randomBuffer(
     const cl::CommandQueue &queue,
-    std::tr1::mt19937 &engine,
+    RANDOM_NAMESPACE::mt19937 &engine,
     std::size_t elements, int length,
     T minValue, T maxValue)
 {
@@ -164,7 +164,7 @@ static cl::Buffer randomBuffer(
     }
 
     typename uniform<T>::type dist(minValue, maxValue);
-    std::tr1::variate_generator<std::tr1::mt19937 &, typename uniform<T>::type> gen(engine, dist);
+    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, typename uniform<T>::type> gen(engine, dist);
 
     elements *= length;
     std::size_t size = elements * sizeof(T);
@@ -180,7 +180,7 @@ static cl::Buffer randomBuffer(
 template<typename T>
 static cl::Buffer randomBuffer(
     const cl::CommandQueue &queue,
-    std::tr1::mt19937 &engine,
+    RANDOM_NAMESPACE::mt19937 &engine,
     std::size_t elements, int length)
 {
     if (std::numeric_limits<T>::is_integer)
@@ -199,7 +199,7 @@ static cl::Buffer randomBuffer(
  */
 static cl::Buffer randomBuffer(
     const cl::CommandQueue &queue,
-    std::tr1::mt19937 &engine,
+    RANDOM_NAMESPACE::mt19937 &engine,
     std::size_t elements, const clogs::Type &type,
     cl_ulong minValue, cl_ulong maxValue)
 {
@@ -255,7 +255,7 @@ static cl::Buffer randomBuffer(
  */
 static cl::Buffer randomBuffer(
     const cl::CommandQueue &queue,
-    std::tr1::mt19937 &engine,
+    RANDOM_NAMESPACE::mt19937 &engine,
     std::size_t elements, const clogs::Type &type)
 {
     int length = type.getLength();
@@ -408,7 +408,7 @@ static void runSort(const cl::CommandQueue &queue, const po::variables_map &vm)
     }
 
 
-    std::tr1::mt19937 engine;
+    RANDOM_NAMESPACE::mt19937 engine;
     cl::Buffer keyBuffer = randomBuffer(queue, engine, elements, keyType, minValue, maxValue);
     std::size_t keyBufferSize = keyBuffer.getInfo<CL_MEM_SIZE>();
     cl::Buffer tmpKeyBuffer1(context, CL_MEM_READ_WRITE, keyBufferSize);

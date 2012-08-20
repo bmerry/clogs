@@ -32,8 +32,8 @@
 # include <config.h>
 #endif
 #include <cppunit/extensions/HelperMacros.h>
-#include <boost/tr1/functional.hpp>
-#include <boost/tr1/random.hpp>
+#include "../src/tr1_functional.h"
+#include "../src/tr1_random.h"
 #include <string>
 #include <vector>
 #include <cstddef>
@@ -196,14 +196,14 @@ public:
      * Constructor that populates with random values.
      * @todo Currently this will only work with integral types.
      */
-    Array(std::tr1::mt19937 &engine, size_t size,
+    Array(RANDOM_NAMESPACE::mt19937 &engine, size_t size,
           typename Tag::scalarType minValue = std::numeric_limits<typename Tag::scalarType>::min(),
           typename Tag::scalarType maxValue = std::numeric_limits<typename Tag::scalarType>::max())
         : std::vector<value_type>(size)
     {
         typedef typename Tag::scalarType T;
-        std::tr1::uniform_int<T> dist(minValue, maxValue);
-        std::tr1::variate_generator<std::tr1::mt19937 &, std::tr1::uniform_int<T> > gen(engine, dist);
+        RANDOM_NAMESPACE::uniform_int<T> dist(minValue, maxValue);
+        RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<T> > gen(engine, dist);
         for (size_t i = 0; i < size; i++)
             for (size_t j = 0; j < Tag::length; j++)
             {
@@ -266,7 +266,7 @@ public:
 
     Array() {}
     explicit Array(size_type) {}
-    Array(std::tr1::mt19937 &, size_t) {}
+    Array(RANDOM_NAMESPACE::mt19937 &, size_t) {}
     Array(cl::CommandQueue &, const cl::Buffer &, size_t) {}
     cl::Buffer upload(cl::Context &, cl_mem_flags) const { return cl::Buffer(); }
     void download(cl::CommandQueue &, const cl::Buffer &) {}
@@ -285,7 +285,7 @@ public:
 template<class Fixture>
 class TestCaller : public CppUnit::TestCaller<Fixture>
 {
-    typedef std::tr1::function<void(Fixture *)> TestFunction;
+    typedef FUNCTIONAL_NAMESPACE::function<void(Fixture *)> TestFunction;
 public:
     TestCaller(std::string name, TestFunction test, Fixture &fixture) :
         CppUnit::TestCaller<Fixture>(name, NULL, fixture), fixture(&fixture), test(test)

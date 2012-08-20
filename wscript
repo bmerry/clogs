@@ -115,6 +115,9 @@ def configure(conf):
     conf.check_cxx(header_name = 'boost/program_options.hpp', use = 'PROGRAM_OPTIONS')
     conf.check_cxx(header_name = 'CL/cl.hpp', use = 'OPENCL')
     conf.check_cxx(header_name = 'cppunit/Test.h', lib = 'cppunit', mandatory = False)
+    for header in ['random', 'functional']:
+        conf.check_cxx(header_name = header, mandatory = False)
+        conf.check_cxx(header_name = 'tr1/' + header, mandatory = False)
 
     conf.check_cxx(
         function_name = 'QueryPerformanceCounter', header_name = 'windows.h',
