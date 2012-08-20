@@ -32,13 +32,19 @@
 # include <config.h>
 #endif
 #include <cppunit/extensions/HelperMacros.h>
-#include <tr1/functional>
-#include <tr1/random>
+#include <boost/tr1/functional.hpp>
+#include <boost/tr1/random.hpp>
 #include <string>
 #include <vector>
 #include <cstddef>
 #include <CL/cl.hpp>
 #include <clogs/clogs.h>
+#ifdef min
+ #undef min
+#endif
+#ifdef max
+# undef max
+#endif
 
 namespace clogs
 {

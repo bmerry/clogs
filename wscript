@@ -234,6 +234,7 @@ def build(bld):
     if bld.env['HAVE_CPPUNIT_TEST_H']:
         bld.program(
                 source = bld.path.ant_glob('test/*.cpp') + ['tools/options.cpp', 'tools/timer.cpp'],
+                defines = ['CLOGS_DLL_DO_STATIC'],
                 target = 'clogs-test',
                 lib = ['cppunit'],
                 use = 'PROGRAM_OPTIONS OPENCL CLOGS-ST TIMER',

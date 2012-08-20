@@ -39,7 +39,7 @@
 #include <stdexcept>
 #include <vector>
 #include <cstddef>
-#include <tr1/random>
+#include <boost/tr1/random.hpp>
 #include <sstream>
 #include <clogs/scan.h>
 #include "clogs_test.h"

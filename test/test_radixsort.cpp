@@ -39,7 +39,7 @@
 #include <vector>
 #include <algorithm>
 #include <cstddef>
-#include <tr1/random>
+#include <boost/tr1/random.hpp>
 #include <sstream>
 #include <clogs/radixsort.h>
 #include "clogs_test.h"
