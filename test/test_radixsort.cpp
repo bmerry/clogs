@@ -76,6 +76,7 @@ class TestRadixsort : public clogs::Test::TestFixture
     CPPUNIT_TEST(testTmpKeys);
     CPPUNIT_TEST(testTmpValues);
     CPPUNIT_TEST(testTmpSmall);
+    CPPUNIT_TEST(testEventCallback);
 
     CPPUNIT_TEST_SUITE_END();
 
@@ -138,6 +139,9 @@ public:
 
     /// Tests using temporary buffers that are too small
     void testTmpSmall();
+
+    /// Test that the event callback is called at least once
+    void testEventCallback();
 
     virtual void setUp();
 };
@@ -624,6 +628,24 @@ void TestRadixsort::testTmpValues()
 void TestRadixsort::testTmpSmall()
 {
     testSort<clogs::Test::TypeTag<clogs::TYPE_UINT>, clogs::Test::TypeTag<clogs::TYPE_FLOAT, 4> >(128, 0, 127, 127);
+}
+
+static void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount)
+{
+    CPPUNIT_ASSERT(event() != NULL);
+    CPPUNIT_ASSERT(eventCount != NULL);
+    (*static_cast<int *>(eventCount))++;
+}
+
+void TestRadixsort::testEventCallback()
+{
+    int events = 0;
+    clogs::Radixsort sort(context, device, clogs::TYPE_UINT);
+    cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
+    sort.setEventCallback(eventCallback, &events);
+    sort.enqueue(queue, buffer, NULL, 4);
+    queue.finish();
+    CPPUNIT_ASSERT(events > 0);
 }
 
 /*******************************************************/

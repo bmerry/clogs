@@ -69,11 +69,15 @@ void Radixsort::enqueueReduce(
     reduceKernel.setArg(3, (cl_uint) elements);
     reduceKernel.setArg(4, (cl_uint) firstBit);
     cl_uint blocks = getBlocks(elements, len);
+    cl::Event reduceEvent;
     queue.enqueueNDRangeKernel(reduceKernel,
                                cl::NullRange,
                                cl::NDRange(reduceWorkGroupSize * blocks),
                                cl::NDRange(reduceWorkGroupSize),
-                               events, event);
+                               events, &reduceEvent);
+    doEventCallback(reduceEvent);
+    if (event != NULL)
+        *event = reduceEvent;
 }
 
 void Radixsort::enqueueScan(
@@ -82,11 +86,15 @@ void Radixsort::enqueueScan(
 {
     scanKernel.setArg(0, histogram);
     scanKernel.setArg(1, (cl_uint) blocks);
+    cl::Event scanEvent;
     queue.enqueueNDRangeKernel(scanKernel,
                                cl::NullRange,
                                cl::NDRange(scanWorkGroupSize),
                                cl::NDRange(scanWorkGroupSize),
-                               events, event);
+                               events, &scanEvent);
+    doEventCallback(scanEvent);
+    if (event != NULL)
+        *event = scanEvent;
 }
 
 void Radixsort::enqueueScatter(
@@ -110,11 +118,29 @@ void Radixsort::enqueueScatter(
     const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
     assert(blocks % slicesPerWorkGroup == 0);
     const ::size_t workGroups = blocks / slicesPerWorkGroup;
+    cl::Event scatterEvent;
     queue.enqueueNDRangeKernel(scatterKernel,
                                cl::NullRange,
                                cl::NDRange(scatterWorkGroupSize * workGroups),
                                cl::NDRange(scatterWorkGroupSize),
-                               events, event);
+                               events, &scatterEvent);
+    doEventCallback(scatterEvent);
+    if (event != NULL)
+        *event = scatterEvent;
+}
+
+void Radixsort::doEventCallback(const cl::Event &event)
+{
+    if (eventCallback != NULL)
+        (*eventCallback)(event, eventCallbackUserData);
+}
+
+void Radixsort::setEventCallback(
+    void (CL_CALLBACK *callback)(const cl::Event &event, void *),
+    void *userData)
+{
+    eventCallback = callback;
+    eventCallbackUserData = userData;
 }
 
 void Radixsort::enqueue(
@@ -198,10 +224,12 @@ void Radixsort::enqueue(
          * management.
          */
         queue.enqueueCopyBuffer(*curKeys, *nextKeys, 0, 0, elements * keySize, waitFor, &next);
+        doEventCallback(next);
         prev[0] = next; waitFor = &prev;
         if (valueSize != 0)
         {
             queue.enqueueCopyBuffer(*curValues, *nextValues, 0, 0, elements * valueSize, waitFor, &next);
+            doEventCallback(next);
             prev[0] = next; waitFor = &prev;
         }
     }
@@ -218,6 +246,7 @@ void Radixsort::setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &va
 Radixsort::Radixsort(
     const cl::Context &context, const cl::Device &device,
     const Type &keyType, const Type &valueType)
+    : eventCallback(NULL), eventCallbackUserData(NULL)
 {
     if (!keyType.isIntegral() || keyType.isSigned() || keyType.getLength() != 1
         || !keyType.isComputable(device) || !keyType.isStorable(device))
@@ -325,6 +354,13 @@ Radixsort::Radixsort(
     const Type &keyType, const Type &valueType)
 {
     detail_ = new detail::Radixsort(context, device, keyType, valueType);
+}
+
+void Radixsort::setEventCallback(
+    void (CL_CALLBACK *callback)(const cl::Event &event, void *),
+    void *userData)
+{
+    detail_->setEventCallback(callback, userData);
 }
 
 void Radixsort::enqueue(

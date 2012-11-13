@@ -70,6 +70,9 @@ private:
     cl::Buffer tmpKeys;              ///< User-provided buffer to hold temporary keys
     cl::Buffer tmpValues;            ///< User-provided buffer to hold temporary values
 
+    void (CL_CALLBACK *eventCallback)(const cl::Event &event, void *);
+    void *eventCallbackUserData;
+
     ::size_t getBlocks(::size_t elements, ::size_t len);
 
     /**
@@ -122,6 +125,11 @@ private:
         ::size_t len, ::size_t elements, unsigned int firstBit,
         const VECTOR_CLASS<cl::Event> *events, cl::Event *event);
 
+    /**
+     * Call the event callback, if there is one.
+     */
+    void doEventCallback(const cl::Event &event);
+
     /* Prevent copying */
     Radixsort(const Radixsort &);
     Radixsort &operator =(const Radixsort &);
@@ -132,6 +140,12 @@ public:
      * @see @ref clogs::Radixsort::Radixsort.
      */
     Radixsort(const cl::Context &context, const cl::Device &device, const Type &keyType, const Type &valueType = Type());
+
+    /**
+     * Set a callback to be notified of enqueued commands.
+     * @see @ref clogs::Radixsort::setEventCallback
+     */
+    void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
 
     /**
      * Enqueue a scan operation on a command queue.

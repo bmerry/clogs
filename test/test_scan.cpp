@@ -61,6 +61,7 @@ class TestScan : public clogs::Test::TestFixture
     CLOGS_TEST_BIND_NAME(testVector<cl_uint2>, "12345", clogs::Type(clogs::TYPE_UINT, 2), 12345, OFFSET_NONE);
     CLOGS_TEST_BIND_NAME(testVector<cl_ulong4>, "12345", clogs::Type(clogs::TYPE_ULONG, 4), 12345, OFFSET_HOST);
     CLOGS_TEST_BIND_NAME(testVector<cl_char3>, "12345", clogs::Type(clogs::TYPE_CHAR, 3), 12345, OFFSET_BUFFER);
+    CPPUNIT_TEST(testEventCallback);
     CPPUNIT_TEST_EXCEPTION(testReadOnly, cl::Error);
     CPPUNIT_TEST_EXCEPTION(testTooSmallBuffer, cl::Error);
     CPPUNIT_TEST_EXCEPTION(testBadBuffer, cl::Error);
@@ -81,6 +82,9 @@ public:
     /// Test operation of @ref clogs::Scan on vectors
     template<typename T>
     void testVector(const clogs::Type &type, size_t size, OffsetType useOffset);
+
+    /// Test that the event callback is called at least once
+    void testEventCallback();
 
     void testReadOnly();           ///< Test error handling with a read-only buffer
     void testTooSmallBuffer();     ///< Test error handling when length exceeds the buffer
@@ -217,6 +221,24 @@ void TestScan::testVector(const clogs::Type &type, size_t size, OffsetType useOf
     for (size_t i = 0; i < size; i++)
         for (unsigned int j = 0; j < type.getLength(); j++)
             CPPUNIT_ASSERT_EQUAL(hValues[i].s[j], result[i].s[j]);
+}
+
+static void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount)
+{
+    CPPUNIT_ASSERT(event() != NULL);
+    CPPUNIT_ASSERT(eventCount != NULL);
+    (*static_cast<int *>(eventCount))++;
+}
+
+void TestScan::testEventCallback()
+{
+    int events = 0;
+    clogs::Scan scan(context, device, clogs::TYPE_UINT);
+    cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
+    scan.setEventCallback(eventCallback, &events);
+    scan.enqueue(queue, buffer, 4);
+    queue.finish();
+    CPPUNIT_ASSERT(events > 0);
 }
 
 void TestScan::testReadOnly()

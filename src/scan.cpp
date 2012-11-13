@@ -69,6 +69,9 @@ private:
     cl::Kernel scanKernel;           ///< Final scan kernel
     cl::Buffer sums;                 ///< Reductions of the blocks for middle phase
 
+    void (CL_CALLBACK *eventCallback)(const cl::Event &event, void *);
+    void *eventCallbackUserData;
+
     /**
      * Implementation of @ref enqueueInternal, supporting both offsetting and
      * non-offsetting. If @a offsetBuffer is not @c NULL, we are doing offseting.
@@ -83,6 +86,11 @@ private:
         const VECTOR_CLASS<cl::Event> *events,
         cl::Event *event);
 
+    /**
+     * Call the event callback, if there is one.
+     */
+    void doEventCallback(const cl::Event &event);
+
     /* Prevent copying */
     Scan(const Scan &);
     Scan &operator=(const Scan &);
@@ -93,6 +101,12 @@ public:
      * @see @ref clogs::Scan::Scan
      */
     Scan(const cl::Context &context, const cl::Device &device, const Type &type);
+
+    /**
+     * Set a callback to be notified of enqueued commands.
+     * @see @ref clogs::Scan::setEventCallback
+     */
+    void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
 
     /**
      * Enqueue a scan operation on a command queue, with a CPU offset.
@@ -119,6 +133,7 @@ public:
 };
 
 Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type)
+    : eventCallback(NULL), eventCallbackUserData(NULL)
 {
     if (!type.isIntegral() || !type.isComputable(device) || !type.isStorable(device))
         throw std::invalid_argument("type is not a supported integral format on this device");
@@ -183,6 +198,18 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
     {
         throw InternalError(std::string("Error preparing kernels for scan: ") + e.what());
     }
+}
+
+void Scan::doEventCallback(const cl::Event &event)
+{
+    if (eventCallback != NULL)
+        (*eventCallback)(event, eventCallbackUserData);
+}
+
+void Scan::setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData)
+{
+    eventCallback = callback;
+    eventCallbackUserData = userData;
 }
 
 void Scan::enqueueInternal(const cl::CommandQueue &commandQueue,
@@ -254,6 +281,7 @@ void Scan::enqueueInternal(const cl::CommandQueue &commandQueue,
 
     std::vector<cl::Event> reduceEvents(1);
     std::vector<cl::Event> scanSmallEvents(1);
+    cl::Event scanEvent;
     const std::vector<cl::Event> *waitFor = events;
     if (allBlocks > 1)
     {
@@ -263,17 +291,22 @@ void Scan::enqueueInternal(const cl::CommandQueue &commandQueue,
                                           cl::NDRange(reduceWorkGroupSize),
                                           events, &reduceEvents[0]);
         waitFor = &reduceEvents;
+        doEventCallback(reduceEvents[0]);
     }
     commandQueue.enqueueNDRangeKernel(smallKernel,
                                       cl::NullRange,
                                       cl::NDRange(maxBlocks / 2),
                                       cl::NDRange(maxBlocks / 2),
                                       waitFor, &scanSmallEvents[0]);
+    doEventCallback(scanSmallEvents[0]);
     commandQueue.enqueueNDRangeKernel(scanKernel,
                                       cl::NullRange,
                                       cl::NDRange(scanWorkGroupSize * allBlocks),
                                       cl::NDRange(scanWorkGroupSize),
-                                      &scanSmallEvents, event);
+                                      &scanSmallEvents, &scanEvent);
+    doEventCallback(scanEvent);
+    if (event != NULL)
+        *event = scanEvent;
 }
 
 void Scan::enqueue(const cl::CommandQueue &commandQueue,
@@ -307,6 +340,11 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
 Scan::~Scan()
 {
     delete detail_;
+}
+
+void Scan::setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData)
+{
+    detail_->setEventCallback(callback, userData);
 }
 
 void Scan::enqueue(const cl::CommandQueue &commandQueue,

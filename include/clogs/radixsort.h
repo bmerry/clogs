@@ -86,6 +86,22 @@ public:
     ~Radixsort(); ///< Destructor
 
     /**
+     * Set a callback function that will receive a list of all underlying events.
+     * The callback will be called multiple times during each enqueue, because
+     * the implementation uses multiple commands. This allows profiling information
+     * to be extracted from the events once they complete.
+     *
+     * The callback may also be set to @c NULL to disable it.
+     *
+     * @note This is not an event completion callback: it is called during
+     * @c enqueue, generally before the events complete.
+     *
+     * @param callback The callback function.
+     * @param userData Arbitrary data to be passed to the callback.
+     */
+    void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
+
+    /**
      * Enqueue a scan operation on a command queue.
      *
      * If the range of the keys is known to be smaller than the range of the

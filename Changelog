@@ -1,3 +1,7 @@
+1.1.0
+-----
+Add setEventCallback methods to Scan and Radixsort
+
 1.0.3
 -----
 * Some minor tweaks to allow building on Windows with MSVC
