@@ -1,6 +1,7 @@
 1.1.0
 -----
-Add setEventCallback methods to Scan and Radixsort
+* Add setEventCallback methods to Scan and Radixsort
+* Worked around a bug in the Intel OpenCL compiler
 
 1.0.3
 -----
