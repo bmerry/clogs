@@ -44,6 +44,7 @@
 #include <clogs/core.h>
 #include <clogs/scan.h>
 #include "utils.h"
+#include "tune.h"
 
 namespace clogs
 {
@@ -95,6 +96,10 @@ private:
     Scan(const Scan &);
     Scan &operator=(const Scan &);
 
+    void initialize(
+        const cl::Context &context, const cl::Device &device, const Type &type,
+        const ParameterSet &params);
+
 public:
     /**
      * Constructor.
@@ -130,23 +135,35 @@ public:
                  cl_uint offsetIndex,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
                  cl::Event *event = NULL);
+
+    static ParameterSet parameters();
+
+    static void tune(ParameterSet &out, const cl::Context &context, const cl::Device &device, const Type &type);
 };
 
-Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type)
-    : eventCallback(NULL), eventCallbackUserData(NULL)
+ParameterSet Scan::parameters()
 {
-    if (!type.isIntegral() || !type.isComputable(device) || !type.isStorable(device))
-        throw std::invalid_argument("type is not a supported integral format on this device");
+    ParameterSet ans;
+    ans["WARP_SIZE"] = new TypedParameter< ::size_t>();
+    ans["REDUCE_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
+    ans["SCAN_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
+    ans["SCAN_WORK_SCALE"] = new TypedParameter< ::size_t>();
+    ans["SCAN_BLOCKS"] = new TypedParameter< ::size_t>();
+    return ans;
+}
+
+void Scan::tune(ParameterSet &out, const cl::Context &context, const cl::Device &device, const Type &type)
+{
+    (void) context; // not used yet
 
     const ::size_t elementSize = type.getSize();
     const ::size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
     const ::size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
 
-    this->elementSize = elementSize;
     ::size_t workGroupSize = 256U;
-    scanWorkScale = 8U;
-    maxBlocks = 1024U;
-    ::size_t warpSize = getWarpSize(device);
+    ::size_t scanWorkScale = 8U;
+    ::size_t maxBlocks = 1024U;
+    const ::size_t warpSize = getWarpSize(device);
     if (device.getInfo<CL_DEVICE_TYPE>() & CL_DEVICE_TYPE_CPU)
     {
         scanWorkScale = 1U;
@@ -159,8 +176,8 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
     workGroupSize = std::min(workGroupSize, maxWorkGroupSize);
     workGroupSize = std::min(workGroupSize, localMemElements / 2 - 1);
     workGroupSize = roundDownPower2(workGroupSize);
-    reduceWorkGroupSize = workGroupSize;
-    scanWorkGroupSize = workGroupSize;
+    ::size_t reduceWorkGroupSize = workGroupSize;
+    ::size_t scanWorkGroupSize = workGroupSize;
 
     scanWorkScale = std::min(scanWorkScale, localMemElements / workGroupSize);
     scanWorkScale = roundDownPower2(scanWorkScale);
@@ -168,6 +185,24 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
     maxBlocks = std::min(maxBlocks, 2 * maxWorkGroupSize);
     maxBlocks = std::min(maxBlocks, localMemElements);
     maxBlocks = roundDownPower2(maxBlocks);
+
+    out.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+    out.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
+    out.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
+    out.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(scanWorkScale);
+    out.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
+}
+
+void Scan::initialize(const cl::Context &context, const cl::Device &device, const Type &type, const ParameterSet &params)
+{
+    const ::size_t elementSize = type.getSize();
+
+    this->elementSize = elementSize;
+    ::size_t warpSize = params.getTyped< ::size_t>("WARP_SIZE")->get();
+    reduceWorkGroupSize = params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
+    scanWorkGroupSize = params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
+    scanWorkScale = params.getTyped< ::size_t>("SCAN_WORK_SCALE")->get();
+    maxBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
 
     std::map<std::string, int> defines;
     defines["WARP_SIZE"] = warpSize;
@@ -198,6 +233,25 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
     {
         throw InternalError(std::string("Error preparing kernels for scan: ") + e.what());
     }
+}
+
+Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type)
+    : eventCallback(NULL), eventCallbackUserData(NULL)
+{
+    if (!type.isIntegral() || !type.isComputable(device) || !type.isStorable(device))
+        throw std::invalid_argument("type is not a supported integral format on this device");
+
+    ParameterSet key;
+    key["version"] = new TypedParameter<int>(1);
+    key["CL_DEVICE_NAME"] = new TypedParameter<std::string>(device.getInfo<CL_DEVICE_NAME>());
+    key["CL_DEVICE_VENDOR_ID"] = new TypedParameter<cl_uint>(device.getInfo<CL_DEVICE_VENDOR_ID>());
+    key["CL_DRIVER_VERSION"] = new TypedParameter<std::string>(device.getInfo<CL_DRIVER_VERSION>());
+    key["type"] = new TypedParameter<std::string>(type.getName());
+
+    ParameterSet params = parameters();
+    // getParameters("scan", key, params);
+    tune(params, context, device, type);
+    initialize(context, device, type, params);
 }
 
 void Scan::doEventCallback(const cl::Event &event)

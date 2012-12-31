@@ -216,8 +216,9 @@ def build(bld):
         # the build is complete, because we don't yet know which
         # files to produce.
         bld.add_post_fun(post)
+    lib_sources = bld.path.ant_glob('src/*.cpp') + bld.path.ant_glob('src/*.c') + ['src/kernels.cpp']
     clogs_stlib = bld.stlib(
-            source = bld.path.ant_glob('src/*.cpp') + ['src/kernels.cpp'],
+            source = lib_sources,
             defines = ['CLOGS_DLL_DO_STATIC'],
             target = 'clogs',
             includes = 'include',
@@ -226,7 +227,7 @@ def build(bld):
             name = 'CLOGS-ST',
             use = 'OPENCL')
     clogs_shlib = bld.shlib(
-            source = bld.path.ant_glob('src/*.cpp') + ['src/kernels.cpp'],
+            source = lib_sources,
             defines = ['CLOGS_DLL_DO_EXPORT'],
             target = 'clogs',
             includes = 'include',
