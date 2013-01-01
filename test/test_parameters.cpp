@@ -22,14 +22,14 @@
 /**
  * @file
  *
- * Test code for autotuning support.
+ * Test code for generic parameter support.
  */
 
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <cppunit/extensions/HelperMacros.h>
 #include <string>
 #include "clogs_test.h"
-#include "../src/tune.h"
+#include "../src/parameters.h"
 
 using namespace clogs::detail;
 

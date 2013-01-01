@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -19,36 +19,43 @@
  * SOFTWARE.
  */
 
-/**
- * @file
- *
- * Utilities for autotuning
- */
-
 #ifndef __CL_ENABLE_EXCEPTIONS
 # define __CL_ENABLE_EXCEPTIONS
 #endif
 
-#include <clogs/visibility_push.h>
 #include <CL/cl.hpp>
-#include <string>
-#include <fstream>
-#include "tune.h"
-#include "parameters.h"
-#include <clogs/visibility_pop.h>
+#include <boost/program_options.hpp>
+#include <boost/foreach.hpp>
+#include <vector>
+#include "../src/tune.h"
+#include "../src/parameters.h"
 
-namespace clogs
+static void tuneDevice(const cl::Platform &platform, const cl::Device &device)
 {
-namespace detail
-{
+    cl_context_properties props[3] = {CL_CONTEXT_PLATFORM, (cl_context_properties) platform(), 0};
+    std::vector<cl::Device> devices(1, device);
+    cl::Context context(devices, props, NULL);
 
-CLOGS_LOCAL void getParameters(const std::string &algorithm, const ParameterSet &key, ParameterSet &out)
-{
+    clogs::detail::tuneDevice(context, device);
 }
 
-CLOGS_API void tuneDevice(const cl::Context &context, const cl::Device &device)
+static void tunePlatform(const cl::Platform &platform)
 {
+    std::vector<cl::Device> devices;
+    platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
+    BOOST_FOREACH(const cl::Device &device, devices)
+    {
+        tuneDevice(platform, device);
+    }
 }
 
-} // namespace detail
-} // namespace clogs
+int main(int argc, char **argv)
+{
+    std::vector<cl::Platform> platforms;
+    cl::Platform::get(&platforms);
+    BOOST_FOREACH(const cl::Platform &platform, platforms)
+    {
+        tunePlatform(platform);
+    }
+    return 0;
+}

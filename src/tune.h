@@ -29,148 +29,33 @@
 #define TUNE_H
 
 #include <clogs/visibility_push.h>
-#include <iostream>
 #include <string>
-#include <map>
-#include <cstddef>
+#include "parameters.h"
 #include <clogs/visibility_pop.h>
+
+namespace cl
+{
+
+class Context;
+class Device;
+
+} // namespace cl
 
 namespace clogs
 {
 namespace detail
 {
 
-class CLOGS_LOCAL Parameter
-{
-    friend std::ostream &operator<<(std::ostream &o, const Parameter &param);
-    friend std::istream &operator>>(std::istream &i, Parameter &param);
-private:
-    virtual std::ostream &write(std::ostream &o) const = 0;
-    virtual std::istream &read(std::istream &i) = 0;
-
-public:
-    virtual ~Parameter();
-    virtual Parameter *clone() const = 0;
-};
-
-CLOGS_LOCAL std::ostream &operator<<(std::ostream &o, const Parameter &param);
-CLOGS_LOCAL std::istream &operator>>(std::istream &i, Parameter &param);
-
-template<typename T>
-class CLOGS_LOCAL TypedWriter
-{
-public:
-    typedef std::ostream &result_type;
-
-    std::ostream &operator()(std::ostream &o, const T &x) const
-    {
-        return o << x;
-    }
-};
-
-template<typename T>
-class CLOGS_LOCAL TypedReader
-{
-public:
-    typedef std::istream &result_type;
-
-    std::istream &operator()(std::istream &i, T &x) const
-    {
-        return i >> x;
-    }
-};
-
-template<> class CLOGS_LOCAL TypedWriter<std::string>
-{
-public:
-    typedef std::ostream &result_type;
-
-    std::ostream &operator()(std::ostream &o, const std::string &x) const;
-};
-
-template<> class CLOGS_LOCAL TypedReader<std::string>
-{
-public:
-    typedef std::istream &result_type;
-
-    std::istream &operator()(std::istream &i, std::string &x) const;
-};
-
-template<typename T>
-class CLOGS_LOCAL TypedParameter : public Parameter
-{
-private:
-    T value;
-
-    virtual std::ostream &write(std::ostream &o) const
-    {
-        return TypedWriter<T>()(o, value);
-    }
-    virtual std::istream &read(std::istream &i)
-    {
-        return TypedReader<T>()(i, value);
-    }
-public:
-    explicit TypedParameter(const T &value = T()) : value(value) {}
-    T get() const { return value; }
-    void set(const T &value) { this->value = value; }
-    virtual Parameter *clone() const { return new TypedParameter<T>(*this); }
-};
-
-class CLOGS_LOCAL StringParameter : public Parameter
-{
-private:
-    std::string value;
-
-    virtual std::ostream &write(std::ostream &o) const;
-    virtual std::istream &read(std::istream &i) const;
-    virtual Parameter *clone() const;
-
-public:
-    explicit StringParameter(const std::string &value = std::string());
-    const std::string &get() const;
-    void set(const std::string &value);
-};
-
-class CLOGS_LOCAL ParameterSet : public std::map<std::string, Parameter *>
-{
-public:
-    /// Default constructor
-    ParameterSet();
-    /// Copy constructor
-    ParameterSet(const ParameterSet &params);
-    /// Assignment operator
-    ParameterSet &operator=(const ParameterSet &params);
-    ~ParameterSet();
-
-    static std::string hash(const std::string &plain);
-    std::string hash() const;
-
-    template<typename T> const TypedParameter<T> *getTyped(const std::string &name) const
-    {
-        const_iterator pos = find(name);
-        if (pos != end())
-            return dynamic_cast<const TypedParameter<T> *>(pos->second);
-        else
-            return NULL;
-    }
-
-    template<typename T> TypedParameter<T> *getTyped(const std::string &name)
-    {
-        iterator pos = find(name);
-        if (pos != end())
-            return dynamic_cast<TypedParameter<T> *>(pos->second);
-        else
-            return NULL;
-    }
-};
-
-CLOGS_LOCAL std::ostream &operator<<(std::ostream &o, const ParameterSet &params);
-
 /**
  * Look up tuning parameters for a specific algorithm.
  */
 CLOGS_LOCAL void getParameters(const std::string &algorithm, const ParameterSet &key, ParameterSet &out);
+
+/**
+ * Generate the tuning parameters for all algorithms on a specific device.
+ * This is not thread-safe (or even multi-process safe).
+ */
+CLOGS_API void tuneDevice(const cl::Context &context, const cl::Device &device);
 
 } // namespace detail
 } // namespace clogs
