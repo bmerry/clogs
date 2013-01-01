@@ -34,6 +34,7 @@
 #include <memory>
 #include "tune.h"
 #include "md5.h"
+#include "base64.h"
 
 namespace clogs
 {
@@ -50,6 +51,19 @@ std::ostream &operator<<(std::ostream &o, const Parameter &param)
 std::istream &operator>>(std::istream &i, Parameter &param)
 {
     return param.read(i);
+}
+
+std::ostream &TypedWriter<std::string>::operator()(std::ostream &o, const std::string &x) const
+{
+    return o << base64encode(x);
+}
+
+std::istream &TypedReader<std::string>::operator()(std::istream &i, std::string &x) const
+{
+    std::string encoded;
+    if (i >> encoded)
+        x = base64decode(encoded);
+    return i;
 }
 
 ParameterSet::ParameterSet()

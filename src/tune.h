@@ -57,13 +57,59 @@ CLOGS_LOCAL std::ostream &operator<<(std::ostream &o, const Parameter &param);
 CLOGS_LOCAL std::istream &operator>>(std::istream &i, Parameter &param);
 
 template<typename T>
+class CLOGS_LOCAL TypedWriter
+{
+public:
+    typedef std::ostream &result_type;
+
+    std::ostream &operator()(std::ostream &o, const T &x) const
+    {
+        return o << x;
+    }
+};
+
+template<typename T>
+class CLOGS_LOCAL TypedReader
+{
+public:
+    typedef std::istream &result_type;
+
+    std::istream &operator()(std::istream &i, T &x) const
+    {
+        return i >> x;
+    }
+};
+
+template<> class CLOGS_LOCAL TypedWriter<std::string>
+{
+public:
+    typedef std::ostream &result_type;
+
+    std::ostream &operator()(std::ostream &o, const std::string &x) const;
+};
+
+template<> class CLOGS_LOCAL TypedReader<std::string>
+{
+public:
+    typedef std::istream &result_type;
+
+    std::istream &operator()(std::istream &i, std::string &x) const;
+};
+
+template<typename T>
 class CLOGS_LOCAL TypedParameter : public Parameter
 {
 private:
     T value;
 
-    virtual std::ostream &write(std::ostream &o) const { return o << value; }
-    virtual std::istream &read(std::istream &i) { return i >> value; }
+    virtual std::ostream &write(std::ostream &o) const
+    {
+        return TypedWriter<T>()(o, value);
+    }
+    virtual std::istream &read(std::istream &i)
+    {
+        return TypedReader<T>()(i, value);
+    }
 public:
     explicit TypedParameter(const T &value = T()) : value(value) {}
     T get() const { return value; }
