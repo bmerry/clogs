@@ -34,6 +34,9 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#include <cstdlib>
+#include <cstring>
+#include <cerrno>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -46,6 +49,22 @@ namespace clogs
 namespace detail
 {
 
+SaveParametersError::SaveParametersError(const std::string &filename, int err)
+    : std::runtime_error(filename + ": " + strerror(err)),
+    filename(filename), err(err)
+{
+}
+
+const std::string &SaveParametersError::getFilename() const
+{
+    return filename;
+}
+
+int SaveParametersError::getError() const
+{
+    return err;
+}
+
 CLOGS_LOCAL void getParameters(const std::string &algorithm, const ParameterSet &key, ParameterSet &out)
 {
 }
@@ -55,6 +74,38 @@ CLOGS_LOCAL void deviceKey(const cl::Device &device, ParameterSet &key)
     key["CL_DEVICE_NAME"] = new TypedParameter<std::string>(device.getInfo<CL_DEVICE_NAME>());
     key["CL_DEVICE_VENDOR_ID"] = new TypedParameter<cl_uint>(device.getInfo<CL_DEVICE_VENDOR_ID>());
     key["CL_DRIVER_VERSION"] = new TypedParameter<std::string>(device.getInfo<CL_DRIVER_VERSION>());
+}
+
+static std::string getCacheDir()
+{
+    // TODO: handle non-UNIX systems
+    const char *cacheDir = getenv("CLOGS_CACHE_DIR");
+    if (cacheDir == NULL)
+    {
+        const char *home = getenv("HOME");
+        if (home == NULL)
+            home = "";
+        return std::string(home) + "/.clogs/cache";
+    }
+    else
+        return cacheDir;
+}
+
+static void saveParameters(const std::string &algorithm, const ParameterSet &key, const ParameterSet &values)
+{
+    // TODO: Create paths first
+    const std::string hash = key.hash();
+    const std::string path = getCacheDir() + "/" + algorithm + "/" + hash;
+    std::ofstream out(path.c_str());
+    if (!out)
+        throw SaveParametersError(path, errno);
+    out << values;
+    out.close();
+    if (!out)
+    {
+        // TODO: erase the file?
+        throw SaveParametersError(path, errno);
+    }
 }
 
 static void tuneDeviceScan(const cl::Context &context, const cl::Device &device)
@@ -70,6 +121,7 @@ static void tuneDeviceScan(const cl::Context &context, const cl::Device &device)
         const std::string hash = key.hash();
         ParameterSet params;
         Scan::tune(params, context, device, type);
+        saveParameters("scan", key, params);
     }
 }
 

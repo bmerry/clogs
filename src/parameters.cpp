@@ -135,7 +135,7 @@ std::ostream &operator<<(std::ostream &o, const ParameterSet &params)
 {
     for (ParameterSet::const_iterator i = params.begin(); i != params.end(); ++i)
     {
-        o << i->first << '=' << i->second << '\n';
+        o << i->first << '=' << *i->second << '\n';
     }
     return o;
 }

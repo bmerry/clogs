@@ -30,6 +30,7 @@
 
 #include <clogs/visibility_push.h>
 #include <string>
+#include <stdexcept>
 #include <clogs/visibility_pop.h>
 
 #include "parameters.h"
@@ -46,6 +47,18 @@ namespace clogs
 {
 namespace detail
 {
+
+class CLOGS_API SaveParametersError : public std::runtime_error
+{
+private:
+    const std::string &filename;
+    int err;
+public:
+    SaveParametersError(const std::string &filename, int err);
+
+    const std::string &getFilename() const;
+    int getError() const;
+};
 
 /**
  * Populate @a key with fields uniquely describing @a device.
