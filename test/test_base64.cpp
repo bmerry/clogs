@@ -60,9 +60,9 @@ class TestBase64Decode : public CppUnit::TestFixture
 {
     CPPUNIT_TEST_SUITE(TestBase64Decode);
     CPPUNIT_TEST(testSimple);
-    CPPUNIT_TEST_EXCEPTION(testBadLength, std::invalid_argument);
-    CPPUNIT_TEST_EXCEPTION(testBadChar, std::invalid_argument);
-    CPPUNIT_TEST_EXCEPTION(testBadPad, std::invalid_argument);
+    CPPUNIT_TEST_EXCEPTION(testBadLength, Base64DecodeError);
+    CPPUNIT_TEST_EXCEPTION(testBadChar, Base64DecodeError);
+    CPPUNIT_TEST_EXCEPTION(testBadPad, Base64DecodeError);
     CPPUNIT_TEST_SUITE_END();
 public:
     void testSimple();     ///< Test vectors from RFC 4648

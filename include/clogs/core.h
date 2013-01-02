@@ -58,6 +58,15 @@ public:
 };
 
 /**
+ * Exception thrown when the autotuning cache could not be read.
+ */
+class CLOGS_API CacheError : public InternalError
+{
+public:
+    CacheError(const std::string &msg);
+};
+
+/**
  * Enumeration of scalar types supported by OpenCL C which can be stored in a buffer.
  */
 enum CLOGS_API BaseType

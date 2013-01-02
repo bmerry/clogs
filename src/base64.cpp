@@ -65,12 +65,12 @@ std::string base64decode(const std::string &encoded)
 {
     std::string out;
     if (encoded.size() % 4 != 0)
-        throw std::invalid_argument("Base-64 string has invalid length");
+        throw Base64DecodeError("Base-64 string has invalid length");
     std::size_t end = encoded.size();
     while (end > 0 && encoded[end - 1] == '=')
         end--;
     if (encoded.size() - end > 2)
-        throw std::invalid_argument("Base-64 string has too much padding");
+        throw Base64DecodeError("Base-64 string has too much padding");
     for (std::size_t i = 0; i < end; i += 4)
     {
         unsigned int q = 0;
@@ -81,7 +81,7 @@ std::string base64decode(const std::string &encoded)
             {
                 const char *pos = strchr(base64table, encoded[i + j]);
                 if (pos == NULL)
-                    throw std::invalid_argument("Base-64 string contains invalid character");
+                    throw Base64DecodeError("Base-64 string contains invalid character");
                 unsigned int idx = pos - base64table;
                 q |= idx;
             }

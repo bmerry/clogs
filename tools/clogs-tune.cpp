@@ -51,11 +51,19 @@ static void tunePlatform(const cl::Platform &platform)
 
 int main(int argc, char **argv)
 {
-    std::vector<cl::Platform> platforms;
-    cl::Platform::get(&platforms);
-    BOOST_FOREACH(const cl::Platform &platform, platforms)
+    try
     {
-        tunePlatform(platform);
+        std::vector<cl::Platform> platforms;
+        cl::Platform::get(&platforms);
+        BOOST_FOREACH(const cl::Platform &platform, platforms)
+        {
+            tunePlatform(platform);
+        }
+    }
+    catch (clogs::detail::SaveParametersError &e)
+    {
+        std::cerr << e.what() << std::endl;
+        return 1;
     }
     return 0;
 }

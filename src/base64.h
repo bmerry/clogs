@@ -29,6 +29,13 @@
 #define BASE64_H
 
 #include <string>
+#include <stdexcept>
+
+class Base64DecodeError : public std::runtime_error
+{
+public:
+    Base64DecodeError(const std::string &msg) : std::runtime_error(msg) {}
+};
 
 std::string base64encode(const std::string &plain);
 std::string base64decode(const std::string &encoded);

@@ -179,9 +179,8 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
     ParameterSet key;
     makeKey(key, device, type);
 
-    ParameterSet params;
-    // getParameters("scan", key, params);
-    tune(params, context, device, type);
+    ParameterSet params = parameters();
+    getParameters("scan", key, params);
     initialize(context, device, type, params);
 }
 

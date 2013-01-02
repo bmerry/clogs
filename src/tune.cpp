@@ -33,10 +33,12 @@
 #include <CL/cl.hpp>
 #include <string>
 #include <fstream>
+#include <sstream>
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
+#include <set>
 #include <sys/stat.h>
 #include <clogs/visibility_pop.h>
 
@@ -64,10 +66,6 @@ const std::string &SaveParametersError::getFilename() const
 int SaveParametersError::getError() const
 {
     return err;
-}
-
-CLOGS_LOCAL void getParameters(const std::string &algorithm, const ParameterSet &key, ParameterSet &out)
-{
 }
 
 CLOGS_LOCAL void deviceKey(const cl::Device &device, ParameterSet &key)
@@ -102,7 +100,7 @@ static std::string getCacheDir()
     return ans;
 }
 
-static std::string parameterPath(const std::string &algorithm, const ParameterSet &key)
+static std::string getCacheFile(const std::string &algorithm, const ParameterSet &key)
 {
     const std::string hash = key.hash();
     const std::string path = getCacheDir() + "/" + algorithm + "-" + hash;
@@ -112,7 +110,7 @@ static std::string parameterPath(const std::string &algorithm, const ParameterSe
 static void saveParameters(const std::string &algorithm, const ParameterSet &key, const ParameterSet &values)
 {
     const std::string hash = key.hash();
-    const std::string path = parameterPath(algorithm, key);
+    const std::string path = getCacheFile(algorithm, key);
     std::ofstream out(path.c_str());
     if (!out)
         throw SaveParametersError(path, errno);
@@ -145,6 +143,52 @@ static void tuneDeviceScan(const cl::Context &context, const cl::Device &device)
 CLOGS_API void tuneDevice(const cl::Context &context, const cl::Device &device)
 {
     tuneDeviceScan(context, device);
+}
+
+static void parseParameters(std::istream &in, ParameterSet &params)
+{
+    std::string line;
+    std::set<std::string> seen;
+    while (getline(in, line))
+    {
+        std::string::size_type p = line.find('=');
+        if (p == std::string::npos)
+        {
+            throw CacheError("line does not contain equals sign");
+        }
+        const std::string key = line.substr(0, p);
+        if (!params.count(key))
+            throw CacheError("unknown key `" + key + "'");
+        if (seen.count(key))
+            throw CacheError("duplicate key `" + key + "'");
+        seen.insert(key);
+        std::istringstream sub(line.substr(p + 1));
+        sub >> *params[key];
+        if (!sub)
+            throw CacheError("could not parse value for " + key);
+    }
+    if (seen.size() < params.size())
+        throw CacheError("missing key");
+    if (in.bad())
+        throw CacheError(strerror(errno));
+}
+
+CLOGS_LOCAL void getParameters(const std::string &algorithm, const ParameterSet &key, ParameterSet &params)
+{
+    std::string filename = getCacheFile(algorithm, key);
+    try
+    {
+        std::ifstream in(filename.c_str());
+        if (!in)
+        {
+            throw CacheError(strerror(errno));
+        }
+        parseParameters(in, params);
+    }
+    catch (std::runtime_error &e)
+    {
+        throw CacheError("Failed to read cache file " + filename + ": " + e.what());
+    }
 }
 
 } // namespace detail
