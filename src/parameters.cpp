@@ -25,6 +25,7 @@
  * Utilities for passing around generic sets of key/value parameters.
  */
 
+#include <clogs/visibility_push.h>
 #include <string>
 #include <istream>
 #include <ostream>
@@ -32,6 +33,8 @@
 #include <map>
 #include <locale>
 #include <memory>
+#include <clogs/visibility_pop.h>
+
 #include "parameters.h"
 #include "md5.h"
 #include "base64.h"

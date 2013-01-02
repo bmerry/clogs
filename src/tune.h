@@ -30,8 +30,9 @@
 
 #include <clogs/visibility_push.h>
 #include <string>
-#include "parameters.h"
 #include <clogs/visibility_pop.h>
+
+#include "parameters.h"
 
 namespace cl
 {
@@ -45,6 +46,11 @@ namespace clogs
 {
 namespace detail
 {
+
+/**
+ * Populate @a key with fields uniquely describing @a device.
+ */
+CLOGS_LOCAL void deviceKey(const cl::Device &device, ParameterSet &key);
 
 /**
  * Look up tuning parameters for a specific algorithm.
