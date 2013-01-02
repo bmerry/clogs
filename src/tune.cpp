@@ -37,6 +37,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
+#include <sys/stat.h>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -76,26 +77,42 @@ CLOGS_LOCAL void deviceKey(const cl::Device &device, ParameterSet &key)
     key["CL_DRIVER_VERSION"] = new TypedParameter<std::string>(device.getInfo<CL_DRIVER_VERSION>());
 }
 
-static std::string getCacheDir()
+static std::string getCacheDirStatic()
 {
     // TODO: handle non-UNIX systems
-    const char *cacheDir = getenv("CLOGS_CACHE_DIR");
-    if (cacheDir == NULL)
+    const char *envCacheDir = getenv("CLOGS_CACHE_DIR");
+    if (envCacheDir == NULL)
     {
         const char *home = getenv("HOME");
         if (home == NULL)
             home = "";
-        return std::string(home) + "/.clogs/cache";
+        std::string clogsDir = std::string(home) + "/.clogs";
+        mkdir(clogsDir.c_str(), 0777);
+        std::string cacheDir = clogsDir + "/cache";
+        mkdir(cacheDir.c_str(), 0777);
+        return cacheDir;
     }
     else
-        return cacheDir;
+        return envCacheDir;
+}
+
+static std::string getCacheDir()
+{
+    static const std::string ans = getCacheDirStatic();
+    return ans;
+}
+
+static std::string parameterPath(const std::string &algorithm, const ParameterSet &key)
+{
+    const std::string hash = key.hash();
+    const std::string path = getCacheDir() + "/" + algorithm + "-" + hash;
+    return path;
 }
 
 static void saveParameters(const std::string &algorithm, const ParameterSet &key, const ParameterSet &values)
 {
-    // TODO: Create paths first
     const std::string hash = key.hash();
-    const std::string path = getCacheDir() + "/" + algorithm + "/" + hash;
+    const std::string path = parameterPath(algorithm, key);
     std::ofstream out(path.c_str());
     if (!out)
         throw SaveParametersError(path, errno);
