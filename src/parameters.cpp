@@ -37,7 +37,8 @@
 
 #include "parameters.h"
 #include "md5.h"
-#include "base64.h"
+#include "base64_encode.h"
+#include "base64_decode.h"
 
 namespace clogs
 {

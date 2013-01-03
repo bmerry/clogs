@@ -22,22 +22,34 @@
 /**
  * @file
  *
- * Base 64 encoding and decoding, as per RFC 4648.
+ * Base 64 decoding, as per RFC 4648.
  */
 
-#ifndef BASE64_H
-#define BASE64_H
+#ifndef BASE64_DECODE_H
+#define BASE64_DECODE_H
 
+#include <clogs/visibility_push.h>
 #include <string>
 #include <stdexcept>
+#include <clogs/visibility_pop.h>
 
-class Base64DecodeError : public std::runtime_error
+/**
+ * Exception thrown to indicate a malformed base64 string.
+ */
+class CLOGS_LOCAL Base64DecodeError : public std::runtime_error
 {
 public:
     Base64DecodeError(const std::string &msg) : std::runtime_error(msg) {}
 };
 
-std::string base64encode(const std::string &plain);
+/**
+ * Decode a base64 string. The input string must conform to RFC 4648, and
+ * specifically it must not contain any characters other than the 65 permitted
+ * ones (no whitespace), and it must be correctly padded.
+ *
+ * @return The binary string encoded by @a encoded, which may include ASCII NULs
+ * @throw Base64DecodeError if the string does not conform to RFC 4648.
+ */
 std::string base64decode(const std::string &encoded);
 
-#endif /* !BASE64_H */
+#endif /* !BASE64_DECODE_H */

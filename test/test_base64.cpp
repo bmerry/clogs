@@ -29,7 +29,8 @@
 #include <cppunit/extensions/HelperMacros.h>
 #include <string>
 #include "clogs_test.h"
-#include "../src/base64.h"
+#include "../src/base64_decode.h"
+#include "../src/base64_encode.h"
 
 static const struct
 {

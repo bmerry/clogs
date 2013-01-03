@@ -22,44 +22,16 @@
 /**
  * @file
  *
- * Base 64 encoding and decoding, as per RFC 4648.
+ * Base 64 decoding, as per RFC 4648.
  */
 
+#include <cstddef>
 #include <string>
 #include <stdexcept>
 #include <cstring>
-#include "base64.h"
+#include "base64_decode.h"
 
 static const char base64table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-std::string base64encode(const std::string &plain)
-{
-    std::string out;
-    std::size_t i;
-    for (i = 0; i < plain.size(); i += 3)
-    {
-        unsigned int q = 0;
-        for (int j = 0; j < 3; j++)
-        {
-            q <<= 8;
-            if (i + j < plain.size())
-                q |= (unsigned char) plain[i + j];
-        }
-        int oc = 4;
-        if (plain.size() - i + 1 < std::size_t(oc))
-            oc = plain.size() - i + 1;
-        int shift = 18;
-        for (int j = 0; j < oc; j++)
-        {
-            unsigned int idx = (q >> shift) & 0x3f;
-            out += base64table[idx];
-            shift -= 6;
-        }
-        for (int j = oc; j < 4; j++)
-            out += '=';
-    }
-    return out;
-}
 
 std::string base64decode(const std::string &encoded)
 {
