@@ -79,6 +79,7 @@ public:
     {
         T ans;
         std::istringstream in(s);
+        in.imbue(std::locale::classic());
         in >> ans;
         if (!in || !in.eof())
             throw CacheError("invalid formatting");
