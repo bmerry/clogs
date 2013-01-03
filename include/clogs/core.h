@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <CL/cl.hpp>
 #include <stdexcept>
 #include <string>
+#include <vector>
 #include <clogs/visibility_pop.h>
 
 /**
@@ -128,6 +129,9 @@ public:
     BaseType getBaseType() const;
     /// The vector length (1 for scalars, 0 for void).
     unsigned int getLength() const;
+
+    /// Returns a list of all supported types
+    static std::vector<Type> allTypes();
 };
 
 } // namespace clogs

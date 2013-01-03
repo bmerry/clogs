@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -236,6 +236,18 @@ BaseType Type::getBaseType() const
 unsigned int Type::getLength() const
 {
     return length;
+}
+
+std::vector<Type> Type::allTypes()
+{
+    static const int sizes[] = {1, 2, 3, 4, 8, 16};
+    std::vector<Type> ans;
+    for (int i = int(TYPE_UCHAR); i <= int(TYPE_DOUBLE); i++)
+        for (int j = 0; sizeof(sizes) / sizeof(sizes[0]); j++)
+        {
+            ans.push_back(Type(BaseType(i), sizes[j]));
+        }
+    return ans;
 }
 
 } // namespace clogs

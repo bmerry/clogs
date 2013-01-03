@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,13 +68,23 @@ int SaveParametersError::getError() const
     return err;
 }
 
-CLOGS_LOCAL void deviceKey(const cl::Device &device, ParameterSet &key)
+CLOGS_LOCAL ParameterSet deviceKey(const cl::Device &device)
 {
+    ParameterSet key;
     key["CL_DEVICE_NAME"] = new TypedParameter<std::string>(device.getInfo<CL_DEVICE_NAME>());
     key["CL_DEVICE_VENDOR_ID"] = new TypedParameter<cl_uint>(device.getInfo<CL_DEVICE_VENDOR_ID>());
     key["CL_DRIVER_VERSION"] = new TypedParameter<std::string>(device.getInfo<CL_DRIVER_VERSION>());
+    return key;
 }
 
+/**
+ * Determines the cache directory, without caching the result. The
+ * directory is created if it does not exist, but failure to create it is not
+ * reported.
+ *
+ * @todo Currently very UNIX-specific
+ * @todo Need to document the algorithm in the user manual
+ */
 static std::string getCacheDirStatic()
 {
     // TODO: handle non-UNIX systems
@@ -94,12 +104,20 @@ static std::string getCacheDirStatic()
         return envCacheDir;
 }
 
+/**
+ * Returns the cache directory, caching the result after the first time.
+ *
+ * @see getCacheDirStatic.
+ */
 static std::string getCacheDir()
 {
     static const std::string ans = getCacheDirStatic();
     return ans;
 }
 
+/**
+ * Returns the filename where parameters for an algorithm are stored.
+ */
 static std::string getCacheFile(const std::string &algorithm, const ParameterSet &key)
 {
     const std::string hash = key.hash();
@@ -107,6 +125,15 @@ static std::string getCacheFile(const std::string &algorithm, const ParameterSet
     return path;
 }
 
+/**
+ * Write computed parameters to file.
+ *
+ * @param algorithm      Algorithm that has been tuned
+ * @param key            Algorithm key
+ * @param params         Autotuned parameters.
+ *
+ * @throw SaveParametersError if the file could not be written
+ */
 static void saveParameters(const std::string &algorithm, const ParameterSet &key, const ParameterSet &values)
 {
     const std::string hash = key.hash();
@@ -123,28 +150,44 @@ static void saveParameters(const std::string &algorithm, const ParameterSet &key
     }
 }
 
+/**
+ * Tune the scan algorithm for a device.
+ */
 static void tuneDeviceScan(const cl::Context &context, const cl::Device &device)
 {
-    std::vector<Type> types = Scan::types(device);
+    const std::vector<Type> types = Type::allTypes();
     for (std::size_t i = 0; i < types.size(); i++)
     {
         const Type &type = types[i];
-        std::cout << "Tuning scan for " << type.getName() << " on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
+        if (Scan::typeSupported(device, type))
+        {
+            std::cout << "Tuning scan for " << type.getName() << " on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
-        ParameterSet key;
-        Scan::makeKey(key, device, type);
-        const std::string hash = key.hash();
-        ParameterSet params;
-        Scan::tune(params, context, device, type);
-        saveParameters("scan", key, params);
+            ParameterSet key = Scan::makeKey(device, type);
+            const std::string hash = key.hash();
+            ParameterSet params = Scan::tune(context, device, type);
+            saveParameters("scan", key, params);
+        }
     }
 }
 
+/**
+ * Tune all algorithms for a device.
+ */
 CLOGS_API void tuneDevice(const cl::Context &context, const cl::Device &device)
 {
     tuneDeviceScan(context, device);
 }
 
+/**
+ * Extract parameters from a file. This is the internal implementation of
+ * @ref getParameters, split into a separate function for testability.
+ *
+ * @param in               Input file (already open)
+ * @param[in,out] params   Tuning parameters, pre-populated with desired keys.
+ *
+ * @throw CacheError if there was an error reading the file
+ */
 static void parseParameters(std::istream &in, ParameterSet &params)
 {
     std::string line;

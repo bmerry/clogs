@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +48,9 @@ namespace clogs
 namespace detail
 {
 
+/**
+ * Exception thrown when autotuning parameters could not be saved.
+ */
 class CLOGS_API SaveParametersError : public std::runtime_error
 {
 private:
@@ -61,9 +64,9 @@ public:
 };
 
 /**
- * Populate @a key with fields uniquely describing @a device.
+ * Create a key with fields uniquely describing @a device.
  */
-CLOGS_LOCAL void deviceKey(const cl::Device &device, ParameterSet &key);
+CLOGS_LOCAL ParameterSet deviceKey(const cl::Device &device);
 
 /**
  * Look up tuning parameters for a specific algorithm.

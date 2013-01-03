@@ -90,6 +90,13 @@ private:
     Scan(const Scan &);
     Scan &operator=(const Scan &);
 
+    /**
+     * Second construction phase. This is called either by the normal constructor
+     * or during autotuning.
+     *
+     * @param context, device, type    Constructor arguments
+     * @param params                   Autotuned parameters
+     */
     void initialize(
         const cl::Context &context, const cl::Device &device, const Type &type,
         const ParameterSet &params);
@@ -130,14 +137,31 @@ public:
                  const VECTOR_CLASS<cl::Event> *events = NULL,
                  cl::Event *event = NULL);
 
+    /**
+     * Create the keys for autotuning. The values are undefined.
+     */
     static ParameterSet parameters();
 
-    static void makeKey(ParameterSet &key, const cl::Device &device, const Type &type);
+    /**
+     * Returns key for looking up autotuning parameters.
+     *
+     * @param device, type  Constructor parameters.
+     */
+    static ParameterSet makeKey(const cl::Device &device, const Type &type);
 
-    static void tune(ParameterSet &out, const cl::Context &context, const cl::Device &device, const Type &type);
+    /**
+     * Perform autotuning.
+     *
+     * @param context     Context for executing autotuning tests
+     * @param device      Device to tune for
+     * @param type        Type to scan
+     */
+    static ParameterSet tune(const cl::Context &context, const cl::Device &device, const Type &type);
 
+    /**
+     * Return whether a type is supported for scanning on a device.
+     */
     static bool typeSupported(const cl::Device &device, const Type &type);
-    static std::vector<Type> types(const cl::Device &device);
 };
 
 } // namespace detail

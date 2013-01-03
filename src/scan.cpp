@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -65,7 +65,7 @@ ParameterSet Scan::parameters()
     return ans;
 }
 
-void Scan::tune(ParameterSet &out, const cl::Context &context, const cl::Device &device, const Type &type)
+ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, const Type &type)
 {
     (void) context; // not used yet
 
@@ -99,12 +99,13 @@ void Scan::tune(ParameterSet &out, const cl::Context &context, const cl::Device 
     maxBlocks = std::min(maxBlocks, localMemElements);
     maxBlocks = roundDownPower2(maxBlocks);
 
-    out = parameters();
+    ParameterSet out = parameters();
     out.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
     out.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
     out.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
     out.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(scanWorkScale);
     out.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
+    return out;
 }
 
 void Scan::initialize(const cl::Context &context, const cl::Device &device, const Type &type, const ParameterSet &params)
@@ -154,41 +155,25 @@ bool Scan::typeSupported(const cl::Device &device, const Type &type)
     return type.isIntegral() && type.isComputable(device) && type.isStorable(device);
 }
 
-std::vector<Type> Scan::types(const cl::Device &device)
-{
-    std::vector<Type> types;
-    int sizes[] = {1, 2, 3, 4, 8, 16};
-    for (int base = 1 + (int) TYPE_VOID; base <= (int) TYPE_HALF; base++)
-    {
-        for (std::size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++)
-        {
-            Type t((BaseType) base, sizes[i]);
-            if (typeSupported(device, t))
-                types.push_back(t);
-        }
-    }
-    return types;
-}
-
 Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type)
     : eventCallback(NULL), eventCallbackUserData(NULL)
 {
     if (!typeSupported(device, type))
         throw std::invalid_argument("type is not a supported integral format on this device");
 
-    ParameterSet key;
-    makeKey(key, device, type);
+    ParameterSet key = makeKey(device, type);
 
     ParameterSet params = parameters();
     getParameters("scan", key, params);
     initialize(context, device, type, params);
 }
 
-void Scan::makeKey(ParameterSet &key, const cl::Device &device, const Type &type)
+ParameterSet Scan::makeKey(const cl::Device &device, const Type &type)
 {
-    deviceKey(device, key);
+    ParameterSet key = deviceKey(device);
     key["version"] = new TypedParameter<int>(1);
     key["type"] = new TypedParameter<std::string>(type.getName());
+    return key;
 }
 
 void Scan::doEventCallback(const cl::Event &event)
