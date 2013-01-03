@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,36 +46,21 @@ namespace detail
 
 Parameter::~Parameter() {}
 
-std::ostream &operator<<(std::ostream &o, const Parameter &param)
+std::string TypedSerializer<std::string>::operator()(const std::string &x) const
 {
-    return param.write(o);
+    return base64encode(x);
 }
 
-std::istream &operator>>(std::istream &i, Parameter &param)
+std::string TypedDeserializer<std::string>::operator()(const std::string &s) const
 {
-    return param.read(i);
-}
-
-std::ostream &TypedWriter<std::string>::operator()(std::ostream &o, const std::string &x) const
-{
-    return o << base64encode(x);
-}
-
-std::istream &TypedReader<std::string>::operator()(std::istream &i, std::string &x) const
-{
-    std::string encoded;
-    if (i >> encoded)
+    try
     {
-        try
-        {
-            x = base64decode(encoded);
-        }
-        catch (Base64DecodeError &e)
-        {
-            i.setstate(std::ios::failbit);
-        }
+        return base64decode(s);
     }
-    return i;
+    catch (Base64DecodeError &e)
+    {
+        throw CacheError(e.what());
+    }
 }
 
 ParameterSet::ParameterSet()
@@ -144,7 +129,7 @@ std::ostream &operator<<(std::ostream &o, const ParameterSet &params)
 {
     for (ParameterSet::const_iterator i = params.begin(); i != params.end(); ++i)
     {
-        o << i->first << '=' << *i->second << '\n';
+        o << i->first << '=' << i->second->serialize() << '\n';
     }
     return o;
 }

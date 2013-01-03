@@ -33,7 +33,6 @@
 #include <CL/cl.hpp>
 #include <string>
 #include <fstream>
-#include <sstream>
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
@@ -207,10 +206,7 @@ static void parseParameters(std::istream &in, ParameterSet &params)
         if (seen.count(key))
             throw CacheError("duplicate key `" + key + "'");
         seen.insert(key);
-        std::istringstream sub(line.substr(p + 1));
-        sub >> *params[key];
-        if (!sub)
-            throw CacheError("could not parse value for " + key);
+        params[key]->deserialize(line.substr(p + 1));
     }
     if (seen.size() < params.size())
         throw CacheError("missing key");

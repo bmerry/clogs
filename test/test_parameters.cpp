@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <sstream>
 #include <locale>
 #include <memory>
+#include <clogs/core.h>
 #include "clogs_test.h"
 #include "../src/parameters.h"
 
@@ -43,19 +44,17 @@ class TestIntParameter : public CppUnit::TestFixture
 {
     CPPUNIT_TEST_SUITE(TestIntParameter);
     CPPUNIT_TEST(testGetSet);
-    CPPUNIT_TEST(testWrite);
-    CPPUNIT_TEST(testRead);
-    CPPUNIT_TEST(testReadBad);
-    CPPUNIT_TEST(testReadEmpty);
-    CPPUNIT_TEST(testReadRange);
+    CPPUNIT_TEST(testSerialize);
+    CPPUNIT_TEST(testDeserialize);
+    CPPUNIT_TEST(testDeserializeBad);
+    CPPUNIT_TEST(testDeserializeRange);
     CPPUNIT_TEST_SUITE_END();
 public:
     void testGetSet();
-    void testWrite();
-    void testRead();        ///< Input of a normal value
-    void testReadBad();     ///< Input from a bogus string
-    void testReadEmpty();   ///< Input from an empty string
-    void testReadRange();   ///< Input of an out-of-range value
+    void testSerialize();          ///< Test @c serialize
+    void testDeserialize();        ///< Input of a normal value
+    void testDeserializeBad();     ///< Input from a bogus string
+    void testDeserializeRange();   ///< Input of an out-of-range value
 };
 CPPUNIT_TEST_SUITE_REGISTRATION(TestIntParameter);
 
@@ -67,51 +66,32 @@ void TestIntParameter::testGetSet()
     CPPUNIT_ASSERT_EQUAL(5, p.get());
 }
 
-void TestIntParameter::testWrite()
+void TestIntParameter::testSerialize()
 {
     std::auto_ptr<Parameter> p(new TypedParameter<int>(12345));
-    std::ostringstream out;
-    out.imbue(std::locale::classic());
-    out << *p;
-    CPPUNIT_ASSERT_EQUAL(std::string("12345"), out.str());
+    CPPUNIT_ASSERT_EQUAL(std::string("12345"), p->serialize());
 }
 
-void TestIntParameter::testRead()
+void TestIntParameter::testDeserialize()
 {
     TypedParameter<int> p;
-    std::istringstream in("12345");
-    in.imbue(std::locale::classic());
-    in >> p;
-    CPPUNIT_ASSERT(in.eof());
-    CPPUNIT_ASSERT(in);
+    p.deserialize("12345");
     CPPUNIT_ASSERT_EQUAL(12345, p.get());
 }
 
-void TestIntParameter::testReadBad()
+void TestIntParameter::testDeserializeBad()
 {
     TypedParameter<int> p;
-    std::istringstream in("abcde");
-    in.imbue(std::locale::classic());
-    in >> p;
-    CPPUNIT_ASSERT(in.fail());
+    CPPUNIT_ASSERT_THROW(p.deserialize("abcde"), clogs::CacheError);
+    CPPUNIT_ASSERT_THROW(p.deserialize(""), clogs::CacheError);
+    CPPUNIT_ASSERT_THROW(p.deserialize("123abcde"), clogs::CacheError);
+    CPPUNIT_ASSERT_THROW(p.deserialize("123 456"), clogs::CacheError);
 }
 
-void TestIntParameter::testReadEmpty()
+void TestIntParameter::testDeserializeRange()
 {
     TypedParameter<int> p;
-    std::istringstream in("");
-    in.imbue(std::locale::classic());
-    in >> p;
-    CPPUNIT_ASSERT(in.fail());
-}
-
-void TestIntParameter::testReadRange()
-{
-    TypedParameter<int> p;
-    std::istringstream in("1000000000000");
-    in.imbue(std::locale::classic());
-    in >> p;
-    CPPUNIT_ASSERT(in.fail());
+    CPPUNIT_ASSERT_THROW(p.deserialize("1000000000000"), clogs::CacheError);
 }
 
 /**
@@ -121,17 +101,17 @@ class TestStringParameter : public CppUnit::TestFixture
 {
     CPPUNIT_TEST_SUITE(TestStringParameter);
     CPPUNIT_TEST(testGetSet);
-    CPPUNIT_TEST(testWrite);
-    CPPUNIT_TEST(testRead);
-    CPPUNIT_TEST(testReadEmpty);
-    CPPUNIT_TEST(testReadBad);
+    CPPUNIT_TEST(testSerialize);
+    CPPUNIT_TEST(testDeserialize);
+    CPPUNIT_TEST(testDeserializeEmpty);
+    CPPUNIT_TEST(testDeserializeBad);
     CPPUNIT_TEST_SUITE_END();
 public:
     void testGetSet();
-    void testWrite();
-    void testRead();
-    void testReadEmpty();
-    void testReadBad();
+    void testSerialize();
+    void testDeserialize();
+    void testDeserializeEmpty();
+    void testDeserializeBad();
 };
 CPPUNIT_TEST_SUITE_REGISTRATION(TestStringParameter);
 
@@ -143,44 +123,32 @@ void TestStringParameter::testGetSet()
     CPPUNIT_ASSERT_EQUAL(std::string("world"), p.get());
 }
 
-void TestStringParameter::testWrite()
+void TestStringParameter::testSerialize()
 {
     std::auto_ptr<TypedParameter<std::string> > p(new TypedParameter<std::string>("foo"));
-    std::ostringstream out;
-    out.imbue(std::locale::classic());
-    out << *p;
-    CPPUNIT_ASSERT_EQUAL(std::string("Zm9v"), out.str());
+    CPPUNIT_ASSERT_EQUAL(std::string("Zm9v"), p->serialize());
 }
 
-void TestStringParameter::testRead()
+void TestStringParameter::testDeserialize()
 {
     TypedParameter<std::string> p;
-    std::istringstream in("Zm9v");
-    in.imbue(std::locale::classic());
-    in >> p;
+    p.deserialize("Zm9v");
     CPPUNIT_ASSERT_EQUAL(std::string("foo"), p.get());
-    CPPUNIT_ASSERT(in.eof());
-    CPPUNIT_ASSERT(in);
 }
 
-void TestStringParameter::testReadBad()
+void TestStringParameter::testDeserializeBad()
 {
     TypedParameter<std::string> p;
-    std::istringstream in("hello");
-    in.imbue(std::locale::classic());
-    in >> p;
-    CPPUNIT_ASSERT(in.fail());
+    CPPUNIT_ASSERT_THROW(p.deserialize("hello"), clogs::CacheError);
+    CPPUNIT_ASSERT_THROW(p.deserialize("Zm9v Zm9v"), clogs::CacheError);
+    CPPUNIT_ASSERT_THROW(p.deserialize("===="), clogs::CacheError);
 }
 
-void TestStringParameter::testReadEmpty()
+void TestStringParameter::testDeserializeEmpty()
 {
     TypedParameter<std::string> p("dummy");
-    std::istringstream in("");
-    in.imbue(std::locale::classic());
-    in >> p;
+    p.deserialize("");
     CPPUNIT_ASSERT_EQUAL(std::string(), p.get());
-    CPPUNIT_ASSERT(in.eof());
-    CPPUNIT_ASSERT(in);
 }
 
 /**

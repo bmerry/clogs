@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,10 +30,14 @@
 
 #include <clogs/visibility_push.h>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <map>
 #include <cstddef>
+#include <locale>
 #include <clogs/visibility_pop.h>
+
+#include <clogs/core.h>
 
 namespace clogs
 {
@@ -42,58 +46,60 @@ namespace detail
 
 class CLOGS_LOCAL Parameter
 {
-    friend std::ostream &operator<<(std::ostream &o, const Parameter &param);
-    friend std::istream &operator>>(std::istream &i, Parameter &param);
-private:
-    virtual std::ostream &write(std::ostream &o) const = 0;
-    virtual std::istream &read(std::istream &i) = 0;
-
 public:
     virtual ~Parameter();
     virtual Parameter *clone() const = 0;
+
+    virtual std::string serialize() const = 0;
+    virtual void deserialize(const std::string &serial) = 0;
 };
 
-CLOGS_LOCAL std::ostream &operator<<(std::ostream &o, const Parameter &param);
-CLOGS_LOCAL std::istream &operator>>(std::istream &i, Parameter &param);
-
 template<typename T>
-class CLOGS_LOCAL TypedWriter
+class CLOGS_LOCAL TypedSerializer
 {
 public:
-    typedef std::ostream &result_type;
+    typedef std::string result_type;
 
-    std::ostream &operator()(std::ostream &o, const T &x) const
+    std::string operator()(const T &x) const
     {
-        return o << x;
+        std::ostringstream o;
+        o.imbue(std::locale::classic());
+        o << x;
+        return o.str();
     }
 };
 
 template<typename T>
-class CLOGS_LOCAL TypedReader
+class CLOGS_LOCAL TypedDeserializer
 {
 public:
-    typedef std::istream &result_type;
+    typedef T result_type;
 
-    std::istream &operator()(std::istream &i, T &x) const
+    T operator()(const std::string &s) const
     {
-        return i >> x;
+        T ans;
+        std::istringstream in(s);
+        in >> ans;
+        if (!in || !in.eof())
+            throw CacheError("invalid formatting");
+        return ans;
     }
 };
 
-template<> class CLOGS_LOCAL TypedWriter<std::string>
+template<> class CLOGS_LOCAL TypedSerializer<std::string>
 {
 public:
-    typedef std::ostream &result_type;
+    typedef std::string result_type;
 
-    std::ostream &operator()(std::ostream &o, const std::string &x) const;
+    std::string operator()(const std::string &x) const;
 };
 
-template<> class CLOGS_LOCAL TypedReader<std::string>
+template<> class CLOGS_LOCAL TypedDeserializer<std::string>
 {
 public:
-    typedef std::istream &result_type;
+    typedef std::string result_type;
 
-    std::istream &operator()(std::istream &i, std::string &x) const;
+    std::string operator()(const std::string &s) const;
 };
 
 template<typename T>
@@ -102,34 +108,20 @@ class CLOGS_LOCAL TypedParameter : public Parameter
 private:
     T value;
 
-    virtual std::ostream &write(std::ostream &o) const
-    {
-        return TypedWriter<T>()(o, value);
-    }
-    virtual std::istream &read(std::istream &i)
-    {
-        return TypedReader<T>()(i, value);
-    }
 public:
     explicit TypedParameter(const T &value = T()) : value(value) {}
     T get() const { return value; }
     void set(const T &value) { this->value = value; }
     virtual Parameter *clone() const { return new TypedParameter<T>(*this); }
-};
 
-class CLOGS_LOCAL StringParameter : public Parameter
-{
-private:
-    std::string value;
-
-    virtual std::ostream &write(std::ostream &o) const;
-    virtual std::istream &read(std::istream &i) const;
-    virtual Parameter *clone() const;
-
-public:
-    explicit StringParameter(const std::string &value = std::string());
-    const std::string &get() const;
-    void set(const std::string &value);
+    virtual std::string serialize() const
+    {
+        return TypedSerializer<T>()(value);
+    }
+    virtual void deserialize(const std::string &s)
+    {
+        value = TypedDeserializer<T>()(s);
+    }
 };
 
 class CLOGS_LOCAL ParameterSet : public std::map<std::string, Parameter *>
