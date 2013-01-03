@@ -28,10 +28,160 @@
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <cppunit/extensions/HelperMacros.h>
 #include <string>
+#include <sstream>
+#include <locale>
+#include <memory>
 #include "clogs_test.h"
 #include "../src/parameters.h"
 
 using namespace clogs::detail;
+
+/**
+ * Test @ref TypedParameter<int>.
+ */
+class TestIntParameter : public CppUnit::TestFixture
+{
+    CPPUNIT_TEST_SUITE(TestIntParameter);
+    CPPUNIT_TEST(testGetSet);
+    CPPUNIT_TEST(testWrite);
+    CPPUNIT_TEST(testRead);
+    CPPUNIT_TEST(testReadBad);
+    CPPUNIT_TEST(testReadEmpty);
+    CPPUNIT_TEST(testReadRange);
+    CPPUNIT_TEST_SUITE_END();
+public:
+    void testGetSet();
+    void testWrite();
+    void testRead();        ///< Input of a normal value
+    void testReadBad();     ///< Input from a bogus string
+    void testReadEmpty();   ///< Input from an empty string
+    void testReadRange();   ///< Input of an out-of-range value
+};
+CPPUNIT_TEST_SUITE_REGISTRATION(TestIntParameter);
+
+void TestIntParameter::testGetSet()
+{
+    TypedParameter<int> p(3);
+    CPPUNIT_ASSERT_EQUAL(3, p.get());
+    p.set(5);
+    CPPUNIT_ASSERT_EQUAL(5, p.get());
+}
+
+void TestIntParameter::testWrite()
+{
+    std::auto_ptr<Parameter> p(new TypedParameter<int>(12345));
+    std::ostringstream out;
+    out.imbue(std::locale::classic());
+    out << *p;
+    CPPUNIT_ASSERT_EQUAL(std::string("12345"), out.str());
+}
+
+void TestIntParameter::testRead()
+{
+    TypedParameter<int> p;
+    std::istringstream in("12345");
+    in.imbue(std::locale::classic());
+    in >> p;
+    CPPUNIT_ASSERT(in.eof());
+    CPPUNIT_ASSERT(in);
+    CPPUNIT_ASSERT_EQUAL(12345, p.get());
+}
+
+void TestIntParameter::testReadBad()
+{
+    TypedParameter<int> p;
+    std::istringstream in("abcde");
+    in.imbue(std::locale::classic());
+    in >> p;
+    CPPUNIT_ASSERT(in.fail());
+}
+
+void TestIntParameter::testReadEmpty()
+{
+    TypedParameter<int> p;
+    std::istringstream in("");
+    in.imbue(std::locale::classic());
+    in >> p;
+    CPPUNIT_ASSERT(in.fail());
+}
+
+void TestIntParameter::testReadRange()
+{
+    TypedParameter<int> p;
+    std::istringstream in("1000000000000");
+    in.imbue(std::locale::classic());
+    in >> p;
+    CPPUNIT_ASSERT(in.fail());
+}
+
+/**
+ * Tests for @ref TypedParameter<std::string>.
+ */
+class TestStringParameter : public CppUnit::TestFixture
+{
+    CPPUNIT_TEST_SUITE(TestStringParameter);
+    CPPUNIT_TEST(testGetSet);
+    CPPUNIT_TEST(testWrite);
+    CPPUNIT_TEST(testRead);
+    CPPUNIT_TEST(testReadEmpty);
+    CPPUNIT_TEST(testReadBad);
+    CPPUNIT_TEST_SUITE_END();
+public:
+    void testGetSet();
+    void testWrite();
+    void testRead();
+    void testReadEmpty();
+    void testReadBad();
+};
+CPPUNIT_TEST_SUITE_REGISTRATION(TestStringParameter);
+
+void TestStringParameter::testGetSet()
+{
+    TypedParameter<std::string> p("hello");
+    CPPUNIT_ASSERT_EQUAL(std::string("hello"), p.get());
+    p.set("world");
+    CPPUNIT_ASSERT_EQUAL(std::string("world"), p.get());
+}
+
+void TestStringParameter::testWrite()
+{
+    std::auto_ptr<TypedParameter<std::string> > p(new TypedParameter<std::string>("foo"));
+    std::ostringstream out;
+    out.imbue(std::locale::classic());
+    out << *p;
+    CPPUNIT_ASSERT_EQUAL(std::string("Zm9v"), out.str());
+}
+
+void TestStringParameter::testRead()
+{
+    TypedParameter<std::string> p;
+    std::istringstream in("Zm9v");
+    in.imbue(std::locale::classic());
+    in >> p;
+    CPPUNIT_ASSERT_EQUAL(std::string("foo"), p.get());
+    CPPUNIT_ASSERT(in.eof());
+    CPPUNIT_ASSERT(in);
+}
+
+void TestStringParameter::testReadBad()
+{
+    TypedParameter<std::string> p;
+    std::istringstream in("hello");
+    in.imbue(std::locale::classic());
+    in >> p;
+    CPPUNIT_ASSERT(in.fail());
+}
+
+void TestStringParameter::testReadEmpty()
+{
+    TypedParameter<std::string> p("dummy");
+    std::istringstream in("");
+    in.imbue(std::locale::classic());
+    in >> p;
+    CPPUNIT_ASSERT_EQUAL(std::string(), p.get());
+    CPPUNIT_ASSERT(in.eof());
+    CPPUNIT_ASSERT(in);
+}
 
 /**
  * Test the MD5 computation.

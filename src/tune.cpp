@@ -40,6 +40,7 @@
 #include <cerrno>
 #include <set>
 #include <sys/stat.h>
+#include <locale>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -141,6 +142,7 @@ static void saveParameters(const std::string &algorithm, const ParameterSet &key
     std::ofstream out(path.c_str());
     if (!out)
         throw SaveParametersError(path, errno);
+    out.imbue(std::locale::classic());
     out << values;
     out.close();
     if (!out)
@@ -226,6 +228,7 @@ CLOGS_LOCAL void getParameters(const std::string &algorithm, const ParameterSet 
         {
             throw CacheError(strerror(errno));
         }
+        in.imbue(std::locale::classic());
         parseParameters(in, params);
     }
     catch (std::runtime_error &e)

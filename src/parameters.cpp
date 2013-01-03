@@ -65,7 +65,16 @@ std::istream &TypedReader<std::string>::operator()(std::istream &i, std::string 
 {
     std::string encoded;
     if (i >> encoded)
-        x = base64decode(encoded);
+    {
+        try
+        {
+            x = base64decode(encoded);
+        }
+        catch (Base64DecodeError &e)
+        {
+            i.setstate(std::ios::failbit);
+        }
+    }
     return i;
 }
 
