@@ -71,6 +71,8 @@ int SaveParametersError::getError() const
 CLOGS_LOCAL ParameterSet deviceKey(const cl::Device &device)
 {
     ParameterSet key;
+    cl::Platform platform(device.getInfo<CL_DEVICE_PLATFORM>());
+    key["CL_PLATFORM_NAME"] = new TypedParameter<std::string>(platform.getInfo<CL_PLATFORM_NAME>());
     key["CL_DEVICE_NAME"] = new TypedParameter<std::string>(device.getInfo<CL_DEVICE_NAME>());
     key["CL_DEVICE_VENDOR_ID"] = new TypedParameter<cl_uint>(device.getInfo<CL_DEVICE_VENDOR_ID>());
     key["CL_DRIVER_VERSION"] = new TypedParameter<std::string>(device.getInfo<CL_DRIVER_VERSION>());
