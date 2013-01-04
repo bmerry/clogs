@@ -164,13 +164,14 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
     ParameterSet key = makeKey(device, type);
 
     ParameterSet params = parameters();
-    getParameters("scan", key, params);
+    getParameters(key, params);
     initialize(context, device, type, params);
 }
 
 ParameterSet Scan::makeKey(const cl::Device &device, const Type &type)
 {
     ParameterSet key = deviceKey(device);
+    key["algorithm"] = new TypedParameter<std::string>("scan");
     key["version"] = new TypedParameter<int>(1);
     key["type"] = new TypedParameter<std::string>(type.getName());
     return key;

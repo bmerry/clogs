@@ -79,6 +79,9 @@ CLOGS_LOCAL ParameterSet deviceKey(const cl::Device &device)
     return key;
 }
 
+namespace
+{
+
 /**
  * Determines the cache directory, without caching the result. The
  * directory is created if it does not exist, but failure to create it is not
@@ -120,26 +123,25 @@ static std::string getCacheDir()
 /**
  * Returns the filename where parameters for an algorithm are stored.
  */
-static std::string getCacheFile(const std::string &algorithm, const ParameterSet &key)
+static std::string getCacheFile(const ParameterSet &key)
 {
     const std::string hash = key.hash();
-    const std::string path = getCacheDir() + "/" + algorithm + "-" + hash;
+    const std::string path = getCacheDir() + "/" + hash;
     return path;
 }
 
 /**
  * Write computed parameters to file.
  *
- * @param algorithm      Algorithm that has been tuned
  * @param key            Algorithm key
  * @param params         Autotuned parameters.
  *
  * @throw SaveParametersError if the file could not be written
  */
-static void saveParameters(const std::string &algorithm, const ParameterSet &key, const ParameterSet &values)
+static void saveParameters(const ParameterSet &key, const ParameterSet &values)
 {
     const std::string hash = key.hash();
-    const std::string path = getCacheFile(algorithm, key);
+    const std::string path = getCacheFile(key);
     std::ofstream out(path.c_str());
     if (!out)
         throw SaveParametersError(path, errno);
@@ -153,10 +155,31 @@ static void saveParameters(const std::string &algorithm, const ParameterSet &key
     }
 }
 
+class CLOGS_LOCAL Tuner
+{
+private:
+    std::set<ParameterSet> seen;
+    bool force;
+
+    void tuneScan(const cl::Context &context, const cl::Device &device);
+
+    void tunePlatform(const cl::Platform &platform);
+    void tuneDevice(const cl::Platform &platform, const cl::Device &context);
+
+public:
+    Tuner();
+
+    void tuneAll();
+};
+
+Tuner::Tuner() : force(true)
+{
+}
+
 /**
  * Tune the scan algorithm for a device.
  */
-static void tuneDeviceScan(const cl::Context &context, const cl::Device &device)
+void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
 {
     const std::vector<Type> types = Type::allTypes();
     for (std::size_t i = 0; i < types.size(); i++)
@@ -164,22 +187,64 @@ static void tuneDeviceScan(const cl::Context &context, const cl::Device &device)
         const Type &type = types[i];
         if (Scan::typeSupported(device, type))
         {
-            std::cout << "Tuning scan for " << type.getName() << " on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
-
             ParameterSet key = Scan::makeKey(device, type);
-            const std::string hash = key.hash();
-            ParameterSet params = Scan::tune(context, device, type);
-            saveParameters("scan", key, params);
+            bool doit = true;
+            if (!seen.insert(key).second)
+                doit = false; // already done in this round of tuning
+            else if (!force)
+            {
+                try
+                {
+                    Scan scan(context, device, type);
+                    doit = false;
+                }
+                catch (InternalError &e)
+                {
+                    // No-op: doit = false will not be reached. Note that we
+                    // catch InternalError and not just CacheError, in case
+                    // some driver change now makes the generated kernel
+                    // invalid.
+                }
+            }
+            if (doit)
+            {
+                std::cout << "Tuning scan for " << type.getName() << " on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
+
+                const std::string hash = key.hash();
+                ParameterSet params = Scan::tune(context, device, type);
+                saveParameters(key, params);
+            }
         }
     }
 }
 
-/**
- * Tune all algorithms for a device.
- */
-CLOGS_API void tuneDevice(const cl::Context &context, const cl::Device &device)
+void Tuner::tuneDevice(const cl::Platform &platform, const cl::Device &device)
 {
-    tuneDeviceScan(context, device);
+    cl_context_properties props[3] = {CL_CONTEXT_PLATFORM, (cl_context_properties) platform(), 0};
+    std::vector<cl::Device> devices(1, device);
+    cl::Context context(devices, props, NULL);
+
+    tuneScan(context, device);
+}
+
+void Tuner::tunePlatform(const cl::Platform &platform)
+{
+    std::vector<cl::Device> devices;
+    platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
+    for (std::size_t i = 0; i < devices.size(); i++)
+    {
+        tuneDevice(platform, devices[i]);
+    }
+}
+
+void Tuner::tuneAll()
+{
+    std::vector<cl::Platform> platforms;
+    cl::Platform::get(&platforms);
+    for (std::size_t i = 0; i < platforms.size(); i++)
+    {
+        tunePlatform(platforms[i]);
+    }
 }
 
 /**
@@ -216,9 +281,11 @@ static void parseParameters(std::istream &in, ParameterSet &params)
         throw CacheError(strerror(errno));
 }
 
-CLOGS_LOCAL void getParameters(const std::string &algorithm, const ParameterSet &key, ParameterSet &params)
+} // anonymous namespace
+
+CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params)
 {
-    std::string filename = getCacheFile(algorithm, key);
+    std::string filename = getCacheFile(key);
     try
     {
         std::ifstream in(filename.c_str());
@@ -233,6 +300,12 @@ CLOGS_LOCAL void getParameters(const std::string &algorithm, const ParameterSet 
     {
         throw CacheError("Failed to read cache file " + filename + ": " + e.what());
     }
+}
+
+CLOGS_API void tuneAll()
+{
+    Tuner tuner;
+    tuner.tuneAll();
 }
 
 } // namespace detail

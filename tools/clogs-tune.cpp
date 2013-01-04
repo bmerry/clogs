@@ -25,40 +25,15 @@
 
 #include <CL/cl.hpp>
 #include <boost/program_options.hpp>
-#include <boost/foreach.hpp>
 #include <vector>
 #include "../src/tune.h"
 #include "../src/parameters.h"
-
-static void tuneDevice(const cl::Platform &platform, const cl::Device &device)
-{
-    cl_context_properties props[3] = {CL_CONTEXT_PLATFORM, (cl_context_properties) platform(), 0};
-    std::vector<cl::Device> devices(1, device);
-    cl::Context context(devices, props, NULL);
-
-    clogs::detail::tuneDevice(context, device);
-}
-
-static void tunePlatform(const cl::Platform &platform)
-{
-    std::vector<cl::Device> devices;
-    platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
-    BOOST_FOREACH(const cl::Device &device, devices)
-    {
-        tuneDevice(platform, device);
-    }
-}
 
 int main(int argc, char **argv)
 {
     try
     {
-        std::vector<cl::Platform> platforms;
-        cl::Platform::get(&platforms);
-        BOOST_FOREACH(const cl::Platform &platform, platforms)
-        {
-            tunePlatform(platform);
-        }
+        clogs::detail::tuneAll();
     }
     catch (clogs::detail::SaveParametersError &e)
     {

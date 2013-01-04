@@ -30,6 +30,7 @@
 #endif
 
 #include <clogs/visibility_push.h>
+#include <cstddef>
 #include <string>
 #include <sstream>
 #include <stdexcept>
@@ -243,7 +244,7 @@ std::vector<Type> Type::allTypes()
     static const int sizes[] = {1, 2, 3, 4, 8, 16};
     std::vector<Type> ans;
     for (int i = int(TYPE_UCHAR); i <= int(TYPE_DOUBLE); i++)
-        for (int j = 0; sizeof(sizes) / sizeof(sizes[0]); j++)
+        for (std::size_t j = 0; j < sizeof(sizes) / sizeof(sizes[0]); j++)
         {
             ans.push_back(Type(BaseType(i), sizes[j]));
         }

@@ -70,14 +70,19 @@ CLOGS_LOCAL ParameterSet deviceKey(const cl::Device &device);
 
 /**
  * Look up tuning parameters for a specific algorithm.
+ *
+ * @param key             Lookup key, including algorithm and device-specific fields
+ * @param[in,out] params  On input, uninitialized parameters. Initialized on output
+ *
+ * @throw CacheError if the cache did not exist or could not be read
  */
-CLOGS_LOCAL void getParameters(const std::string &algorithm, const ParameterSet &key, ParameterSet &out);
+CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params);
 
 /**
- * Generate the tuning parameters for all algorithms on a specific device.
+ * Generate the tuning parameters for all algorithms on all devices.
  * This is not thread-safe (or even multi-process safe).
  */
-CLOGS_API void tuneDevice(const cl::Context &context, const cl::Device &device);
+CLOGS_API void tuneAll();
 
 } // namespace detail
 } // namespace clogs
