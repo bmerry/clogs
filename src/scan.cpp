@@ -39,6 +39,7 @@
 #include <map>
 #include <string>
 #include <cassert>
+#include <iostream>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -63,49 +64,6 @@ ParameterSet Scan::parameters()
     ans["SCAN_WORK_SCALE"] = new TypedParameter< ::size_t>();
     ans["SCAN_BLOCKS"] = new TypedParameter< ::size_t>();
     return ans;
-}
-
-ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, const Type &type)
-{
-    (void) context; // not used yet
-
-    const ::size_t elementSize = type.getSize();
-    const ::size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
-    const ::size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
-
-    ::size_t workGroupSize = 256U;
-    ::size_t scanWorkScale = 8U;
-    ::size_t maxBlocks = 1024U;
-    const ::size_t warpSize = getWarpSize(device);
-    if (device.getInfo<CL_DEVICE_TYPE>() & CL_DEVICE_TYPE_CPU)
-    {
-        scanWorkScale = 1U;
-        workGroupSize = 1U;
-        maxBlocks = device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
-        if (maxBlocks < 2U)
-            maxBlocks = 2U;
-    }
-
-    workGroupSize = std::min(workGroupSize, maxWorkGroupSize);
-    workGroupSize = std::min(workGroupSize, localMemElements / 2 - 1);
-    workGroupSize = roundDownPower2(workGroupSize);
-    ::size_t reduceWorkGroupSize = workGroupSize;
-    ::size_t scanWorkGroupSize = workGroupSize;
-
-    scanWorkScale = std::min(scanWorkScale, localMemElements / workGroupSize);
-    scanWorkScale = roundDownPower2(scanWorkScale);
-
-    maxBlocks = std::min(maxBlocks, 2 * maxWorkGroupSize);
-    maxBlocks = std::min(maxBlocks, localMemElements);
-    maxBlocks = roundDownPower2(maxBlocks);
-
-    ParameterSet out = parameters();
-    out.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
-    out.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
-    out.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
-    out.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(scanWorkScale);
-    out.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
-    return out;
 }
 
 void Scan::initialize(const cl::Context &context, const cl::Device &device, const Type &type, const ParameterSet &params)
@@ -150,6 +108,92 @@ void Scan::initialize(const cl::Context &context, const cl::Device &device, cons
     }
 }
 
+static void CL_CALLBACK collectEvents(const cl::Event &event, void *data)
+{
+    std::vector<cl::Event> *events = static_cast<std::vector<cl::Event> *>(data);
+    events->push_back(event);
+}
+
+ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, const Type &type)
+{
+    (void) context; // not used yet
+
+    cl_ulong best = ~cl_ulong(0);
+    ParameterSet ans;
+
+    const ::size_t elementSize = type.getSize();
+    const ::size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+    const ::size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
+
+    std::size_t allocSize = std::min(
+        device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / 8,
+        device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>());
+    allocSize = std::min(allocSize, std::size_t(2 * 1024 * 1024));
+    const std::size_t allocElements = allocSize / elementSize;
+    cl::Buffer buffer(context, CL_MEM_READ_WRITE, allocSize);
+    cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
+
+    const ::size_t warpSize = getWarpSize(device);
+    for (std::size_t scanWorkGroupSize = 1; scanWorkGroupSize <= maxWorkGroupSize; scanWorkGroupSize *= 2)
+    {
+        const ::size_t maxWorkScale = std::min(localMemElements / scanWorkGroupSize, std::size_t(16));
+        // TODO: does this need to be POT?
+        for (std::size_t scanWorkScale = 1; scanWorkScale <= maxWorkScale; scanWorkScale *= 2)
+        {
+            // Avoid searching on this to save time
+            std::size_t reduceWorkGroupSize = scanWorkGroupSize;
+            const std::size_t maxBlocks = std::min(2 * maxWorkGroupSize, localMemElements);
+            for (std::size_t blocks = 2; blocks <= maxBlocks; blocks *= 2)
+            {
+                ParameterSet params = parameters();
+                params.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+                params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
+                params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
+                params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(scanWorkScale);
+                params.getTyped< ::size_t>("SCAN_BLOCKS")->set(blocks);
+                try
+                {
+                    // std::cout << params << std::endl;
+                    std::cout << '.' << std::flush;
+                    Scan scan(context, device, type, params);
+                    // Warmup pass
+                    scan.enqueue(queue, buffer, allocElements, NULL, NULL, NULL);
+                    queue.finish();
+                    // Timing pass
+                    std::vector<cl::Event> events;
+                    scan.setEventCallback(collectEvents, &events);
+                    scan.enqueue(queue, buffer, allocElements, NULL, NULL, NULL);
+                    queue.finish();
+
+                    cl_ulong elapsed = 0;
+                    for (std::size_t i = 0; i < events.size(); i++)
+                    {
+                        events[i].wait();
+                        cl_ulong start = events[i].getProfilingInfo<CL_PROFILING_COMMAND_START>();
+                        cl_ulong end = events[i].getProfilingInfo<CL_PROFILING_COMMAND_END>();
+                        elapsed += end - start;
+                    }
+
+                    if (elapsed < best)
+                    {
+                        best = elapsed;
+                        ans = params;
+                    }
+                }
+                catch (InternalError &e)
+                {
+                }
+            }
+        }
+    }
+
+    // TODO: use a new exception type
+    if (ans.empty())
+        throw std::runtime_error("Could not successfully build a kernel for " + type.getName());
+    std::cout << '\n' << ans << '\n';
+    return ans;
+}
+
 bool Scan::typeSupported(const cl::Device &device, const Type &type)
 {
     return type.isIntegral() && type.isComputable(device) && type.isStorable(device);
@@ -165,6 +209,13 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
 
     ParameterSet params = parameters();
     getParameters(key, params);
+    initialize(context, device, type, params);
+}
+
+Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type,
+           const ParameterSet &params)
+    : eventCallback(NULL), eventCallbackUserData(NULL)
+{
     initialize(context, device, type, params);
 }
 

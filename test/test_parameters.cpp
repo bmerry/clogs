@@ -152,21 +152,44 @@ void TestStringParameter::testDeserializeEmpty()
 }
 
 /**
- * Test the MD5 computation.
+ * 
  */
-class TestHash : public CppUnit::TestFixture
+class TestParameterSet : public CppUnit::TestFixture
 {
-    CPPUNIT_TEST_SUITE(TestHash);
+    CPPUNIT_TEST_SUITE(TestParameterSet);
+    CPPUNIT_TEST(testAssign);
     CPPUNIT_TEST(testHash);
     CPPUNIT_TEST_SUITE_END();
 
 public:
-    /// Test computation of the MD5 sum, using RFC 1321 test suite
-    void testHash();
+    void testAssign(); ///< Test assignment operator
+    void testHash();   ///< Test computation of the MD5 sum, using RFC 1321 test suite
 };
-CPPUNIT_TEST_SUITE_REGISTRATION(TestHash);
+CPPUNIT_TEST_SUITE_REGISTRATION(TestParameterSet);
 
-void TestHash::testHash()
+void TestParameterSet::testAssign()
+{
+    ParameterSet a, b;
+
+    a["REDUCE_WORK_GROUP_SIZE"] = new TypedParameter<std::size_t>(1);
+    a["SCAN_BLOCKS"] = new TypedParameter<std::size_t>(256);
+    a["SCAN_WORK_GROUP_SIZE"] = new TypedParameter<std::size_t>(1);
+    a["SCAN_WORK_SCALE"] = new TypedParameter<std::size_t>(8);
+    a["WARP_SIZE"] = new TypedParameter<std::size_t>(1);
+
+    b["SCAN_WORK_SCALE"] = new TypedParameter<std::size_t>(1337);
+    b["dummy"] = new TypedParameter<std::size_t>(5);
+
+    b = a;
+    std::ostringstream astr, bstr;
+    astr.imbue(std::locale::classic());
+    bstr.imbue(std::locale::classic());
+    astr << a;
+    bstr << b;
+    CPPUNIT_ASSERT_EQUAL(astr.str(), bstr.str());
+}
+
+void TestParameterSet::testHash()
 {
     CPPUNIT_ASSERT_EQUAL(std::string("d41d8cd98f00b204e9800998ecf8427e"),
                          ParameterSet::hash(""));

@@ -101,6 +101,12 @@ private:
         const cl::Context &context, const cl::Device &device, const Type &type,
         const ParameterSet &params);
 
+    /**
+     * Constructor for autotuning
+     */
+    Scan(const cl::Context &context, const cl::Device &device, const Type &type,
+         const ParameterSet &params);
+
 public:
     /**
      * Constructor.
