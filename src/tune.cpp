@@ -193,17 +193,22 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
                 doit = false; // already done in this round of tuning
             else if (!force)
             {
+                /* Catches are all no-ops: doit = false will not be reached.
+                 * Note that we catch InternalError and not just CacheError, in
+                 * case some driver change now makes the generated kernel
+                 * invalid. We also catch cl::Error in case a kernel causes
+                 * CL_OUT_OF_RESOURCES for some reason (which does happen).
+                 */
                 try
                 {
                     Scan scan(context, device, type);
                     doit = false;
                 }
+                catch (cl::Error &e)
+                {
+                }
                 catch (InternalError &e)
                 {
-                    // No-op: doit = false will not be reached. Note that we
-                    // catch InternalError and not just CacheError, in case
-                    // some driver change now makes the generated kernel
-                    // invalid.
                 }
             }
             if (doit)

@@ -183,6 +183,9 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
                 catch (InternalError &e)
                 {
                 }
+                catch (cl::Error &e)
+                {
+                }
             }
         }
     }
