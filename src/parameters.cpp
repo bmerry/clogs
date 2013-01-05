@@ -86,6 +86,7 @@ ParameterSet &ParameterSet::operator=(const ParameterSet &params)
 {
     for (iterator i = begin(); i != end(); ++i)
         delete i->second;
+    clear();
     for (const_iterator i = params.begin(); i != params.end(); ++i)
     {
         std::auto_ptr<Parameter> clone(i->second->clone());
