@@ -128,7 +128,7 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
     std::size_t allocSize = std::min(
         device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / 8,
         device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>());
-    allocSize = std::min(allocSize, std::size_t(2 * 1024 * 1024));
+    allocSize = std::min(allocSize, std::size_t(16 * 1024 * 1024));
     const std::size_t allocElements = allocSize / elementSize;
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, allocSize);
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
@@ -227,7 +227,7 @@ ParameterSet Scan::makeKey(const cl::Device &device, const Type &type)
     ParameterSet key = deviceKey(device);
     key["algorithm"] = new TypedParameter<std::string>("scan");
     key["version"] = new TypedParameter<int>(1);
-    key["type"] = new TypedParameter<std::string>(type.getName());
+    key["elementSize"] = new TypedParameter<std::size_t>(type.getSize());
     return key;
 }
 
