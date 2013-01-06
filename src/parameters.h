@@ -125,6 +125,15 @@ public:
     }
 };
 
+/**
+ * A key/value collection of parameters that can be serialized. The keys are
+ * strings while the values are of arbitrary type.
+ *
+ * The comparison functions provide an arbitrary strict weak ordering.
+ * Parameters are compared using their string representations, so it is
+ * possible that two parameter sets compare equal if they have the same keys
+ * and their parameters have the same serialization.
+ */
 class CLOGS_LOCAL ParameterSet : public std::map<std::string, Parameter *>
 {
 public:
@@ -136,7 +145,16 @@ public:
     ParameterSet &operator=(const ParameterSet &params);
     ~ParameterSet();
 
+    /**
+     * Compute a checksum of a string, rendered in hexadecimal. Currently this
+     * uses MD5, but it is not guaranteed.
+     */
     static std::string hash(const std::string &plain);
+
+    /**
+     * Return a checksum based on the serialized representation, using
+     * hexadecimal. Currently this uses MD5, but it is not guaranteed.
+     */
     std::string hash() const;
 
     template<typename T> const TypedParameter<T> *getTyped(const std::string &name) const
@@ -158,10 +176,20 @@ public:
     }
 
     bool operator==(const ParameterSet &other) const;
-
+    bool operator!=(const ParameterSet &other) const;
     bool operator<(const ParameterSet &other) const;
+    bool operator>(const ParameterSet &other) const;
+    bool operator<=(const ParameterSet &other) const;
+    bool operator>=(const ParameterSet &other) const;
 };
 
+/**
+ * Write the parameter set in a serialized form. It consists of a series of lines
+ * of the form "key=value", where the key is written as-is and the value is written
+ * using @ref Parameter::serialize. Note that this is insufficient information
+ * to fully reconstruct the object, as it does not record the types of parameters.
+ * Additionally, it will be ambiguous if keys contain "=".
+ */
 CLOGS_LOCAL std::ostream &operator<<(std::ostream &o, const ParameterSet &params);
 
 } // namespace detail

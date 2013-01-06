@@ -159,6 +159,26 @@ bool ParameterSet::operator<(const ParameterSet &other) const
     return b != other.end();
 }
 
+bool ParameterSet::operator!=(const ParameterSet &other) const
+{
+    return !(*this == other);
+}
+
+bool ParameterSet::operator>(const ParameterSet &other) const
+{
+    return other < *this;
+}
+
+bool ParameterSet::operator<=(const ParameterSet &other) const
+{
+    return !(other < *this);
+}
+
+bool ParameterSet::operator>=(const ParameterSet &other) const
+{
+    return !(*this < other);
+}
+
 std::ostream &operator<<(std::ostream &o, const ParameterSet &params)
 {
     for (ParameterSet::const_iterator i = params.begin(); i != params.end(); ++i)

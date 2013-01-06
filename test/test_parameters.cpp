@@ -159,11 +159,19 @@ class TestParameterSet : public CppUnit::TestFixture
     CPPUNIT_TEST_SUITE(TestParameterSet);
     CPPUNIT_TEST(testAssign);
     CPPUNIT_TEST(testHash);
+    CPPUNIT_TEST(testCompareSame);
+    CPPUNIT_TEST(testCompareKey);
+    CPPUNIT_TEST(testCompareValue);
+    CPPUNIT_TEST(testComparePrefix);
     CPPUNIT_TEST_SUITE_END();
 
 public:
-    void testAssign(); ///< Test assignment operator
-    void testHash();   ///< Test computation of the MD5 sum, using RFC 1321 test suite
+    void testAssign();         ///< Test assignment operator
+    void testHash();           ///< Test computation of the MD5 sum, using RFC 1321 test suite
+    void testCompareSame();    ///< Test comparison functions when identical
+    void testCompareKey();     ///< Test comparison functions when keys differ
+    void testCompareValue();   ///< Test comparison functions when only values differ
+    void testComparePrefix();  ///< Test comparison functions when one is a prefix
 };
 CPPUNIT_TEST_SUITE_REGISTRATION(TestParameterSet);
 
@@ -205,4 +213,73 @@ void TestParameterSet::testHash()
                          ParameterSet::hash("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"));
     CPPUNIT_ASSERT_EQUAL(std::string("57edf4a22be3c955ac49da2e2107b67a"),
                          ParameterSet::hash("12345678901234567890123456789012345678901234567890123456789012345678901234567890"));
+}
+
+void TestParameterSet::testCompareSame()
+{
+    ParameterSet a, b;
+    a["foo"] = new TypedParameter<int>(5);
+    a["bar"] = new TypedParameter<std::string>("hello");
+
+    b["bar"] = new TypedParameter<std::string>("hello");
+    b["foo"] = new TypedParameter<int>(5);
+
+    CPPUNIT_ASSERT(a == b);
+    CPPUNIT_ASSERT(!(a != b));
+    CPPUNIT_ASSERT(!(a < b));
+    CPPUNIT_ASSERT(!(a > b));
+    CPPUNIT_ASSERT(a <= b);
+    CPPUNIT_ASSERT(a >= b);
+}
+
+template<typename T>
+static void assertLess(const T &a, const T &b)
+{
+    CPPUNIT_ASSERT(!(a == b));
+    CPPUNIT_ASSERT(a != b);
+    CPPUNIT_ASSERT(a < b);
+    CPPUNIT_ASSERT(!(b < a));
+    CPPUNIT_ASSERT(a <= b);
+    CPPUNIT_ASSERT(!(b <= a));
+    CPPUNIT_ASSERT(b > a);
+    CPPUNIT_ASSERT(!(a > b));
+    CPPUNIT_ASSERT(b >= a);
+    CPPUNIT_ASSERT(!(a >= b));
+}
+
+void TestParameterSet::testCompareKey()
+{
+    ParameterSet a, b;
+    a["foo"] = new TypedParameter<int>(5);
+    a["bar"] = new TypedParameter<std::string>("hello");
+
+    b["foobar"] = new TypedParameter<int>(5);
+    b["bar"] = new TypedParameter<std::string>("hello");
+
+    assertLess(a, b);
+}
+
+void TestParameterSet::testCompareValue()
+{
+    ParameterSet a, b;
+    a["foo"] = new TypedParameter<int>(5);
+    a["bar"] = new TypedParameter<std::string>("hello");
+
+    b["foo"] = new TypedParameter<int>(5);
+    b["bar"] = new TypedParameter<std::string>("hello world");
+
+    assertLess(a, b);
+}
+
+void TestParameterSet::testComparePrefix()
+{
+    ParameterSet a, b;
+    a["foo"] = new TypedParameter<int>(5);
+    a["bar"] = new TypedParameter<std::string>("hello");
+
+    b["foo"] = new TypedParameter<int>(5);
+    b["bar"] = new TypedParameter<std::string>("hello");
+    b["zzz"] = new TypedParameter<int>(2);
+
+    assertLess(a, b);
 }
