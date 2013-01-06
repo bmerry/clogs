@@ -127,6 +127,38 @@ std::string ParameterSet::hash() const
     return hash(plain.str());
 }
 
+bool ParameterSet::operator==(const ParameterSet &other) const
+{
+    const_iterator a = begin(), b = other.begin();
+    while (a != end() && b != other.end())
+    {
+        if (a->first != b->first)
+            return false;
+        if (a->second->serialize() != b->second->serialize())
+            return false;
+        ++a;
+        ++b;
+    }
+    return a == end() && b == other.end();
+}
+
+bool ParameterSet::operator<(const ParameterSet &other) const
+{
+    const_iterator a = begin(), b = other.begin();
+    while (a != end() && b != other.end())
+    {
+        if (a->first != b->first)
+            return a->first < b->first;
+        const std::string av = a->second->serialize();
+        const std::string bv = b->second->serialize();
+        if (av != bv)
+            return av < bv;
+        ++a;
+        ++b;
+    }
+    return b != other.end();
+}
+
 std::ostream &operator<<(std::ostream &o, const ParameterSet &params)
 {
     for (ParameterSet::const_iterator i = params.begin(); i != params.end(); ++i)

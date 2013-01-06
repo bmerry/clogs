@@ -156,6 +156,10 @@ public:
         else
             return NULL;
     }
+
+    bool operator==(const ParameterSet &other) const;
+
+    bool operator<(const ParameterSet &other) const;
 };
 
 CLOGS_LOCAL std::ostream &operator<<(std::ostream &o, const ParameterSet &params);
