@@ -29,11 +29,45 @@
 #include "../src/tune.h"
 #include "../src/parameters.h"
 
-int main(int argc, char **argv)
+namespace po = boost::program_options;
+
+po::variables_map processOptions(int argc, char **argv)
 {
+    po::options_description desc("Options");
+    desc.add_options()
+        ("help",                    "Show help")
+        ("force",                   "Re-tune already-tuned configurations");
+
     try
     {
-        clogs::detail::tuneAll();
+        po::variables_map vm;
+        po::store(po::command_line_parser(argc, argv)
+                  .style(po::command_line_style::default_style & ~po::command_line_style::allow_guessing)
+                  .options(desc)
+                  .run(), vm);
+        po::notify(vm);
+
+        if (vm.count("help"))
+        {
+            std::cout << desc << '\n';
+            std::exit(0);
+        }
+        return vm;
+    }
+    catch (po::error &e)
+    {
+        std::cerr << e.what() << "\n\n" << desc << '\n';
+        std::exit(1);
+    }
+}
+
+int main(int argc, char **argv)
+{
+    po::variables_map vm = processOptions(argc, argv);
+    bool force = vm.count("force");
+    try
+    {
+        clogs::detail::tuneAll(force);
     }
     catch (clogs::detail::SaveParametersError &e)
     {

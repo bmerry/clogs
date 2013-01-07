@@ -169,11 +169,17 @@ private:
 public:
     Tuner();
 
+    void setForce(bool force);
     void tuneAll();
 };
 
 Tuner::Tuner() : force(true)
 {
+}
+
+void Tuner::setForce(bool force)
+{
+    this->force = force;
 }
 
 /**
@@ -307,9 +313,10 @@ CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params)
     }
 }
 
-CLOGS_API void tuneAll()
+CLOGS_API void tuneAll(bool force)
 {
     Tuner tuner;
+    tuner.setForce(force);
     tuner.tuneAll();
 }
 

@@ -82,7 +82,7 @@ CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params);
  * Generate the tuning parameters for all algorithms on all devices.
  * This is not thread-safe (or even multi-process safe).
  */
-CLOGS_API void tuneAll();
+CLOGS_API void tuneAll(bool force);
 
 } // namespace detail
 } // namespace clogs
