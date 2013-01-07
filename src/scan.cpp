@@ -108,76 +108,144 @@ void Scan::initialize(const cl::Context &context, const cl::Device &device, cons
     }
 }
 
-static void CL_CALLBACK collectEvents(const cl::Event &event, void *data)
-{
-    std::vector<cl::Event> *events = static_cast<std::vector<cl::Event> *>(data);
-    events->push_back(event);
-}
-
 ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, const Type &type)
 {
     (void) context; // not used yet
 
-    cl_ulong best = ~cl_ulong(0);
-    ParameterSet ans;
+    const size_t elementSize = type.getSize();
+    const size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+    const size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
+    const size_t maxBlocks = std::min(2 * maxWorkGroupSize, localMemElements) & ~1;
 
-    const ::size_t elementSize = type.getSize();
-    const ::size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
-    const ::size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
-
-    std::size_t allocSize = std::min(
-        device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / 8,
-        device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>());
-    allocSize = std::min(allocSize, std::size_t(16 * 1024 * 1024));
-    const std::size_t allocElements = allocSize / elementSize;
+    const size_t allocSize = 32 * 1024 * 1024;
+    const size_t allocElements = allocSize / elementSize;
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, allocSize);
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
 
-    const ::size_t warpSize = getWarpSize(device);
-    for (std::size_t scanWorkGroupSize = 1; scanWorkGroupSize <= maxWorkGroupSize; scanWorkGroupSize *= 2)
+    const size_t warpSize = getWarpSize(device);
+
+    size_t bestReduceWorkGroupSize = 0;
+    size_t bestScanWorkGroupSize = 0;
+    size_t bestScanWorkScale = 0;
+    size_t bestBlocks = 0;
+
     {
-        const ::size_t maxWorkScale = std::min(localMemElements / scanWorkGroupSize, std::size_t(16));
-        // TODO: does this need to be POT?
-        for (std::size_t scanWorkScale = 1; scanWorkScale <= maxWorkScale; scanWorkScale *= 2)
+        double bestRate = -1.0;
+        // Tune reduce kernel
+        for (::size_t reduceWorkGroupSize = 1; reduceWorkGroupSize <= maxWorkGroupSize; reduceWorkGroupSize *= 2)
         {
-            // Avoid searching on this to save time
-            std::size_t reduceWorkGroupSize = scanWorkGroupSize;
-            const std::size_t maxBlocks = std::min(2 * maxWorkGroupSize, localMemElements);
-            for (std::size_t blocks = 2; blocks <= maxBlocks; blocks *= 2)
+            ParameterSet params = parameters();
+            params.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+            params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
+            params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(1);
+            params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(1);
+            params.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
+            ::size_t blockSize = roundUp(allocElements, reduceWorkGroupSize * maxBlocks) / maxBlocks;
+            ::size_t nBlocks = (allocElements + blockSize - 1) / blockSize;
+            try
+            {
+                Scan scan(context, device, type, params);
+                scan.reduceKernel.setArg(1, buffer);
+                scan.reduceKernel.setArg(2, (cl_uint) blockSize);
+                if (nBlocks > 1)
+                {
+                    std::cout << '.' << std::flush;
+                    cl::Event event;
+                    // Warmup pass
+                    queue.enqueueNDRangeKernel(
+                        scan.reduceKernel,
+                        cl::NullRange,
+                        cl::NDRange(reduceWorkGroupSize * (nBlocks - 1)),
+                        cl::NDRange(reduceWorkGroupSize),
+                        NULL, NULL);
+                    queue.finish();
+                    // Timing pass
+                    queue.enqueueNDRangeKernel(
+                        scan.reduceKernel,
+                        cl::NullRange,
+                        cl::NDRange(reduceWorkGroupSize * (nBlocks - 1)),
+                        cl::NDRange(reduceWorkGroupSize),
+                        NULL, &event);
+                    queue.finish();
+
+                    event.wait();
+                    cl_ulong start = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+                    cl_ulong end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+                    double elapsed = end - start;
+                    double rate = (nBlocks - 1) * reduceWorkGroupSize / elapsed;
+                    if (rate > bestRate)
+                    {
+                        bestRate = rate;
+                        bestReduceWorkGroupSize = reduceWorkGroupSize;
+                    }
+                }
+            }
+            catch (InternalError &e)
+            {
+            }
+            catch (cl::Error &e)
+            {
+            }
+        }
+    }
+    std::cout << std::endl;
+
+    {
+        /* Tune scan kernel. The work group size and the work scale interact in
+         * affecting register allocations, so they need to be tuned separately.
+         */
+        double bestRate = -1.0;
+        for (size_t scanWorkGroupSize = 1; scanWorkGroupSize <= maxWorkGroupSize; scanWorkGroupSize *= 2)
+        {
+            const size_t maxWorkScale = std::min(localMemElements / scanWorkGroupSize, std::size_t(16));
+            for (size_t scanWorkScale = 1; scanWorkScale <= maxWorkScale; scanWorkScale *= 2)
             {
                 ParameterSet params = parameters();
                 params.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
-                params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
+                params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(bestReduceWorkGroupSize);
                 params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
                 params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(scanWorkScale);
-                params.getTyped< ::size_t>("SCAN_BLOCKS")->set(blocks);
+                params.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
+                ::size_t tileSize = scanWorkGroupSize * scanWorkScale;
+                ::size_t blockSize = roundUp(allocElements, tileSize * maxBlocks) / maxBlocks;
+                ::size_t nBlocks = (allocElements + blockSize - 1) / blockSize;
                 try
                 {
-                    // std::cout << params << std::endl;
                     std::cout << '.' << std::flush;
+
                     Scan scan(context, device, type, params);
+                    cl::Event event;
+                    scan.scanKernel.setArg(0, buffer);
+                    scan.scanKernel.setArg(2, (cl_uint) blockSize);
+                    scan.scanKernel.setArg(3, (cl_uint) allocElements);
                     // Warmup pass
-                    scan.enqueue(queue, buffer, allocElements, NULL, NULL, NULL);
+                    queue.enqueueNDRangeKernel(
+                        scan.scanKernel,
+                        cl::NullRange,
+                        cl::NDRange(scanWorkGroupSize * nBlocks),
+                        cl::NDRange(scanWorkGroupSize),
+                        NULL, NULL);
                     queue.finish();
                     // Timing pass
-                    std::vector<cl::Event> events;
-                    scan.setEventCallback(collectEvents, &events);
-                    scan.enqueue(queue, buffer, allocElements, NULL, NULL, NULL);
+                    queue.enqueueNDRangeKernel(
+                        scan.scanKernel,
+                        cl::NullRange,
+                        cl::NDRange(scanWorkGroupSize * nBlocks),
+                        cl::NDRange(scanWorkGroupSize),
+                        NULL, &event);
                     queue.finish();
 
-                    cl_ulong elapsed = 0;
-                    for (std::size_t i = 0; i < events.size(); i++)
-                    {
-                        events[i].wait();
-                        cl_ulong start = events[i].getProfilingInfo<CL_PROFILING_COMMAND_START>();
-                        cl_ulong end = events[i].getProfilingInfo<CL_PROFILING_COMMAND_END>();
-                        elapsed += end - start;
-                    }
+                    event.wait();
+                    cl_ulong start = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+                    cl_ulong end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+                    double elapsed = end - start;
+                    double rate = allocElements / elapsed;
 
-                    if (elapsed < best)
+                    if (rate > bestRate)
                     {
-                        best = elapsed;
-                        ans = params;
+                        bestRate = rate;
+                        bestScanWorkGroupSize = scanWorkGroupSize;
+                        bestScanWorkScale = scanWorkScale;
                     }
                 }
                 catch (InternalError &e)
@@ -189,12 +257,71 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
             }
         }
     }
+    std::cout << std::endl;
+
+    {
+        /* Tune number of blocks. This is expected to be level beyond some point, so we
+         * require a 5% improvement to increase it as more blocks reduces throughput for
+         * small problem sizes.
+         */
+        double bestRate = -1.0;
+        for (size_t blocks = 2; blocks <= maxBlocks; blocks *= 2)
+        {
+            ParameterSet params = parameters();
+            params.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+            params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(bestReduceWorkGroupSize);
+            params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(bestScanWorkGroupSize);
+            params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(bestScanWorkScale);
+            params.getTyped< ::size_t>("SCAN_BLOCKS")->set(blocks);
+            try
+            {
+                std::cout << '.' << std::flush;
+
+                Scan scan(context, device, type, params);
+                cl::Event event;
+                // Warmup pass
+                scan.enqueue(queue, buffer, allocElements, NULL, NULL, NULL);
+                queue.finish();
+                // Timing pass
+                scan.enqueue(queue, buffer, allocElements, NULL, NULL, &event);
+                queue.finish();
+
+                event.wait();
+                cl_ulong start = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+                cl_ulong end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+                double elapsed = end - start;
+                double rate = allocElements / elapsed;
+                if (rate > bestRate * 1.05)
+                {
+                    bestRate = rate;
+                    bestBlocks = blocks;
+                }
+            }
+            catch (InternalError &e)
+            {
+            }
+            catch (cl::Error &e)
+            {
+            }
+        }
+    }
 
     // TODO: use a new exception type
-    if (ans.empty())
-        throw std::runtime_error("Could not successfully build a kernel for " + type.getName());
-    std::cout << '\n' << ans << '\n';
-    return ans;
+    if (bestReduceWorkGroupSize <= 0
+        || bestScanWorkGroupSize <= 0
+        || bestScanWorkScale <= 0
+        || bestBlocks <= 0)
+        throw std::runtime_error("Failed to tune " + type.getName());
+
+    ParameterSet params = parameters();
+    params.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+    params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(bestReduceWorkGroupSize);
+    params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(bestScanWorkGroupSize);
+    params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(bestScanWorkScale);
+    params.getTyped< ::size_t>("SCAN_BLOCKS")->set(bestBlocks);
+
+    std::cout << '\n' << params << '\n';
+    return params;
 }
 
 bool Scan::typeSupported(const cl::Device &device, const Type &type)
