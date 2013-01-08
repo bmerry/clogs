@@ -172,7 +172,7 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
                     cl_ulong start = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
                     cl_ulong end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
                     double elapsed = end - start;
-                    double rate = (nBlocks - 1) * reduceWorkGroupSize / elapsed;
+                    double rate = (nBlocks - 1) * blockSize / elapsed;
                     if (rate > bestRate)
                     {
                         bestRate = rate;
