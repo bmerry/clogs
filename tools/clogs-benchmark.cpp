@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,7 +75,7 @@ static clogs::Type matchType(const std::string &typeName)
             }
     }
     std::cerr << "Type '" << typeName << " is not recognized.\n";
-    exit(1);
+    std::exit(1);
 }
 
 static po::variables_map processOptions(int argc, const char **argv)
@@ -87,14 +87,16 @@ static po::variables_map processOptions(int argc, const char **argv)
                                                       "Number of elements to process")
         ("key-type",      po::value<std::string>()->default_value("uint"),
                                                       "Type for keys in sort")
-        ("key-bits",      po::value<unsigned int>(),  "Number of bits to request sorting")
+        ("key-bits",      po::value<unsigned int>(),  "Number of bits on which to sort")
         ("key-min",       po::value<cl_ulong>()->default_value(0),
                                                       "Minimum random key")
         ("key-max",       po::value<cl_ulong>(),      "Maximum random key")
         ("value-type",    po::value<std::string>()->default_value("uint"),
                                                       "Type of values to sort or scan")
         ("iterations",    po::value<unsigned int>()->default_value(10),
-                                                      "Number of repetitions to run");
+                                                      "Number of repetitions to run")
+        ("algorithm",     po::value<std::string>()->default_value("sort"),
+                                                      "Algorithm to benchmark (sort | scan)");
 
     po::options_description cl("OpenCL Options");
     addOptions(cl);
@@ -112,14 +114,14 @@ static po::variables_map processOptions(int argc, const char **argv)
         if (vm.count("help"))
         {
             std::cout << desc << '\n';
-            exit(0);
+            std::exit(0);
         }
         return vm;
     }
     catch (po::error &e)
     {
         std::cerr << e.what() << "\n\n" << desc << '\n';
-        exit(1);
+        std::exit(1);
     }
 }
 
@@ -160,7 +162,7 @@ static cl::Buffer randomBuffer(
     if (elements > std::numeric_limits<size_t>::max() / (length * sizeof(T)))
     {
         std::cerr << "Number of elements is too large for size_t.\n";
-        exit(1);
+        std::exit(1);
     }
 
     typename uniform<T>::type dist(minValue, maxValue);
@@ -347,7 +349,7 @@ static void runSort(const cl::CommandQueue &queue, const po::variables_map &vm)
         || !keyType.isComputable(device))
     {
         std::cerr << keyTypeName << " cannot be used as a sort key (must be a scalar unsigned integer).\n";
-        exit(1);
+        std::exit(1);
     }
 
     const std::string valueTypeName = vm["value-type"].as<std::string>();
@@ -356,14 +358,14 @@ static void runSort(const cl::CommandQueue &queue, const po::variables_map &vm)
         && !valueType.isStorable(device))
     {
         std::cerr << valueTypeName << " is not usable on this device.\n";
-        exit(1);
+        std::exit(1);
     }
 
     std::size_t elements = vm["items"].as<std::size_t>();
     if (elements <= 0)
     {
         std::cerr << "Number of items must be positive.\n";
-        exit(1);
+        std::exit(1);
     };
 
     unsigned int bits;
@@ -373,12 +375,12 @@ static void runSort(const cl::CommandQueue &queue, const po::variables_map &vm)
         if (bits <= 0)
         {
             std::cerr << "Number of bits must be positive.\n";
-            exit(1);
+            std::exit(1);
         }
         else if (bits > keyType.getBaseSize() * 8)
         {
             std::cerr << "Number of bits is too large.\n";
-            exit(1);
+            std::exit(1);
         }
     }
     else
@@ -392,7 +394,7 @@ static void runSort(const cl::CommandQueue &queue, const po::variables_map &vm)
         if (maxValue > upper(bits))
         {
             std::cerr << "Maximum key value is too large.\n";
-            exit(1);
+            std::exit(1);
         }
     }
     else
@@ -404,7 +406,7 @@ static void runSort(const cl::CommandQueue &queue, const po::variables_map &vm)
     if (iterations <= 0)
     {
         std::cerr << "Number of iterations must be positive.\n";
-        exit(1);
+        std::exit(1);
     }
 
 
@@ -447,6 +449,53 @@ static void runSort(const cl::CommandQueue &queue, const po::variables_map &vm)
     std::cout << "Rate: " << double(elements) * iterations / elapsed / 1e6 << "M/s\n";
 }
 
+static void runScan(const cl::CommandQueue &queue, const po::variables_map &vm)
+{
+    const cl::Context &context = queue.getInfo<CL_QUEUE_CONTEXT>();
+    const cl::Device &device = queue.getInfo<CL_QUEUE_DEVICE>();
+
+    const std::string valueTypeName = vm["value-type"].as<std::string>();
+    clogs::Type valueType = matchType(valueTypeName);
+    if (!valueType.isIntegral()
+        || !valueType.isStorable(device)
+        || !valueType.isComputable(device))
+    {
+        std::cerr << valueTypeName << " cannot be used as a sort key (must be an integral type).\n";
+        std::exit(1);
+    }
+
+    std::size_t elements = vm["items"].as<std::size_t>();
+    if (elements <= 0)
+    {
+        std::cerr << "Number of items must be positive.\n";
+        std::exit(1);
+    };
+
+    unsigned int iterations = vm["iterations"].as<unsigned int>();
+    if (iterations <= 0)
+    {
+        std::cerr << "Number of iterations must be positive.\n";
+        std::exit(1);
+    }
+
+    RANDOM_NAMESPACE::mt19937 engine;
+    cl::Buffer buffer = randomBuffer<cl_uchar>(queue, engine, elements * valueType.getSize(), 1);
+    clogs::Scan scan(context, device, valueType);
+
+    double elapsed = 0.0;
+    // pass 0 is a warm-up pass
+    for (unsigned int i = 0; i <= iterations; i++)
+    {
+        Timer timer;
+        scan.enqueue(queue, buffer, elements);
+        queue.finish();
+        if (i != 0)
+            elapsed += timer.getElapsed();
+    }
+    std::cout << "Scanned " << elements << " items " << iterations << " times in " << elapsed << " seconds.\n";
+    std::cout << "Rate: " << double(elements) * iterations / elapsed / 1e6 << "M/s\n";
+}
+
 int main(int argc, const char **argv)
 {
     try
@@ -464,7 +513,16 @@ int main(int argc, const char **argv)
         cl::Context context = makeContext(device);
         cl::CommandQueue queue(context, device);
 
-        runSort(queue, vm);
+        const std::string algorithm = vm["algorithm"].as<std::string>();
+        if (algorithm == "sort")
+            runSort(queue, vm);
+        else if (algorithm == "scan")
+            runScan(queue, vm);
+        else
+        {
+            std::cerr << "No such algorithm `" << algorithm << "'\n";
+            return 1;
+        }
     }
     catch (std::invalid_argument &e)
     {
