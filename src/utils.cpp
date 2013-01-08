@@ -35,6 +35,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <locale>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -84,6 +85,7 @@ cl::Program build(
     const std::string &source = sourceMap.find(filename)->second;
 
     std::ostringstream s;
+    s.imbue(std::locale::classic());
     for (std::map<std::string, int>::const_iterator i = defines.begin(); i != defines.end(); i++)
     {
         s << "#define " << i->first << " " << i->second << "\n";
@@ -102,6 +104,7 @@ cl::Program build(
         for (std::map<std::string, int>::const_iterator i = defines.begin(); i != defines.end(); i++)
         {
             std::ostringstream d;
+            d.imbue(std::locale::classic());
             d << " -D" << i->first << "=" << i->second;
             allOptions += d.str();
         }

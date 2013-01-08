@@ -31,6 +31,7 @@
 #include <cassert>
 #include <string>
 #include <stdexcept>
+#include <locale>
 #include "timer.h"
 #include "options.h"
 #include "../src/utils.h"
@@ -498,6 +499,9 @@ static void runScan(const cl::CommandQueue &queue, const po::variables_map &vm)
 
 int main(int argc, const char **argv)
 {
+    std::locale::global(std::locale(""));
+    std::cout.imbue(std::locale());
+    std::cerr.imbue(std::locale());
     try
     {
         po::variables_map vm = processOptions(argc, argv);

@@ -35,6 +35,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <locale>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -224,6 +225,7 @@ std::string Type::getName() const
     else
     {
         std::ostringstream s;
+        s.imbue(std::locale::classic());
         s << baseName << length;
         return s.str();
     }
