@@ -146,6 +146,8 @@ static void saveParameters(const ParameterSet &key, const ParameterSet &values)
     if (!out)
         throw SaveParametersError(path, errno);
     out.imbue(std::locale::classic());
+    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
+        out << "# " << i->first << "=" << i->second->serialize() << '\n';
     out << values;
     out.close();
     if (!out)
@@ -273,6 +275,8 @@ static void parseParameters(std::istream &in, ParameterSet &params)
     std::set<std::string> seen;
     while (getline(in, line))
     {
+        if (line.empty() || line[0] == '#')
+            continue;
         std::string::size_type p = line.find('=');
         if (p == std::string::npos)
         {
