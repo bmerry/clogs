@@ -48,33 +48,10 @@ static cl::Context g_context;
  */
 static clogs::Type matchType(const std::string &typeName)
 {
-    if (typeName == "void")
-        return clogs::Type();
-    else
-    {
-        const int lengths[] = {1, 2, 3, 4, 8, 16};
-        const clogs::BaseType types[] =
-        {
-            clogs::TYPE_UCHAR,
-            clogs::TYPE_CHAR,
-            clogs::TYPE_USHORT,
-            clogs::TYPE_SHORT,
-            clogs::TYPE_UINT,
-            clogs::TYPE_INT,
-            clogs::TYPE_ULONG,
-            clogs::TYPE_LONG,
-            clogs::TYPE_HALF,
-            clogs::TYPE_FLOAT,
-            clogs::TYPE_DOUBLE
-        };
-        for (unsigned int i = 0; i < sizeof(types) / sizeof(types[0]); i++)
-            for (unsigned int j = 0; j < sizeof(lengths) / sizeof(lengths[0]); j++)
-            {
-                clogs::Type type(types[i], lengths[j]);
-                if (type.getName() == typeName)
-                    return type;
-            }
-    }
+    std::vector<clogs::Type> types = clogs::Type::allTypes();
+    for (std::size_t i = 0; i < types.size(); i++)
+        if (types[i].getName() == typeName)
+            return types[i];
     std::cerr << "Type '" << typeName << " is not recognized.\n";
     std::exit(1);
 }
