@@ -245,6 +245,7 @@ std::vector<Type> Type::allTypes()
 {
     static const int sizes[] = {1, 2, 3, 4, 8, 16};
     std::vector<Type> ans;
+    ans.push_back(Type()); // void type
     for (int i = int(TYPE_UCHAR); i <= int(TYPE_DOUBLE); i++)
         for (std::size_t j = 0; j < sizeof(sizes) / sizeof(sizes[0]); j++)
         {

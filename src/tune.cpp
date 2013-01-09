@@ -46,6 +46,7 @@
 #include "tune.h"
 #include "parameters.h"
 #include "scan.h"
+#include "radixsort.h"
 
 namespace clogs
 {
@@ -164,6 +165,7 @@ private:
     bool force;
 
     void tuneScan(const cl::Context &context, const cl::Device &device);
+    void tuneRadixsort(const cl::Context &context, const cl::Device &device);
 
     void tunePlatform(const cl::Platform &platform);
     void tuneDevice(const cl::Platform &platform, const cl::Device &context);
@@ -231,6 +233,57 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
     }
 }
 
+/**
+ * Tune the radix sort algorithm for a device.
+ */
+void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
+{
+    const std::vector<Type> types = Type::allTypes();
+    for (std::size_t i = 0; i < types.size(); i++)
+    {
+        const Type &keyType = types[i];
+        if (Radixsort::keyTypeSupported(device, keyType))
+        {
+            for (std::size_t j = 0; j < types.size(); j++)
+            {
+                const Type &valueType = types[j];
+                if (Radixsort::valueTypeSupported(device, valueType))
+                {
+                    ParameterSet key = Radixsort::makeKey(device, keyType, valueType);
+                    bool doit = true;
+                    if (!seen.insert(key).second)
+                        doit = false; // already done in this round of tuning
+                    else if (!force)
+                    {
+                        // See comments in tuneScan
+                        try
+                        {
+                            Radixsort sort(context, device, keyType, valueType);
+                            doit = false;
+                        }
+                        catch (cl::Error &e)
+                        {
+                        }
+                        catch (InternalError &e)
+                        {
+                        }
+                    }
+                    if (doit)
+                    {
+                        std::cout
+                            << "Tuning radixsort for " << keyType.getName() << " keys and "
+                            << valueType.getSize() << " byte values on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
+
+                        const std::string hash = key.hash();
+                        ParameterSet params = Radixsort::tune(context, device, keyType, valueType);
+                        saveParameters(key, params);
+                    }
+                }
+            }
+        }
+    }
+}
+
 void Tuner::tuneDevice(const cl::Platform &platform, const cl::Device &device)
 {
     cl_context_properties props[3] = {CL_CONTEXT_PLATFORM, (cl_context_properties) platform(), 0};
@@ -238,6 +291,7 @@ void Tuner::tuneDevice(const cl::Platform &platform, const cl::Device &device)
     cl::Context context(devices, props, NULL);
 
     tuneScan(context, device);
+    tuneRadixsort(context, device);
 }
 
 void Tuner::tunePlatform(const cl::Platform &platform)

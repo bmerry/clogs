@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,6 +43,8 @@
 #include <clogs/radixsort.h>
 #include "utils.h"
 #include "radixsort.h"
+#include "parameters.h"
+#include "tune.h"
 
 namespace clogs
 {
@@ -243,27 +245,129 @@ void Radixsort::setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &va
     tmpValues = values;
 }
 
+void Radixsort::initialize(
+    const cl::Context &context, const cl::Device &device,
+    const Type &keyType, const Type &valueType,
+    const ParameterSet &params)
+{
+    reduceWorkGroupSize = params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
+    scanWorkGroupSize = params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
+    scatterWorkGroupSize = params.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->get();
+    scatterWorkScale = params.getTyped< ::size_t>("SCATTER_WORK_SCALE")->get();
+    maxBlocks = params.getTyped< ::size_t>("MAX_BLOCKS")->get();
+    keySize = keyType.getSize();
+    valueSize = valueType.getSize();
+    radixBits = params.getTyped<unsigned int>("RADIX_BITS")->get();
+    radix = 1U << radixBits;
+    const ::size_t warpSize = params.getTyped< ::size_t>("WARP_SIZE")->get();
+    scatterSlice = std::max(warpSize, ::size_t(radix));
+
+    std::string options;
+    options += "-DKEY_T=" + keyType.getName() + " ";
+    if (valueType.getBaseType() != TYPE_VOID)
+        options += "-DVALUE_T=" + valueType.getName() + " ";
+
+    std::map<std::string, int> defines;
+    defines["WARP_SIZE"] = warpSize;
+    defines["REDUCE_WORK_GROUP_SIZE"] = reduceWorkGroupSize;
+    defines["SCAN_WORK_GROUP_SIZE"] = scanWorkGroupSize;
+    defines["SCATTER_WORK_GROUP_SIZE"] = scatterWorkGroupSize;
+    defines["SCATTER_WORK_SCALE"] = scatterWorkScale;
+    defines["SCATTER_SLICE"] = scatterSlice;
+    defines["SCAN_BLOCKS"] = maxBlocks;
+    defines["RADIX_BITS"] = radixBits;
+
+    try
+    {
+        histogram = cl::Buffer(context, CL_MEM_READ_WRITE, maxBlocks * radix * sizeof(cl_uint));
+        std::vector<cl::Device> devices(1, device);
+        program = build(context, devices, "radixsort.cl", defines, options);
+
+        reduceKernel = cl::Kernel(program, "radixsortReduce");
+
+        scanKernel = cl::Kernel(program, "radixsortScan");
+        scanKernel.setArg(0, histogram);
+
+        scatterKernel = cl::Kernel(program, "radixsortScatter");
+        scatterKernel.setArg(1, histogram);
+    }
+    catch (cl::Error &e)
+    {
+        throw InternalError(std::string("Error preparing kernels for radixsort: ") + e.what());
+    }
+}
+
 Radixsort::Radixsort(
     const cl::Context &context, const cl::Device &device,
     const Type &keyType, const Type &valueType)
     : eventCallback(NULL), eventCallbackUserData(NULL)
 {
-    if (!keyType.isIntegral() || keyType.isSigned() || keyType.getLength() != 1
-        || !keyType.isComputable(device) || !keyType.isStorable(device))
+    if (!keyTypeSupported(device, keyType))
         throw std::invalid_argument("keyType is not valid");
-    if (valueType.getBaseType() != TYPE_VOID
-        && !valueType.isStorable(device))
+    if (!valueTypeSupported(device, valueType))
         throw std::invalid_argument("valueType is not valid");
 
-    const ::size_t keySize = keyType.getSize();
+    ParameterSet key = makeKey(device, keyType, valueType);
+    ParameterSet params = parameters();
+    getParameters(key, params);
+    initialize(context, device, keyType, valueType, params);
+}
+
+ParameterSet Radixsort::parameters()
+{
+    ParameterSet ans;
+    ans["WARP_SIZE"] = new TypedParameter< ::size_t>();
+    ans["REDUCE_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
+    ans["SCAN_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
+    ans["SCATTER_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
+    ans["SCATTER_WORK_SCALE"] = new TypedParameter< ::size_t>();
+    ans["MAX_BLOCKS"] = new TypedParameter< ::size_t>();
+    ans["RADIX_BITS"] = new TypedParameter<unsigned int>();
+    return ans;
+}
+
+ParameterSet Radixsort::makeKey(
+    const cl::Device &device,
+    const Type &keyType,
+    const Type &valueType)
+{
+    ParameterSet key = deviceKey(device);
+    key["algorithm"] = new TypedParameter<std::string>("radixsort");
+    key["version"] = new TypedParameter<int>(1);
+    key["keyType"] = new TypedParameter<std::string>(keyType.getName());
+    key["valueSize"] = new TypedParameter<std::size_t>(valueType.getSize());
+    return key;
+}
+
+bool Radixsort::keyTypeSupported(const cl::Device &device, const Type &keyType)
+{
+    return keyType.isIntegral()
+        && !keyType.isSigned()
+        && keyType.getLength() == 1
+        && keyType.isComputable(device)
+        && keyType.isStorable(device);
+}
+
+bool Radixsort::valueTypeSupported(const cl::Device &device, const Type &valueType)
+{
+    return valueType.getBaseType() == TYPE_VOID
+        || valueType.isStorable(device);
+}
+
+ParameterSet Radixsort::tune(
+    const cl::Context &context,
+    const cl::Device &device,
+    const Type &keyType,
+    const Type &valueType)
+{
     const ::size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
     const ::size_t units = device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
     const ::size_t warpSize = getWarpSize(device);
+    ::size_t reduceWorkGroupSize, scanWorkGroupSize, scatterWorkGroupSize;
+    ::size_t maxBlocks, scatterWorkScale, scatterSlice;
 
-    this->keySize = keySize;
-    this->valueSize = valueType.getSize();
-    radixBits = 4;
-    radix = 1 << radixBits;
+    const unsigned int radixBits = 4;
+    const unsigned int radix = 1 << radixBits;
     if (maxWorkGroupSize < radix)
     {
         throw InternalError("Device capabilities are too limited for radixsort");
@@ -311,39 +415,15 @@ Radixsort::Radixsort(
     if (maxBlocks == 0)
         throw InternalError("Device capabilities are too limited for radixsort");
 
-    std::string options;
-    options += "-DKEY_T=" + keyType.getName() + " ";
-    if (valueType.getBaseType() != TYPE_VOID)
-        options += "-DVALUE_T=" + valueType.getName() + " ";
-
-    std::map<std::string, int> defines;
-    defines["WARP_SIZE"] = warpSize;
-    defines["REDUCE_WORK_GROUP_SIZE"] = reduceWorkGroupSize;
-    defines["SCAN_WORK_GROUP_SIZE"] = scanWorkGroupSize;
-    defines["SCATTER_WORK_GROUP_SIZE"] = scatterWorkGroupSize;
-    defines["SCATTER_WORK_SCALE"] = scatterWorkScale;
-    defines["SCATTER_SLICE"] = scatterSlice;
-    defines["SCAN_BLOCKS"] = maxBlocks;
-    defines["RADIX_BITS"] = radixBits;
-
-    try
-    {
-        histogram = cl::Buffer(context, CL_MEM_READ_WRITE, maxBlocks * radix * sizeof(cl_uint));
-        std::vector<cl::Device> devices(1, device);
-        program = build(context, devices, "radixsort.cl", defines, options);
-
-        reduceKernel = cl::Kernel(program, "radixsortReduce");
-
-        scanKernel = cl::Kernel(program, "radixsortScan");
-        scanKernel.setArg(0, histogram);
-
-        scatterKernel = cl::Kernel(program, "radixsortScatter");
-        scatterKernel.setArg(1, histogram);
-    }
-    catch (cl::Error &e)
-    {
-        throw InternalError(std::string("Error preparing kernels for radixsort: ") + e.what());
-    }
+    ParameterSet params = parameters();
+    params.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+    params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
+    params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
+    params.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterWorkGroupSize);
+    params.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(scatterWorkScale);
+    params.getTyped< ::size_t>("MAX_BLOCKS")->set(maxBlocks);
+    params.getTyped<unsigned int>("RADIX_BITS")->set(radixBits);
+    return params;
 }
 
 
@@ -383,4 +463,4 @@ Radixsort::~Radixsort()
     delete detail_;
 }
 
-} // namespace internal
+} // namespace clogs

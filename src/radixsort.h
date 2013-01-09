@@ -34,6 +34,7 @@
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
+#include "parameters.h"
 
 class TestRadixsort;
 
@@ -53,7 +54,7 @@ private:
     ::size_t reduceWorkGroupSize;    ///< Work group size for the initial reduce phase
     ::size_t scanWorkGroupSize;      ///< Work group size for the middle scan phase
     ::size_t scatterWorkGroupSize;   ///< Work group size for the final scatter phase
-    ::size_t scatterWorkScale;       ///< Elements for work item for the final scan/scatter phase
+    ::size_t scatterWorkScale;       ///< Elements per work item for the final scan/scatter phase
     ::size_t scatterSlice;           ///< Number of work items that cooperate
     ::size_t maxBlocks;              ///< Maximum number of items in the middle phase
     ::size_t keySize;                ///< Size of the key type
@@ -132,6 +133,25 @@ private:
     Radixsort(const Radixsort &);
     Radixsort &operator =(const Radixsort &);
 
+    /**
+     * Second construction phase. This is called either by the normal constructor
+     * or during autotuning.
+     *
+     * @param context, device, keyType, valueType    Constructor arguments
+     * @param params                                 Autotuned parameters
+     */
+    void initialize(
+        const cl::Context &context, const cl::Device &device,
+        const Type &keyType, const Type &valueType,
+        const ParameterSet &params);
+
+    /**
+     * Constructor for autotuning
+     */
+    Radixsort(const cl::Context &context, const cl::Device &device,
+              const Type &keyType, const Type &valueType,
+              const ParameterSet &params);
+
 public:
     /**
      * Constructor.
@@ -160,6 +180,40 @@ public:
      * @see @ref clogs::RadixsorT::setTemporaryBuffers.
      */
     void setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &values);
+
+    /**
+     * Create the keys for autotuning. The values are undefined.
+     */
+    static ParameterSet parameters();
+
+    /**
+     * Returns key for looking up autotuning parameters.
+     *
+     * @param device, keyType, valueType  Constructor parameters.
+     */
+    static ParameterSet makeKey(const cl::Device &device, const Type &keyType, const Type &valueType);
+
+    /**
+     * Perform autotuning.
+     *
+     * @param context     Context for executing autotuning tests
+     * @param device, keyType, valueType Constructor parameters
+     */
+    static ParameterSet tune(
+        const cl::Context &context,
+        const cl::Device &device,
+        const Type &keyType,
+        const Type &valueType);
+
+    /**
+     * Return whether a type is supported as a key type on a device.
+     */
+    static bool keyTypeSupported(const cl::Device &device, const Type &keyType);
+
+    /**
+     * Return whether a type is supported as a value type on a device.
+     */
+    static bool valueTypeSupported(const cl::Device &device, const Type &valueType);
 };
 
 } // namespace detail

@@ -336,7 +336,6 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
         throw std::invalid_argument("type is not a supported integral format on this device");
 
     ParameterSet key = makeKey(device, type);
-
     ParameterSet params = parameters();
     getParameters(key, params);
     initialize(context, device, type, params);
