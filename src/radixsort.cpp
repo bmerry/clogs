@@ -42,7 +42,7 @@
 #include <clogs/core.h>
 #include <clogs/radixsort.h>
 #include "utils.h"
-#include "radixsort_detail.h"
+#include "radixsort.h"
 
 namespace clogs
 {

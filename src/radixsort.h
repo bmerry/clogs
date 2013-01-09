@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,13 +22,11 @@
 /**
  * @file
  *
- * Internals of the radix-sort class. This is split into a separate header
- * file so that the test suite can reach in and access the internal functions
- * to unit test them.
+ * Internals of the radix-sort class.
  */
 
-#ifndef RADIXSORT_DETAIL_H
-#define RADIXSORT_DETAIL_H
+#ifndef RADIXSORT_H
+#define RADIXSORT_H
 
 #include <clogs/visibility_push.h>
 #include <CL/cl.hpp>
@@ -167,4 +165,4 @@ public:
 } // namespace detail
 } // namespace clogs
 
-#endif /* RADIXSORT_DETAIL_H */
+#endif /* RADIXSORT_H */

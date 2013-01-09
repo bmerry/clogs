@@ -43,7 +43,7 @@
 #include <sstream>
 #include <clogs/radixsort.h>
 #include "clogs_test.h"
-#include "../src/radixsort_detail.h"
+#include "../src/radixsort.h"
 
 using namespace std;
 using namespace RANDOM_NAMESPACE;
