@@ -37,6 +37,7 @@
 #include <cassert>
 #include <climits>
 #include <algorithm>
+#include <iostream>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -45,6 +46,7 @@
 #include "radixsort.h"
 #include "parameters.h"
 #include "tune.h"
+#include "tr1_random.h"
 
 namespace clogs
 {
@@ -56,7 +58,7 @@ namespace detail
     const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
     ::size_t blocks = (elements + len - 1) / len;
     blocks = roundUp(blocks, slicesPerWorkGroup);
-    assert(blocks <= maxBlocks);
+    assert(blocks <= scanBlocks);
     return blocks;
 }
 
@@ -203,9 +205,9 @@ void Radixsort::enqueue(
 
     // block size must be a multiple of this
     const ::size_t tileSize = std::max(reduceWorkGroupSize, scatterWorkScale * scatterWorkGroupSize);
-    const ::size_t blockSize = (elements + tileSize * maxBlocks - 1) / (tileSize * maxBlocks) * tileSize;
+    const ::size_t blockSize = (elements + tileSize * scanBlocks - 1) / (tileSize * scanBlocks) * tileSize;
     const ::size_t blocks = getBlocks(elements, blockSize);
-    assert(blocks <= maxBlocks);
+    assert(blocks <= scanBlocks);
 
     for (unsigned int firstBit = 0; firstBit < maxBits; firstBit += radixBits)
     {
@@ -254,7 +256,7 @@ void Radixsort::initialize(
     scanWorkGroupSize = params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
     scatterWorkGroupSize = params.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->get();
     scatterWorkScale = params.getTyped< ::size_t>("SCATTER_WORK_SCALE")->get();
-    maxBlocks = params.getTyped< ::size_t>("MAX_BLOCKS")->get();
+    scanBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
     keySize = keyType.getSize();
     valueSize = valueType.getSize();
     radixBits = params.getTyped<unsigned int>("RADIX_BITS")->get();
@@ -274,12 +276,12 @@ void Radixsort::initialize(
     defines["SCATTER_WORK_GROUP_SIZE"] = scatterWorkGroupSize;
     defines["SCATTER_WORK_SCALE"] = scatterWorkScale;
     defines["SCATTER_SLICE"] = scatterSlice;
-    defines["SCAN_BLOCKS"] = maxBlocks;
+    defines["SCAN_BLOCKS"] = scanBlocks;
     defines["RADIX_BITS"] = radixBits;
 
     try
     {
-        histogram = cl::Buffer(context, CL_MEM_READ_WRITE, maxBlocks * radix * sizeof(cl_uint));
+        histogram = cl::Buffer(context, CL_MEM_READ_WRITE, scanBlocks * radix * sizeof(cl_uint));
         std::vector<cl::Device> devices(1, device);
         program = build(context, devices, "radixsort.cl", defines, options);
 
@@ -295,6 +297,15 @@ void Radixsort::initialize(
     {
         throw InternalError(std::string("Error preparing kernels for radixsort: ") + e.what());
     }
+}
+
+Radixsort::Radixsort(
+    const cl::Context &context, const cl::Device &device,
+    const Type &keyType, const Type &valueType,
+    const ParameterSet &params)
+    : eventCallback(NULL), eventCallbackUserData(NULL)
+{
+    initialize(context, device, keyType, valueType, params);
 }
 
 Radixsort::Radixsort(
@@ -321,7 +332,7 @@ ParameterSet Radixsort::parameters()
     ans["SCAN_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
     ans["SCATTER_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
     ans["SCATTER_WORK_SCALE"] = new TypedParameter< ::size_t>();
-    ans["MAX_BLOCKS"] = new TypedParameter< ::size_t>();
+    ans["SCAN_BLOCKS"] = new TypedParameter< ::size_t>();
     ans["RADIX_BITS"] = new TypedParameter<unsigned int>();
     return ans;
 }
@@ -354,78 +365,182 @@ bool Radixsort::valueTypeSupported(const cl::Device &device, const Type &valueTy
         || valueType.isStorable(device);
 }
 
+static cl::Buffer makeRandomBuffer(const cl::Context &context, const cl::Device &device, ::size_t size)
+{
+    cl::CommandQueue queue(context, device);
+    cl::Buffer buffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, size);
+    cl_uchar *data = reinterpret_cast<cl_uchar *>(
+        queue.enqueueMapBuffer(buffer, CL_TRUE, CL_MAP_WRITE, 0, size));
+    RANDOM_NAMESPACE::mt19937 engine;
+    for (::size_t i = 0; i < size; i++)
+    {
+        /* We take values directly from the engine rather than using a
+         * distribution, because the engine is guaranteed to be portable
+         * across compilers.
+         */
+        data[i] = engine() & 0xFF;
+    }
+    queue.enqueueUnmapMemObject(buffer, data);
+    return buffer;
+}
+
 ParameterSet Radixsort::tune(
     const cl::Context &context,
     const cl::Device &device,
     const Type &keyType,
     const Type &valueType)
 {
+    const ::size_t dataSize = device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / 8;
+    const ::size_t elements = dataSize / (keyType.getSize() + valueType.getSize());
+    const ::size_t keyBufferSize = elements * keyType.getSize();
+    const ::size_t valueBufferSize = elements * valueType.getSize();
+    const cl::Buffer keyBuffer = makeRandomBuffer(context, device, keyBufferSize);
+    const cl::Buffer outKeyBuffer(context, CL_MEM_READ_WRITE, keyBufferSize);
+    cl::Buffer valueBuffer, outValueBuffer;
+    if (valueType.getBaseType() != TYPE_VOID)
+    {
+        valueBuffer = makeRandomBuffer(context, device, valueBufferSize);
+        outValueBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, valueBufferSize);
+    }
+
     const ::size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
-    const ::size_t units = device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
     const ::size_t warpSize = getWarpSize(device);
-    ::size_t reduceWorkGroupSize, scanWorkGroupSize, scatterWorkGroupSize;
-    ::size_t maxBlocks, scatterWorkScale, scatterSlice;
 
-    const unsigned int radixBits = 4;
-    const unsigned int radix = 1 << radixBits;
-    if (maxWorkGroupSize < radix)
+    cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
+    ParameterSet out;
+    // TODO: change to e.g. 2-6 after adding code to select the best one
+    for (unsigned int radixBits = 4; radixBits <= 4; radixBits++)
     {
-        throw InternalError("Device capabilities are too limited for radixsort");
+        const unsigned int radix = 1U << radixBits;
+        const ::size_t maxBlocks = roundDownPower2(
+            (device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / radix - 1) / sizeof(cl_uint));
+        if (maxWorkGroupSize < radix)
+            break;
+
+        ParameterSet cand = parameters();
+        // Set default values, which are later tuned
+        ::size_t scatterSlice = std::max(warpSize, (::size_t) radix);
+        cand.getTyped<unsigned int>("RADIX_BITS")->set(radixBits);
+        cand.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+        cand.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
+        cand.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(radix);
+        cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterSlice);
+        cand.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(1);
+
+        // Tune the reduction kernel, assuming a large scanBlocks
+        {
+            double bestRate = -1.0;
+            for (::size_t reduceWorkGroupSize = radix; reduceWorkGroupSize <= maxWorkGroupSize; reduceWorkGroupSize *= 2)
+            {
+                ParameterSet params = cand;
+                params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
+
+                try
+                {
+                    std::cout << '.' << std::flush;
+                    Radixsort sort(context, device, keyType, valueType, params);
+                    const ::size_t tileSize = std::max(reduceWorkGroupSize, scatterSlice);
+                    const ::size_t blockSize = (elements + tileSize * maxBlocks - 1) / (tileSize * maxBlocks) * tileSize;
+                    // Warmup
+                    sort.enqueueReduce(queue, sort.histogram, keyBuffer, blockSize, elements, 0, NULL, NULL);
+                    queue.finish();
+                    // Timing pass
+                    cl::Event event;
+                    sort.enqueueReduce(queue, sort.histogram, keyBuffer, blockSize, elements, 0, NULL, &event);
+                    queue.finish();
+
+                    event.wait();
+                    cl_ulong start = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+                    cl_ulong end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+                    double elapsed = end - start;
+                    double rate = elements / elapsed;
+                    if (rate > bestRate)
+                    {
+                        bestRate = rate;
+                        cand.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
+                    }
+                }
+                catch (InternalError &e)
+                {
+                }
+                catch (cl::Error &e)
+                {
+                }
+            }
+        }
+        std::cout << std::endl;
+
+        // Tune the scatter kernel, assuming a large maxBlocks
+        {
+            double bestRate = -1.0;
+            ::size_t reduceWorkGroupSize = cand.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
+            for (::size_t scatterWorkGroupSize = 1; scatterWorkGroupSize <= maxWorkGroupSize; scatterWorkGroupSize *= 2)
+            {
+                // TODO: increase search space
+                for (::size_t scatterWorkScale = 1; scatterWorkScale <= 8; scatterWorkScale++)
+                {
+                    ParameterSet params = cand;
+                    params.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterWorkGroupSize);
+                    params.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(scatterWorkScale);
+
+                    try
+                    {
+                        std::cout << '.' << std::flush;
+                        Radixsort sort(context, device, keyType, valueType, params);
+                        const ::size_t tileSize = std::max(
+                            reduceWorkGroupSize,
+                            scatterWorkScale * scatterWorkGroupSize);
+                        const ::size_t blockSize = (elements + tileSize * maxBlocks - 1) / (tileSize * maxBlocks) * tileSize;
+                        const ::size_t blocks = sort.getBlocks(elements, blockSize);
+
+                        // Prepare histogram
+                        sort.enqueueReduce(queue, sort.histogram, keyBuffer, blockSize, elements, 0, NULL, NULL);
+                        sort.enqueueScan(queue, sort.histogram, blocks, NULL, NULL);
+                        // Warmup
+                        sort.enqueueScatter(
+                            queue,
+                            outKeyBuffer, outValueBuffer,
+                            keyBuffer, valueBuffer,
+                            sort.histogram, blockSize, elements, 0, NULL, NULL);
+                        queue.finish();
+                        // Timing pass
+                        cl::Event event;
+                        sort.enqueueScatter(
+                            queue,
+                            outKeyBuffer, outValueBuffer,
+                            keyBuffer, valueBuffer,
+                            sort.histogram, blockSize, elements, 0, NULL, &event);
+                        queue.finish();
+
+                        event.wait();
+                        cl_ulong start = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+                        cl_ulong end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+                        double elapsed = end - start;
+                        double rate = elements / elapsed;
+                        if (rate > bestRate)
+                        {
+                            bestRate = rate;
+                            cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterWorkGroupSize);
+                            cand.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(scatterWorkScale);
+                        }
+                    }
+                    catch (InternalError &e)
+                    {
+                    }
+                    catch (cl::Error &e)
+                    {
+                    }
+                }
+            }
+        }
+        std::cout << std::endl;
+
+        // TODO: benchmark the whole combination
+        out = cand;
     }
-
-    scatterWorkScale = 7;
-    if (device.getInfo<CL_DEVICE_TYPE>() & CL_DEVICE_TYPE_CPU)
-    {
-        maxBlocks = units * 4;
-        reduceWorkGroupSize = 1;
-        scanWorkGroupSize = 1;
-        scatterWorkGroupSize = 1;
-    }
-    else
-    {
-        maxBlocks = units * 128;
-        reduceWorkGroupSize = 128;
-        scanWorkGroupSize = 128;
-        scatterWorkGroupSize = 64;
-    }
-
-    reduceWorkGroupSize = std::min(reduceWorkGroupSize, maxWorkGroupSize);
-    reduceWorkGroupSize = std::max(reduceWorkGroupSize, ::size_t(radix));
-    reduceWorkGroupSize = roundDownPower2(reduceWorkGroupSize);
-
-    scanWorkGroupSize = std::min(scanWorkGroupSize, maxWorkGroupSize);
-    scanWorkGroupSize = std::max(scanWorkGroupSize, ::size_t(radix));
-    scanWorkGroupSize = roundDownPower2(scanWorkGroupSize);
-
-    scatterSlice = std::max(warpSize, ::size_t(radix));
-    scatterWorkGroupSize = std::max(scatterWorkGroupSize, scatterSlice);
-    scatterWorkGroupSize = roundDown(scatterWorkGroupSize, scatterSlice);
-    // TODO: adjust based on local memory availability. That might need
-    // autotuning though.
-    if (scatterWorkGroupSize > maxWorkGroupSize)
-        throw InternalError("Device capabilities are too limited for radixsort");
-
-    if (radix < scanWorkGroupSize)
-        maxBlocks = roundUp(maxBlocks, scanWorkGroupSize / radix);
-    // maximum that will fit in local memory
-    maxBlocks = std::min(maxBlocks, ::size_t(device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / radix - 1) / 4);
-    // must have an exact multiple of the workitem count in scan phase
-    if (radix < scanWorkGroupSize)
-        maxBlocks = roundDown(maxBlocks, scanWorkGroupSize / radix);
-    if (maxBlocks == 0)
-        throw InternalError("Device capabilities are too limited for radixsort");
-
-    ParameterSet params = parameters();
-    params.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
-    params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
-    params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
-    params.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterWorkGroupSize);
-    params.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(scatterWorkScale);
-    params.getTyped< ::size_t>("MAX_BLOCKS")->set(maxBlocks);
-    params.getTyped<unsigned int>("RADIX_BITS")->set(radixBits);
-    return params;
+    std::cout << out << '\n';
+    return out;
 }
-
 
 } // namespace detail
 

@@ -26,6 +26,7 @@
 #include <CL/cl.hpp>
 #include <boost/program_options.hpp>
 #include <vector>
+#include "options.h"
 #include "../src/tune.h"
 #include "../src/parameters.h"
 
@@ -37,6 +38,10 @@ po::variables_map processOptions(int argc, char **argv)
     desc.add_options()
         ("help",                    "Show help")
         ("force",                   "Re-tune already-tuned configurations");
+
+    po::options_description cl("OpenCL Options");
+    addOptions(cl);
+    desc.add(cl);
 
     try
     {
@@ -67,7 +72,8 @@ int main(int argc, char **argv)
     bool force = vm.count("force");
     try
     {
-        clogs::detail::tuneAll(force);
+        std::vector<cl::Device> devices = findDevices(vm);
+        clogs::detail::tuneAll(devices, force);
     }
     catch (clogs::detail::SaveParametersError &e)
     {

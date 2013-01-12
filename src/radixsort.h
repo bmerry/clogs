@@ -56,7 +56,7 @@ private:
     ::size_t scatterWorkGroupSize;   ///< Work group size for the final scatter phase
     ::size_t scatterWorkScale;       ///< Elements per work item for the final scan/scatter phase
     ::size_t scatterSlice;           ///< Number of work items that cooperate
-    ::size_t maxBlocks;              ///< Maximum number of items in the middle phase
+    ::size_t scanBlocks;             ///< Maximum number of items in the middle phase
     ::size_t keySize;                ///< Size of the key type
     ::size_t valueSize;              ///< Size of the value type
     unsigned int radix;              ///< Sort radix
@@ -93,7 +93,7 @@ private:
     /**
      * Enqueue the scan kernel.
      * @param queue                Command queue to enqueue to.
-     * @param histogram            Histogram of @ref maxBlocks * @ref radix elements, block-major.
+     * @param histogram            Histogram of @ref scanBlocks * @ref radix elements, block-major.
      * @param blocks               Actual number of blocks to scan
      * @param events               Events to wait for (if not @c NULL).
      * @param[out] event           Event for this work (if not @c NULL).
@@ -109,7 +109,7 @@ private:
      * @param outValues            Output buffer for parititoned values.
      * @param inKeys               Input buffer with unsorted keys.
      * @param inValues             Input buffer with values corresponding to @a inKeys.
-     * @param histogram            Scanned histogram of @ref maxBlocks * @ref radix elements, block-major.
+     * @param histogram            Scanned histogram of @ref scanBlocks * @ref radix elements, block-major.
      * @param len                  Length of each block to reduce.
      * @param elements             Total number of key/value pairs.
      * @param firstBit             Index of first bit to sort on.

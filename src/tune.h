@@ -31,6 +31,7 @@
 #include <clogs/visibility_push.h>
 #include <string>
 #include <stdexcept>
+#include <vector>
 #include <clogs/visibility_pop.h>
 
 #include "parameters.h"
@@ -79,10 +80,13 @@ CLOGS_LOCAL ParameterSet deviceKey(const cl::Device &device);
 CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params);
 
 /**
- * Generate the tuning parameters for all algorithms on all devices.
+ * Generate the tuning parameters for all algorithms.
  * This is not thread-safe (or even multi-process safe).
+ *
+ * @param devices   Devices to tune on.
+ * @param force     Whether to re-tune configurations that have already been tuned.
  */
-CLOGS_API void tuneAll(bool force);
+CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force);
 
 } // namespace detail
 } // namespace clogs

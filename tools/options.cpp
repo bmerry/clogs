@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,8 +47,10 @@ void addOptions(boost::program_options::options_description &opts)
         ("cl-cpu",                                    "Only search CPU devices");
 }
 
-bool findDevice(const boost::program_options::variables_map &vm, cl::Device &device)
+std::vector<cl::Device> findDevices(const boost::program_options::variables_map &vm)
 {
+    std::vector<cl::Device> ans;
+
     vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
     BOOST_FOREACH(const cl::Platform &platform, platforms)
@@ -83,14 +85,22 @@ bool findDevice(const boost::program_options::variables_map &vm, cl::Device &dev
             if (!d.getInfo<CL_DEVICE_COMPILER_AVAILABLE>())
                 good = false;
             if (good)
-            {
-                device = d;
-                return true;
-            }
+                ans.push_back(d);
         }
     }
+    return ans;
+}
 
-    return false;
+bool findDevice(const boost::program_options::variables_map &vm, cl::Device &device)
+{
+    std::vector<cl::Device> devices = findDevices(vm);
+    if (!devices.empty())
+    {
+        device = devices[0];
+        return true;
+    }
+    else
+        return false;
 }
 
 cl::Context makeContext(const cl::Device &device)

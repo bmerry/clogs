@@ -395,7 +395,7 @@ void TestRadixsort::testReduce(const size_t size)
     const unsigned int radix = sort.radix;
     const unsigned int firstBit = 5;
 
-    size_t len = divideRoundUp(size, sort.maxBlocks);
+    size_t len = divideRoundUp(size, sort.scanBlocks);
     len = roundUp(len, tileSize);
     const size_t blocks = sort.getBlocks(size, len);
 
@@ -421,10 +421,10 @@ void TestRadixsort::testScan(size_t blocks)
     mt19937 engine;
     variate_generator<mt19937 &, uniform_int<cl_uint> > gen(engine, uniform_int<cl_uint>(1, 1000));
 
-    if (blocks > sort->maxBlocks)
+    if (blocks > sort->scanBlocks)
         return;
 
-    const size_t size = sort->radix * sort->maxBlocks;
+    const size_t size = sort->radix * sort->scanBlocks;
     vector<cl_uint> host(size);
     vector<cl_uint> result(size);
     for (size_t i = 0; i < size; i++)
@@ -454,7 +454,7 @@ void TestRadixsort::testScan(size_t blocks)
 
 void TestRadixsort::testScanMaxSize()
 {
-    testScan(sort->maxBlocks);
+    testScan(sort->scanBlocks);
 }
 
 template<typename Key>
@@ -495,7 +495,7 @@ void TestRadixsort::testScatter(size_t size)
     const unsigned int radix = sort.radix;
     const unsigned int firstBit = 5;
 
-    size_t len = divideRoundUp(size, sort.maxBlocks);
+    size_t len = divideRoundUp(size, sort.scanBlocks);
     len = roundUp(len, tileSize);
     const size_t blocks = sort.getBlocks(size, len);
 

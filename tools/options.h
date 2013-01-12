@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012-2013 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,12 +30,20 @@
 #define CLOGS_OPTIONS_H
 
 #include <CL/cl.hpp>
+#include <vector>
 #include <boost/program_options.hpp>
 
 /**
  * Add the options accepted by @ref findDevice.
  */
 void addOptions(boost::program_options::options_description &opts);
+
+/**
+ * Find all OpenCL devices matching command-line criteria.
+ * @param     vm      Command-line options
+ * @see @ref findDevice.
+ */
+std::vector<cl::Device> findDevices(const boost::program_options::variables_map &vm);
 
 /**
  * Find an OpenCL device based on given command-line options.

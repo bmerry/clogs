@@ -38,6 +38,7 @@
 #include <cstring>
 #include <cerrno>
 #include <set>
+#include <vector>
 #include <sys/stat.h>
 #include <locale>
 #include <clogs/visibility_pop.h>
@@ -167,14 +168,13 @@ private:
     void tuneScan(const cl::Context &context, const cl::Device &device);
     void tuneRadixsort(const cl::Context &context, const cl::Device &device);
 
-    void tunePlatform(const cl::Platform &platform);
-    void tuneDevice(const cl::Platform &platform, const cl::Device &context);
+    void tuneDevice(const cl::Device &context);
 
 public:
     Tuner();
 
     void setForce(bool force);
-    void tuneAll();
+    void tuneAll(const std::vector<cl::Device> &devices);
 };
 
 Tuner::Tuner() : force(true)
@@ -284,9 +284,14 @@ void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
     }
 }
 
-void Tuner::tuneDevice(const cl::Platform &platform, const cl::Device &device)
+void Tuner::tuneDevice(const cl::Device &device)
 {
-    cl_context_properties props[3] = {CL_CONTEXT_PLATFORM, (cl_context_properties) platform(), 0};
+    cl_context_properties props[3] =
+    {
+        CL_CONTEXT_PLATFORM,
+        (cl_context_properties) device.getInfo<CL_DEVICE_PLATFORM>(),
+        0
+    };
     std::vector<cl::Device> devices(1, device);
     cl::Context context(devices, props, NULL);
 
@@ -294,23 +299,11 @@ void Tuner::tuneDevice(const cl::Platform &platform, const cl::Device &device)
     tuneRadixsort(context, device);
 }
 
-void Tuner::tunePlatform(const cl::Platform &platform)
+void Tuner::tuneAll(const std::vector<cl::Device> &devices)
 {
-    std::vector<cl::Device> devices;
-    platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
     for (std::size_t i = 0; i < devices.size(); i++)
     {
-        tuneDevice(platform, devices[i]);
-    }
-}
-
-void Tuner::tuneAll()
-{
-    std::vector<cl::Platform> platforms;
-    cl::Platform::get(&platforms);
-    for (std::size_t i = 0; i < platforms.size(); i++)
-    {
-        tunePlatform(platforms[i]);
+        tuneDevice(devices[i]);
     }
 }
 
@@ -371,11 +364,11 @@ CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params)
     }
 }
 
-CLOGS_API void tuneAll(bool force)
+CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force)
 {
     Tuner tuner;
     tuner.setForce(force);
-    tuner.tuneAll();
+    tuner.tuneAll(devices);
 }
 
 } // namespace detail
