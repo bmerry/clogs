@@ -159,23 +159,43 @@ static void saveParameters(const ParameterSet &key, const ParameterSet &values)
     }
 }
 
-class CLOGS_LOCAL Tuner
+/**
+ * Extract parameters from a file. This is the internal implementation of
+ * @ref getParameters, split into a separate function for testability.
+ *
+ * @param in               Input file (already open)
+ * @param[in,out] params   Tuning parameters, pre-populated with desired keys.
+ *
+ * @throw CacheError if there was an error reading the file
+ */
+static void parseParameters(std::istream &in, ParameterSet &params)
 {
-private:
-    std::set<ParameterSet> seen;
-    bool force;
+    std::string line;
+    std::set<std::string> seen;
+    while (getline(in, line))
+    {
+        if (line.empty() || line[0] == '#')
+            continue;
+        std::string::size_type p = line.find('=');
+        if (p == std::string::npos)
+        {
+            throw CacheError("line does not contain equals sign");
+        }
+        const std::string key = line.substr(0, p);
+        if (!params.count(key))
+            throw CacheError("unknown key `" + key + "'");
+        if (seen.count(key))
+            throw CacheError("duplicate key `" + key + "'");
+        seen.insert(key);
+        params[key]->deserialize(line.substr(p + 1));
+    }
+    if (seen.size() < params.size())
+        throw CacheError("missing key");
+    if (in.bad())
+        throw CacheError(strerror(errno));
+}
 
-    void tuneScan(const cl::Context &context, const cl::Device &device);
-    void tuneRadixsort(const cl::Context &context, const cl::Device &device);
-
-    void tuneDevice(const cl::Device &context);
-
-public:
-    Tuner();
-
-    void setForce(bool force);
-    void tuneAll(const std::vector<cl::Device> &devices);
-};
+} // anonymous namespace
 
 Tuner::Tuner() : force(true)
 {
@@ -226,7 +246,7 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
                 std::cout << "Tuning scan for " << type.getSize() << " byte elements on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
                 const std::string hash = key.hash();
-                ParameterSet params = Scan::tune(context, device, type);
+                ParameterSet params = Scan::tune(*this, context, device, type);
                 saveParameters(key, params);
             }
         }
@@ -275,7 +295,7 @@ void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
                             << valueType.getSize() << " byte values on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
                         const std::string hash = key.hash();
-                        ParameterSet params = Radixsort::tune(context, device, keyType, valueType);
+                        ParameterSet params = Radixsort::tune(*this, context, device, keyType, valueType);
                         saveParameters(key, params);
                     }
                 }
@@ -307,43 +327,31 @@ void Tuner::tuneAll(const std::vector<cl::Device> &devices)
     }
 }
 
-/**
- * Extract parameters from a file. This is the internal implementation of
- * @ref getParameters, split into a separate function for testability.
- *
- * @param in               Input file (already open)
- * @param[in,out] params   Tuning parameters, pre-populated with desired keys.
- *
- * @throw CacheError if there was an error reading the file
- */
-static void parseParameters(std::istream &in, ParameterSet &params)
+void Tuner::logStartGroup()
 {
-    std::string line;
-    std::set<std::string> seen;
-    while (getline(in, line))
-    {
-        if (line.empty() || line[0] == '#')
-            continue;
-        std::string::size_type p = line.find('=');
-        if (p == std::string::npos)
-        {
-            throw CacheError("line does not contain equals sign");
-        }
-        const std::string key = line.substr(0, p);
-        if (!params.count(key))
-            throw CacheError("unknown key `" + key + "'");
-        if (seen.count(key))
-            throw CacheError("duplicate key `" + key + "'");
-        seen.insert(key);
-        params[key]->deserialize(line.substr(p + 1));
-    }
-    if (seen.size() < params.size())
-        throw CacheError("missing key");
-    if (in.bad())
-        throw CacheError(strerror(errno));
 }
 
-} // anonymous namespace
+void Tuner::logEndGroup()
+{
+    std::cout << std::endl;
+}
+
+void Tuner::logStartTest(const ParameterSet &params)
+{
+    (void) params;
+}
+
+void Tuner::logEndTest(const ParameterSet &params, bool success, double rate)
+{
+    (void) params;
+    (void) rate;
+    std::cout << "!."[success] << std::flush;
+}
+
+void Tuner::logResult(const ParameterSet &params)
+{
+    std::cout << params << std::endl;
+}
 
 CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params)
 {

@@ -46,6 +46,8 @@ namespace clogs
 namespace detail
 {
 
+class Tuner;
+
 /**
  * Internal implementation of @ref clogs::Scan.
  */
@@ -158,11 +160,14 @@ public:
     /**
      * Perform autotuning.
      *
+     * @param tuner       Tuner for reporting results
      * @param context     Context for executing autotuning tests
      * @param device      Device to tune for
      * @param type        Type to scan
      */
-    static ParameterSet tune(const cl::Context &context, const cl::Device &device, const Type &type);
+    static ParameterSet tune(
+        Tuner &tuner,
+        const cl::Context &context, const cl::Device &device, const Type &type);
 
     /**
      * Return whether a type is supported for scanning on a device.

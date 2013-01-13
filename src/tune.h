@@ -32,6 +32,7 @@
 #include <string>
 #include <stdexcept>
 #include <vector>
+#include <set>
 #include <clogs/visibility_pop.h>
 
 #include "parameters.h"
@@ -87,6 +88,51 @@ CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params);
  * @param force     Whether to re-tune configurations that have already been tuned.
  */
 CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force);
+
+class CLOGS_LOCAL Tuner
+{
+private:
+    std::set<ParameterSet> seen;
+    bool force;
+
+    void tuneScan(const cl::Context &context, const cl::Device &device);
+    void tuneRadixsort(const cl::Context &context, const cl::Device &device);
+
+    void tuneDevice(const cl::Device &context);
+
+public:
+    Tuner();
+
+    void setForce(bool force);
+    void tuneAll(const std::vector<cl::Device> &devices);
+
+    /**
+     * @name Methods called by the tuning algorithms to report progress
+     * @{
+     */
+
+    /// Called at the beginning of a related set of tuning tests
+    void logStartGroup();
+    /// Called at the end of a related set of tuning tests
+    void logEndGroup();
+    /// Called at the start of a single tuning test
+    void logStartTest(const ParameterSet &params);
+    /**
+     * Called at the end of a single tuning test.
+     * @param params     The tested parameters
+     * @param success    Whether the test succeeded i.e. did not throw an exception
+     * @param rate       Rate at which operations occurred (arbitrary scale)
+     */
+    void logEndTest(const ParameterSet &params, bool success, double rate);
+    /**
+     * Logs final result of autotuning.
+     */
+    void logResult(const ParameterSet &params);
+
+    /**
+     * @}
+     */
+};
 
 } // namespace detail
 } // namespace clogs

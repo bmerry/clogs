@@ -37,7 +37,6 @@
 #include <cassert>
 #include <climits>
 #include <algorithm>
-#include <iostream>
 #include <vector>
 #include <utility>
 #include <clogs/visibility_pop.h>
@@ -396,6 +395,7 @@ static cl::Buffer makeRandomBuffer(const cl::Context &context, const cl::Device 
 }
 
 ParameterSet Radixsort::tune(
+    Tuner &tuner,
     const cl::Context &context,
     const cl::Device &device,
     const Type &keyType,
@@ -440,6 +440,7 @@ ParameterSet Radixsort::tune(
 
         // Tune the reduction kernel, assuming a large scanBlocks
         {
+            tuner.logStartGroup();
             double bestRate = -1.0;
             for (::size_t reduceWorkGroupSize = radix; reduceWorkGroupSize <= maxWorkGroupSize; reduceWorkGroupSize *= 2)
             {
@@ -449,6 +450,7 @@ ParameterSet Radixsort::tune(
 
                 try
                 {
+                    tuner.logStartTest(params);
                     Radixsort sort(context, device, keyType, valueType, params);
                     const ::size_t blockSize = sort.getBlockSize(elements);
                     // Warmup
@@ -469,6 +471,7 @@ ParameterSet Radixsort::tune(
                         bestRate = rate;
                         cand.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
                     }
+                    tuner.logEndTest(params, true, rate);
                     valid = true;
                 }
                 catch (InternalError &e)
@@ -477,13 +480,15 @@ ParameterSet Radixsort::tune(
                 catch (cl::Error &e)
                 {
                 }
-                std::cout << "!."[valid] << std::flush;
+                if (!valid)
+                    tuner.logEndTest(params, false, 0.0);
             }
+            tuner.logEndGroup();
         }
-        std::cout << std::endl;
 
         // Tune the scatter kernel, assuming a large maxBlocks
         {
+            tuner.logStartGroup();
             double bestRate = -1.0;
             for (::size_t scatterWorkGroupSize = scatterSlice; scatterWorkGroupSize <= maxWorkGroupSize; scatterWorkGroupSize *= 2)
             {
@@ -497,6 +502,7 @@ ParameterSet Radixsort::tune(
 
                     try
                     {
+                        tuner.logStartTest(params);
                         Radixsort sort(context, device, keyType, valueType, params);
                         const ::size_t blockSize = sort.getBlockSize(elements);
                         const ::size_t blocks = sort.getBlocks(elements, blockSize);
@@ -531,6 +537,7 @@ ParameterSet Radixsort::tune(
                             cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterWorkGroupSize);
                             cand.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(scatterWorkScale);
                         }
+                        tuner.logEndTest(params, true, rate);
                         valid = true;
                     }
                     catch (InternalError &e)
@@ -539,61 +546,68 @@ ParameterSet Radixsort::tune(
                     catch (cl::Error &e)
                     {
                     }
-                    std::cout << "!."[valid] << std::flush;
+                    if (!valid)
+                        tuner.logEndTest(params, false, 0.0);
                 }
             }
+            tuner.logEndGroup();
         }
-        std::cout << std::endl;
 
-        std::vector<std::pair< ::size_t, double> > rates;
         // Tune the block count
-        ::size_t scanWorkGroupSize = cand.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
-        ::size_t scatterWorkGroupSize = cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->get();
-        const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
-        for (::size_t scanBlocks = std::max(scanWorkGroupSize / radix, slicesPerWorkGroup); scanBlocks <= maxBlocks; scanBlocks *= 2)
         {
-            ParameterSet params = cand;
-            params.getTyped< ::size_t>("SCAN_BLOCKS")->set(scanBlocks);
-            bool valid = false;
-            try
+            tuner.logStartGroup();
+            std::vector<std::pair< ::size_t, double> > rates;
+            ::size_t scanWorkGroupSize = cand.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
+            ::size_t scatterWorkGroupSize = cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->get();
+            const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
+            for (::size_t scanBlocks = std::max(scanWorkGroupSize / radix, slicesPerWorkGroup); scanBlocks <= maxBlocks; scanBlocks *= 2)
             {
-                Radixsort sort(context, device, keyType, valueType, params);
-                const ::size_t blockSize = sort.getBlockSize(elements);
-                const ::size_t blocks = sort.getBlocks(elements, blockSize);
-
-                cl::Event reduceEvent;
-                cl::Event scanEvent;
-                cl::Event scatterEvent;
-                // Warmup and real passes
-                for (int pass = 0; pass < 2; pass++)
+                ParameterSet params = cand;
+                params.getTyped< ::size_t>("SCAN_BLOCKS")->set(scanBlocks);
+                bool valid = false;
+                try
                 {
-                    sort.enqueueReduce(queue, sort.histogram, keyBuffer, blockSize, elements, 0, NULL, &reduceEvent);
-                    sort.enqueueScan(queue, sort.histogram, blocks, NULL, &scanEvent);
-                    sort.enqueueScatter(
-                        queue,
-                        outKeyBuffer, outValueBuffer,
-                        keyBuffer, valueBuffer,
-                        sort.histogram, blockSize, elements, 0,
-                        NULL, &scatterEvent);
-                    queue.finish();
+                    tuner.logStartTest(params);
+                    Radixsort sort(context, device, keyType, valueType, params);
+                    const ::size_t blockSize = sort.getBlockSize(elements);
+                    const ::size_t blocks = sort.getBlocks(elements, blockSize);
+
+                    cl::Event reduceEvent;
+                    cl::Event scanEvent;
+                    cl::Event scatterEvent;
+                    // Warmup and real passes
+                    for (int pass = 0; pass < 2; pass++)
+                    {
+                        sort.enqueueReduce(queue, sort.histogram, keyBuffer, blockSize, elements, 0, NULL, &reduceEvent);
+                        sort.enqueueScan(queue, sort.histogram, blocks, NULL, &scanEvent);
+                        sort.enqueueScatter(
+                            queue,
+                            outKeyBuffer, outValueBuffer,
+                            keyBuffer, valueBuffer,
+                            sort.histogram, blockSize, elements, 0,
+                            NULL, &scatterEvent);
+                        queue.finish();
+                    }
+
+                    reduceEvent.wait();
+                    scatterEvent.wait();
+                    cl_ulong start = reduceEvent.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+                    cl_ulong end = reduceEvent.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+                    double elapsed = end - start;
+                    double rate = elements / elapsed;
+                    rates.push_back(std::make_pair(scanBlocks, rate));
+                    valid = true;
+                    tuner.logEndTest(params, true, rate);
                 }
-
-                reduceEvent.wait();
-                scatterEvent.wait();
-                cl_ulong start = reduceEvent.getProfilingInfo<CL_PROFILING_COMMAND_START>();
-                cl_ulong end = reduceEvent.getProfilingInfo<CL_PROFILING_COMMAND_END>();
-                double elapsed = end - start;
-                double rate = elements / elapsed;
-                rates.push_back(std::make_pair(scanBlocks, rate));
-                valid = true;
+                catch (InternalError &e)
+                {
+                }
+                catch (cl::Error &e)
+                {
+                }
+                if (!valid)
+                    tuner.logEndTest(params, false, 0.0);
             }
-            catch (InternalError &e)
-            {
-            }
-            catch (cl::Error &e)
-            {
-            }
-
             // Fewer blocks means better performance on small problem sizes, so only
             // use more blocks if it makes a real improvement
             double bestRate = -1.0;
@@ -607,15 +621,13 @@ ParameterSet Radixsort::tune(
                     break;
                 }
             }
-
-            std::cout << "!."[valid] << std::flush;
+            tuner.logEndGroup();
         }
-        std::cout << std::endl;
 
         // TODO: benchmark the whole combination
         out = cand;
     }
-    std::cout << out << '\n';
+    tuner.logResult(out);
     return out;
 }
 

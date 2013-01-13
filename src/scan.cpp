@@ -39,7 +39,6 @@
 #include <map>
 #include <string>
 #include <cassert>
-#include <iostream>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -108,10 +107,10 @@ void Scan::initialize(const cl::Context &context, const cl::Device &device, cons
     }
 }
 
-ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, const Type &type)
+ParameterSet Scan::tune(
+    Tuner &tuner,
+    const cl::Context &context, const cl::Device &device, const Type &type)
 {
-    (void) context; // not used yet
-
     const size_t elementSize = type.getSize();
     const size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
     const size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
@@ -130,8 +129,9 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
     size_t bestBlocks = 0;
 
     {
-        double bestRate = -1.0;
         // Tune reduce kernel
+        tuner.logStartGroup();
+        double bestRate = -1.0;
         for (::size_t reduceWorkGroupSize = 1; reduceWorkGroupSize <= maxWorkGroupSize; reduceWorkGroupSize *= 2)
         {
             ParameterSet params = parameters();
@@ -142,14 +142,15 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
             params.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
             ::size_t blockSize = roundUp(allocElements, reduceWorkGroupSize * maxBlocks) / maxBlocks;
             ::size_t nBlocks = (allocElements + blockSize - 1) / blockSize;
-            try
+            if (nBlocks > 1)
             {
-                Scan scan(context, device, type, params);
-                scan.reduceKernel.setArg(1, buffer);
-                scan.reduceKernel.setArg(2, (cl_uint) blockSize);
-                if (nBlocks > 1)
+                bool valid = false;
+                try
                 {
-                    std::cout << '.' << std::flush;
+                    tuner.logStartTest(params);
+                    Scan scan(context, device, type, params);
+                    scan.reduceKernel.setArg(1, buffer);
+                    scan.reduceKernel.setArg(2, (cl_uint) blockSize);
                     cl::Event event;
                     // Warmup pass
                     queue.enqueueNDRangeKernel(
@@ -178,22 +179,27 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
                         bestRate = rate;
                         bestReduceWorkGroupSize = reduceWorkGroupSize;
                     }
+                    tuner.logEndTest(params, true, rate);
+                    valid = true;
                 }
-            }
-            catch (InternalError &e)
-            {
-            }
-            catch (cl::Error &e)
-            {
+                catch (InternalError &e)
+                {
+                }
+                catch (cl::Error &e)
+                {
+                }
+                if (!valid)
+                    tuner.logEndTest(params, false, 0.0);
             }
         }
+        tuner.logEndGroup();
     }
-    std::cout << std::endl;
 
     {
         /* Tune scan kernel. The work group size and the work scale interact in
          * affecting register allocations, so they need to be tuned separately.
          */
+        tuner.logStartGroup();
         double bestRate = -1.0;
         for (size_t scanWorkGroupSize = 1; scanWorkGroupSize <= maxWorkGroupSize; scanWorkGroupSize *= 2)
         {
@@ -209,10 +215,10 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
                 ::size_t tileSize = scanWorkGroupSize * scanWorkScale;
                 ::size_t blockSize = roundUp(allocElements, tileSize * maxBlocks) / maxBlocks;
                 ::size_t nBlocks = (allocElements + blockSize - 1) / blockSize;
+                bool valid = false;
                 try
                 {
-                    std::cout << '.' << std::flush;
-
+                    tuner.logStartTest(params);
                     Scan scan(context, device, type, params);
                     cl::Event event;
                     scan.scanKernel.setArg(0, buffer);
@@ -247,6 +253,8 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
                         bestScanWorkGroupSize = scanWorkGroupSize;
                         bestScanWorkScale = scanWorkScale;
                     }
+                    tuner.logEndTest(params, true, rate);
+                    valid = true;
                 }
                 catch (InternalError &e)
                 {
@@ -254,16 +262,19 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
                 catch (cl::Error &e)
                 {
                 }
+                if (!valid)
+                    tuner.logEndTest(params, false, 0.0);
             }
         }
+        tuner.logEndGroup();
     }
-    std::cout << std::endl;
 
     {
         /* Tune number of blocks. This is expected to be level beyond some point, so we
          * require a 5% improvement to increase it as more blocks reduces throughput for
          * small problem sizes.
          */
+        tuner.logStartGroup();
         double bestRate = -1.0;
         for (size_t blocks = 2; blocks <= maxBlocks; blocks *= 2)
         {
@@ -273,9 +284,10 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
             params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(bestScanWorkGroupSize);
             params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(bestScanWorkScale);
             params.getTyped< ::size_t>("SCAN_BLOCKS")->set(blocks);
+            bool valid = false;
             try
             {
-                std::cout << '.' << std::flush;
+                tuner.logStartTest(params);
 
                 Scan scan(context, device, type, params);
                 cl::Event event;
@@ -296,6 +308,8 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
                     bestRate = rate;
                     bestBlocks = blocks;
                 }
+                tuner.logEndTest(params, true, rate);
+                valid = true;
             }
             catch (InternalError &e)
             {
@@ -303,7 +317,10 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
             catch (cl::Error &e)
             {
             }
+            if (!valid)
+                tuner.logEndTest(params, false, 0.0);
         }
+        tuner.logEndGroup();
     }
 
     // TODO: use a new exception type
@@ -320,7 +337,7 @@ ParameterSet Scan::tune(const cl::Context &context, const cl::Device &device, co
     params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(bestScanWorkScale);
     params.getTyped< ::size_t>("SCAN_BLOCKS")->set(bestBlocks);
 
-    std::cout << '\n' << params << '\n';
+    tuner.logResult(params);
     return params;
 }
 
