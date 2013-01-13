@@ -53,7 +53,18 @@ namespace clogs
 namespace detail
 {
 
-::size_t Radixsort::getBlocks(::size_t elements, ::size_t len)
+::size_t Radixsort::getTileSize() const
+{
+    return std::max(reduceWorkGroupSize, scatterWorkScale * scatterWorkGroupSize);
+}
+
+::size_t Radixsort::getBlockSize(::size_t elements) const
+{
+    const ::size_t tileSize = getTileSize();
+    return (elements + tileSize * scanBlocks - 1) / (tileSize * scanBlocks) * tileSize;
+}
+
+::size_t Radixsort::getBlocks(::size_t elements, ::size_t len) const
 {
     const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
     ::size_t blocks = (elements + len - 1) / len;
@@ -203,9 +214,7 @@ void Radixsort::enqueue(
     const cl::Buffer *nextKeys = &tmpKeys;
     const cl::Buffer *nextValues = &tmpValues;
 
-    // block size must be a multiple of this
-    const ::size_t tileSize = std::max(reduceWorkGroupSize, scatterWorkScale * scatterWorkGroupSize);
-    const ::size_t blockSize = (elements + tileSize * scanBlocks - 1) / (tileSize * scanBlocks) * tileSize;
+    const ::size_t blockSize = getBlockSize(elements);
     const ::size_t blocks = getBlocks(elements, blockSize);
     assert(blocks <= scanBlocks);
 
@@ -434,13 +443,12 @@ ParameterSet Radixsort::tune(
             {
                 ParameterSet params = cand;
                 params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
+                bool valid = false;
 
                 try
                 {
-                    std::cout << '.' << std::flush;
                     Radixsort sort(context, device, keyType, valueType, params);
-                    const ::size_t tileSize = std::max(reduceWorkGroupSize, scatterSlice);
-                    const ::size_t blockSize = (elements + tileSize * maxBlocks - 1) / (tileSize * maxBlocks) * tileSize;
+                    const ::size_t blockSize = sort.getBlockSize(elements);
                     // Warmup
                     sort.enqueueReduce(queue, sort.histogram, keyBuffer, blockSize, elements, 0, NULL, NULL);
                     queue.finish();
@@ -459,6 +467,7 @@ ParameterSet Radixsort::tune(
                         bestRate = rate;
                         cand.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
                     }
+                    valid = true;
                 }
                 catch (InternalError &e)
                 {
@@ -466,6 +475,7 @@ ParameterSet Radixsort::tune(
                 catch (cl::Error &e)
                 {
                 }
+                std::cout << "!."[valid] << std::flush;
             }
         }
         std::cout << std::endl;
@@ -473,8 +483,7 @@ ParameterSet Radixsort::tune(
         // Tune the scatter kernel, assuming a large maxBlocks
         {
             double bestRate = -1.0;
-            ::size_t reduceWorkGroupSize = cand.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
-            for (::size_t scatterWorkGroupSize = 1; scatterWorkGroupSize <= maxWorkGroupSize; scatterWorkGroupSize *= 2)
+            for (::size_t scatterWorkGroupSize = scatterSlice; scatterWorkGroupSize <= maxWorkGroupSize; scatterWorkGroupSize *= 2)
             {
                 // TODO: increase search space
                 for (::size_t scatterWorkScale = 1; scatterWorkScale <= 8; scatterWorkScale++)
@@ -482,15 +491,12 @@ ParameterSet Radixsort::tune(
                     ParameterSet params = cand;
                     params.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterWorkGroupSize);
                     params.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(scatterWorkScale);
+                    bool valid = false;
 
                     try
                     {
-                        std::cout << '.' << std::flush;
                         Radixsort sort(context, device, keyType, valueType, params);
-                        const ::size_t tileSize = std::max(
-                            reduceWorkGroupSize,
-                            scatterWorkScale * scatterWorkGroupSize);
-                        const ::size_t blockSize = (elements + tileSize * maxBlocks - 1) / (tileSize * maxBlocks) * tileSize;
+                        const ::size_t blockSize = sort.getBlockSize(elements);
                         const ::size_t blocks = sort.getBlocks(elements, blockSize);
 
                         // Prepare histogram
@@ -523,6 +529,7 @@ ParameterSet Radixsort::tune(
                             cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterWorkGroupSize);
                             cand.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(scatterWorkScale);
                         }
+                        valid = true;
                     }
                     catch (InternalError &e)
                     {
@@ -530,8 +537,67 @@ ParameterSet Radixsort::tune(
                     catch (cl::Error &e)
                     {
                     }
+                    std::cout << "!."[valid] << std::flush;
                 }
             }
+        }
+        std::cout << std::endl;
+
+        double bestRate = -1.0;
+        // Tune the block count
+        ::size_t scanWorkGroupSize = cand.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
+        ::size_t scatterWorkGroupSize = cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->get();
+        const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
+        for (::size_t scanBlocks = std::max(scanWorkGroupSize / radix, slicesPerWorkGroup); scanBlocks <= maxBlocks; scanBlocks *= 2)
+        {
+            ParameterSet params = cand;
+            params.getTyped< ::size_t>("SCAN_BLOCKS")->set(scanBlocks);
+            bool valid = false;
+            try
+            {
+                Radixsort sort(context, device, keyType, valueType, params);
+                const ::size_t blockSize = sort.getBlockSize(elements);
+                const ::size_t blocks = sort.getBlocks(elements, blockSize);
+
+                cl::Event reduceEvent;
+                cl::Event scanEvent;
+                cl::Event scatterEvent;
+                // Warmup and real passes
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    sort.enqueueReduce(queue, sort.histogram, keyBuffer, blockSize, elements, 0, NULL, &reduceEvent);
+                    sort.enqueueScan(queue, sort.histogram, blocks, NULL, &scanEvent);
+                    sort.enqueueScatter(
+                        queue,
+                        outKeyBuffer, outValueBuffer,
+                        keyBuffer, valueBuffer,
+                        sort.histogram, blockSize, elements, 0,
+                        NULL, &scatterEvent);
+                    queue.finish();
+                }
+
+                reduceEvent.wait();
+                scatterEvent.wait();
+                cl_ulong start = reduceEvent.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+                cl_ulong end = reduceEvent.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+                double elapsed = end - start;
+                double rate = elements / elapsed;
+                // Fewer blocks means better performance on small problem sizes, so only
+                // use more blocks if it makes a real improvement
+                if (rate > bestRate * 1.05)
+                {
+                    bestRate = rate;
+                    cand.getTyped< ::size_t>("SCAN_BLOCKS")->set(scanBlocks);
+                }
+                valid = true;
+            }
+            catch (InternalError &e)
+            {
+            }
+            catch (cl::Error &e)
+            {
+            }
+            std::cout << "!."[valid] << std::flush;
         }
         std::cout << std::endl;
 

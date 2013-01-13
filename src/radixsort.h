@@ -72,7 +72,9 @@ private:
     void (CL_CALLBACK *eventCallback)(const cl::Event &event, void *);
     void *eventCallbackUserData;
 
-    ::size_t getBlocks(::size_t elements, ::size_t len);
+    ::size_t getTileSize() const;
+    ::size_t getBlockSize(::size_t elements) const;
+    ::size_t getBlocks(::size_t elements, ::size_t len) const;
 
     /**
      * Enqueue the reduction kernel.
