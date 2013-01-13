@@ -38,6 +38,8 @@
 #include <climits>
 #include <algorithm>
 #include <iostream>
+#include <vector>
+#include <utility>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -543,7 +545,7 @@ ParameterSet Radixsort::tune(
         }
         std::cout << std::endl;
 
-        double bestRate = -1.0;
+        std::vector<std::pair< ::size_t, double> > rates;
         // Tune the block count
         ::size_t scanWorkGroupSize = cand.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
         ::size_t scatterWorkGroupSize = cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->get();
@@ -582,13 +584,7 @@ ParameterSet Radixsort::tune(
                 cl_ulong end = reduceEvent.getProfilingInfo<CL_PROFILING_COMMAND_END>();
                 double elapsed = end - start;
                 double rate = elements / elapsed;
-                // Fewer blocks means better performance on small problem sizes, so only
-                // use more blocks if it makes a real improvement
-                if (rate > bestRate * 1.05)
-                {
-                    bestRate = rate;
-                    cand.getTyped< ::size_t>("SCAN_BLOCKS")->set(scanBlocks);
-                }
+                rates.push_back(std::make_pair(scanBlocks, rate));
                 valid = true;
             }
             catch (InternalError &e)
@@ -597,6 +593,21 @@ ParameterSet Radixsort::tune(
             catch (cl::Error &e)
             {
             }
+
+            // Fewer blocks means better performance on small problem sizes, so only
+            // use more blocks if it makes a real improvement
+            double bestRate = -1.0;
+            for (::size_t i = 0; i < rates.size(); i++)
+                bestRate = std::max(bestRate, rates[i].second);
+            for (::size_t i = 0; i < rates.size(); i++)
+            {
+                if (rates[i].second >= 0.95 * bestRate)
+                {
+                    cand.getTyped< ::size_t>("SCAN_BLOCKS")->set(rates[i].first);
+                    break;
+                }
+            }
+
             std::cout << "!."[valid] << std::flush;
         }
         std::cout << std::endl;
