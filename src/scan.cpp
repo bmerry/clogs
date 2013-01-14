@@ -39,6 +39,8 @@
 #include <map>
 #include <string>
 #include <cassert>
+#include <vector>
+#include <utility>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -275,7 +277,7 @@ ParameterSet Scan::tune(
          * small problem sizes.
          */
         tuner.logStartGroup();
-        double bestRate = -1.0;
+        std::vector<std::pair<size_t, double> > rates;
         for (size_t blocks = 2; blocks <= maxBlocks; blocks *= 2)
         {
             ParameterSet params = parameters();
@@ -303,11 +305,7 @@ ParameterSet Scan::tune(
                 cl_ulong end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
                 double elapsed = end - start;
                 double rate = allocElements / elapsed;
-                if (rate > bestRate * 1.05)
-                {
-                    bestRate = rate;
-                    bestBlocks = blocks;
-                }
+                rates.push_back(std::make_pair(blocks, rate));
                 tuner.logEndTest(params, true, rate);
                 valid = true;
             }
@@ -320,6 +318,19 @@ ParameterSet Scan::tune(
             if (!valid)
                 tuner.logEndTest(params, false, 0.0);
         }
+        if (!rates.empty())
+        {
+            double bestRate = -1.0;
+            for (size_t i = 0; i < rates.size(); i++)
+                bestRate = std::max(bestRate, rates[i].second);
+            for (size_t i = 0; i < rates.size(); i++)
+                if (rates[i].second >= 0.95 * bestRate)
+                {
+                    bestBlocks = rates[i].first;
+                    break;
+                }
+        }
+
         tuner.logEndGroup();
     }
 
