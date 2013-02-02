@@ -1,4 +1,4 @@
-# Copyright (c) 2012 University of Cape Town
+# Copyright (c) 2012, 2013 University of Cape Town
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,7 +20,9 @@
 
 import shutil
 import os
+import platform
 import waflib.Errors
+import waflib.Logs
 
 APPNAME = 'clogs'
 VERSION = '1.1.0'
@@ -76,6 +78,15 @@ def configure_variant_gcc(conf):
     conf.env.append_value('CXXFLAGS', ccflags)
     conf.env['LIB_PROGRAM_OPTIONS'] = ['boost_program_options-mt']
 
+def configure_platform_unix(conf):
+    conf.define('CLOGS_FS_UNIX', 1, quote = False)
+    conf.env['LIB_OS'] = []
+
+def configure_platform_windows(conf):
+    conf.define('CLOGS_FS_WINDOWS', 1, quote = False)
+    conf.define('UNICODE', 1, quote = False)
+    conf.env['LIB_OS'] = ['shlwapi', 'shell32']
+
 def configure_variant_msvc(conf):
     ccflags = ['/EHsc', '/MD']
     linkflags = []
@@ -107,6 +118,14 @@ def configure(conf):
         configure_variant_gcc(conf)
     elif conf.env['CXX_NAME'] == 'msvc':
         configure_variant_msvc(conf)
+
+    if os.name == 'nt' or platform.system() == 'Windows':
+        configure_platform_windows(conf)
+    elif os.name == 'posix' or platform.system() == 'Linux':
+        configure_platform_unix(conf)
+    else:
+        waflib.Logs.warn('Unable to identify platform, assuming UNIX')
+        configure_platform_unix(conf)
 
     if conf.options.cl_headers:
         conf.env.append_value('INCLUDES_OPENCL', [conf.options.cl_headers])
@@ -225,7 +244,7 @@ def build(bld):
             export_includes = 'include',
             install_path = bld.env['LIBDIR'],
             name = 'CLOGS-ST',
-            use = 'OPENCL')
+            use = 'OPENCL OS')
     clogs_shlib = bld.shlib(
             source = lib_sources,
             defines = ['CLOGS_DLL_DO_EXPORT'],
@@ -233,7 +252,7 @@ def build(bld):
             includes = 'include',
             export_includes = 'include',
             name = 'CLOGS-SH',
-            use = 'OPENCL',
+            use = 'OPENCL OS',
             vnum = VERSION)
     if bld.env['HAVE_CPPUNIT_TEST_H']:
         bld.program(

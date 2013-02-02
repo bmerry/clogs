@@ -39,8 +39,15 @@
 #include <cerrno>
 #include <set>
 #include <vector>
-#include <sys/stat.h>
 #include <locale>
+#if CLOGS_FS_UNIX
+# include <sys/stat.h>
+#endif
+#if CLOGS_FS_WINDOWS
+# include <shlobj.h>
+# include <winnls.h>
+# include <shlwapi.h>
+#endif
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -84,6 +91,17 @@ CLOGS_LOCAL ParameterSet deviceKey(const cl::Device &device)
 namespace
 {
 
+#if CLOGS_FS_UNIX
+typedef char path_char;
+typedef std::string path_string;
+static const char dirSep = '/';
+#endif
+#if CLOGS_FS_WINDOWS
+typedef wchar_t path_char;
+typedef std::wstring path_string;
+static const wchar_t dirSep = L'\\';
+#endif
+
 /**
  * Determines the cache directory, without caching the result. The
  * directory is created if it does not exist, but failure to create it is not
@@ -92,9 +110,11 @@ namespace
  * @todo Currently very UNIX-specific
  * @todo Need to document the algorithm in the user manual
  */
-static std::string getCacheDirStatic()
+static path_string getCacheDirStatic();
+
+#if CLOGS_FS_UNIX
+static path_string getCacheDirStatic()
 {
-    // TODO: handle non-UNIX systems
     const char *envCacheDir = getenv("CLOGS_CACHE_DIR");
     if (envCacheDir == NULL)
     {
@@ -111,24 +131,83 @@ static std::string getCacheDirStatic()
         return envCacheDir;
 }
 
+static path_string toPathString(const std::string &s)
+{
+    return s;
+}
+
+static std::string fromPathString(const path_string &s)
+{
+    return s;
+}
+#endif
+
+#if CLOGS_FS_WINDOWS
+static path_string getCacheDirStatic()
+{
+    const wchar_t *envCacheDir = _wgetenv(L"CLOGS_CACHE_DIR");
+    if (envCacheDir == NULL)
+    {
+        bool success = false;
+        wchar_t path[MAX_PATH + 20];
+        HRESULT status = SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE,
+                                         NULL, SHGFP_TYPE_CURRENT, path);
+        if (PathAppend(path, L"clogs"))
+        {
+            CreateDirectory(path, NULL);
+            if (PathAppend(path, L"cache"))
+            {
+                CreateDirectory(path, NULL);
+                success = true;
+            }
+        }
+        if (!success)
+            path[0] = L'\0';
+        return path;
+    }
+    else
+        return envCacheDir;
+}
+
+static path_string toPathString(const std::string &s)
+{
+    int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, NULL, 0);
+    path_char *out = new path_char[len];
+    MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, out, len);
+    path_string ret(out);
+    delete[] out;
+    return ret;
+}
+
+static std::string fromPathString(const path_string &s)
+{
+    int len = WideCharToMultiByte(CP_UTF8, 0, s.c_str(), -1, NULL, 0, NULL, NULL);
+    char *out = new char[len];
+    WideCharToMultiByte(CP_UTF8, 0, s.c_str(), -1, out, len, NULL, NULL);
+    std::string ret(out);
+    delete[] out;
+    return ret;
+}
+#endif
+
 /**
  * Returns the cache directory, caching the result after the first time.
  *
  * @see getCacheDirStatic.
  */
-static std::string getCacheDir()
+static path_string getCacheDir()
 {
-    static const std::string ans = getCacheDirStatic();
+    static const path_string ans = getCacheDirStatic();
     return ans;
 }
 
 /**
  * Returns the filename where parameters for an algorithm are stored.
  */
-static std::string getCacheFile(const ParameterSet &key)
+static path_string getCacheFile(const ParameterSet &key)
 {
     const std::string hash = key.hash();
-    const std::string path = getCacheDir() + "/" + hash;
+    const path_string path = getCacheDir() + dirSep + toPathString(hash);
     return path;
 }
 
@@ -143,10 +222,10 @@ static std::string getCacheFile(const ParameterSet &key)
 static void saveParameters(const ParameterSet &key, const ParameterSet &values)
 {
     const std::string hash = key.hash();
-    const std::string path = getCacheFile(key);
+    const path_string path = getCacheFile(key);
     std::ofstream out(path.c_str());
     if (!out)
-        throw SaveParametersError(path, errno);
+        throw SaveParametersError(fromPathString(path), errno);
     out.imbue(std::locale::classic());
     for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
         out << "# " << i->first << "=" << i->second->serialize() << '\n';
@@ -155,7 +234,7 @@ static void saveParameters(const ParameterSet &key, const ParameterSet &values)
     if (!out)
     {
         // TODO: erase the file?
-        throw SaveParametersError(path, errno);
+        throw SaveParametersError(fromPathString(path), errno);
     }
 }
 
@@ -355,7 +434,7 @@ void Tuner::logResult(const ParameterSet &params)
 
 CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params)
 {
-    std::string filename = getCacheFile(key);
+    path_string filename = getCacheFile(key);
     try
     {
         std::ifstream in(filename.c_str());
@@ -368,7 +447,7 @@ CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params)
     }
     catch (std::runtime_error &e)
     {
-        throw CacheError("Failed to read cache file " + filename + ": " + e.what());
+        throw CacheError("Failed to read cache file " + fromPathString(filename) + ": " + e.what());
     }
 }
 
