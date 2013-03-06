@@ -21,6 +21,8 @@
 import shutil
 import os
 import waflib.Errors
+from waflib.TaskGen import feature, after_method
+from waflib import Task
 
 APPNAME = 'clogs'
 VERSION = '1.1.0'
@@ -43,6 +45,14 @@ variants = {
         'assertions': True,
         'unit_tests': True,
     },
+    'symbols':
+    {
+        'debuginfo': True,
+        'symbols': True,
+        'optimize': True,
+        'assertions': False,
+        'unit_tests': False,
+    },
     'release':
     {
         'debuginfo': False,
@@ -52,6 +62,21 @@ variants = {
         'unit_tests': False,
     }
 }
+
+class split_debug_task(Task.Task):
+    """Split debug information from a binary"""
+    color = 'BLUE'
+    run_str = 'objcopy --only-keep-debug ${SRC[0]} ${TGT[1]} && objcopy --strip-debug --strip-unneeded --add-gnu-debuglink=${TGT[1]} ${SRC[0]} ${TGT[0]}'
+
+@after_method('apply_link')
+@after_method('apply_vnum')
+@feature('split_debug')
+def split_debug(self):
+    tgt = self.link_task.outputs[0]
+    full = tgt.parent.find_or_declare(tgt.name + '.full')
+    debug = tgt.parent.find_or_declare(tgt.name + '.debug')
+    self.link_task.outputs[0] = full
+    self.create_task('split_debug', [full], [tgt, debug])
 
 def configure_variant(conf):
     if conf.env['assertions']:
@@ -99,6 +124,7 @@ def configure(conf):
         conf.find_program('doxygen', mandatory = conf.options.with_doxygen)
     if conf.options.with_xsltproc is not False:
         conf.find_program('xsltproc', mandatory = conf.options.with_xsltproc)
+    conf.env['split_debug'] = conf.options.split_debug
 
     for (key, value) in variants[conf.options.variant].items():
         conf.env[key] = value
@@ -143,6 +169,7 @@ def options(opt):
     opt.add_option('--with-xsltproc', dest = 'with_xsltproc', action = 'store_true', help = 'Build user manual')
     opt.add_option('--without-xsltproc', dest = 'with_xsltproc', action = 'store_false', help = 'Do not build user manual')
     opt.add_option('--cl-headers', action = 'store', default = None, help = 'Include path for OpenCL')
+    opt.add_option('--split-debug', action = 'store_true', default = False, help = 'Put debug information into separate file (GCC only)')
     opt.load('compiler_cxx')
     opt.load('gnu_dirs')
 
@@ -225,7 +252,11 @@ def build(bld):
             install_path = bld.env['LIBDIR'],
             name = 'CLOGS-ST',
             use = 'OPENCL')
+    features = ['cxxshlib']
+    if bld.env['split_debug'] and bld.env['CXX_NAME'] == 'gcc':
+        features += ['split_debug']
     clogs_shlib = bld.shlib(
+            features = features,
             source = bld.path.ant_glob('src/*.cpp') + ['src/kernels.cpp'],
             defines = ['CLOGS_DLL_DO_EXPORT'],
             target = 'clogs',
