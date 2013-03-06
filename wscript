@@ -140,7 +140,11 @@ def configure(conf):
     conf.check_cxx(header_name = 'boost/foreach.hpp')
     conf.check_cxx(header_name = 'boost/program_options.hpp', use = 'PROGRAM_OPTIONS')
     conf.check_cxx(header_name = 'CL/cl.hpp', use = 'OPENCL')
-    conf.check_cxx(header_name = 'cppunit/Test.h', lib = 'cppunit', mandatory = False)
+    try:
+        conf.check_cxx(header_name = 'cppunit/Test.h', lib = 'cppunit', uselib_store = 'CPPUNIT')
+    except waflib.Errors.ConfigurationError:
+        # Home-made builds of cppunit don't link against -ldl themselves
+        conf.check_cxx(header_name = 'cppunit/Test.h', lib = ['cppunit', 'dl'], uselib_store = 'CPPUNIT', mandatory = False)
     for header in ['random', 'functional']:
         conf.check_cxx(header_name = header, mandatory = False)
         conf.check_cxx(header_name = 'tr1/' + header, mandatory = False)
@@ -270,8 +274,7 @@ def build(bld):
                 source = bld.path.ant_glob('test/*.cpp') + ['tools/options.cpp', 'tools/timer.cpp'],
                 defines = ['CLOGS_DLL_DO_STATIC'],
                 target = 'clogs-test',
-                lib = ['cppunit'],
-                use = 'PROGRAM_OPTIONS OPENCL CLOGS-ST TIMER',
+                use = 'PROGRAM_OPTIONS CPPUNIT OPENCL CLOGS-ST TIMER',
                 install_path = None)
     bld.program(
             source = bld.path.ant_glob('tools/*.cpp'),
