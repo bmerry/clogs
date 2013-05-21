@@ -109,6 +109,20 @@ private:
     Scan(const cl::Context &context, const cl::Device &device, const Type &type,
          const ParameterSet &params);
 
+    static std::pair<double, double> tuneReduceCallback(
+        const cl::Context &context, const cl::Device &device,
+        std::size_t elements, const ParameterSet &parameters,
+        const Type &type);
+
+    static std::pair<double, double> tuneScanCallback(
+        const cl::Context &context, const cl::Device &device,
+        std::size_t elements, const ParameterSet &parameters,
+        const Type &type);
+
+    static std::pair<double, double> tuneBlocksCallback(
+        const cl::Context &context, const cl::Device &device,
+        std::size_t elements, const ParameterSet &parameters,
+        const Type &type);
 public:
     /**
      * Constructor.

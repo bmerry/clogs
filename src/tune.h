@@ -33,6 +33,7 @@
 #include <stdexcept>
 #include <vector>
 #include <set>
+#include "tr1_functional.h"
 #include <clogs/visibility_pop.h>
 
 #include "parameters.h"
@@ -105,6 +106,44 @@ public:
 
     void setForce(bool force);
     void tuneAll(const std::vector<cl::Device> &devices);
+
+    /**
+     * Perform low-level tuning. The callback function is called for each set of parameters,
+     * and returns two values, A and B. The selected parameter set is computed as follows:
+     *
+     * -# The largest value of A, Amax is computed.
+     * -# The first parameter set with B >= Amax is returned.
+     *
+     * To simply pick the
+     * best, simply return B = A. However, if earlier parameter sets are in some
+     * way intrinsicly better, then setting e.g. B = 1.05 * A will yield a
+     * parameter set that has A ~= Amax but possibly much earlier. It is required
+     * that A <= B.
+     *
+     * @a problemSizes contains values to pass to the callback. A separate phase is
+     * run for each value in sequence. In the first phase, all parameter sets are
+     * used. In each subsequent phase, only those whose A value was at least
+     * ratio*Amax are retained. This allows for very slow parameter sets to be
+     * quickly eliminated on small problem sizes (which can also avoid hardware
+     * timeouts), before refining the selection on more representative problem sizes.
+     *
+     * It is legal for the callback function to throw @c cl::Error or @ref
+     * InternalError. In either case, the parameter set will be dropped from consideration.
+     *
+     * Each call will be made with a fresh context. It is advisable for the
+     * callback function to execute a warmup pass to obtain reliable results.
+     */
+    ParameterSet tuneOne(
+        const cl::Device &device,
+        const std::vector<ParameterSet> &parameterSets,
+        const std::vector<std::size_t> &problemSizes,
+        FUNCTIONAL_NAMESPACE::function<
+        std::pair<double, double>(
+            const cl::Context &,
+            const cl::Device &,
+            std::size_t,
+            const ParameterSet &)> callback,
+        double ratio = 0.5);
 
     /**
      * @name Methods called by the tuning algorithms to report progress

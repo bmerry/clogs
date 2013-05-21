@@ -37,6 +37,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
+#include <cassert>
+#include <cmath>
+#include <utility>
 #include <set>
 #include <vector>
 #include <locale>
@@ -107,7 +110,6 @@ static const wchar_t dirSep = L'\\';
  * directory is created if it does not exist, but failure to create it is not
  * reported.
  *
- * @todo Currently very UNIX-specific
  * @todo Need to document the algorithm in the user manual
  */
 static path_string getCacheDirStatic();
@@ -430,6 +432,90 @@ void Tuner::logEndTest(const ParameterSet &params, bool success, double rate)
 void Tuner::logResult(const ParameterSet &params)
 {
     std::cout << params << std::endl;
+}
+
+ParameterSet Tuner::tuneOne(
+    const cl::Device &device,
+    const std::vector<ParameterSet> &parameterSets,
+    const std::vector<std::size_t> &problemSizes,
+    FUNCTIONAL_NAMESPACE::function<
+    std::pair<double, double>(
+        const cl::Context &,
+        const cl::Device &,
+        std::size_t,
+        const ParameterSet &)> callback,
+    double ratio)
+{
+    std::vector<ParameterSet> retained = parameterSets;
+    for (std::size_t pass = 0; pass < problemSizes.size(); pass++)
+    {
+        logStartGroup();
+        const std::size_t problemSize = problemSizes[pass];
+        std::vector<std::pair<double, double> > results;
+        results.reserve(retained.size());
+        std::vector<ParameterSet> retained2;
+        double maxA = -HUGE_VAL;
+        for (std::size_t i = 0; i < retained.size(); i++)
+        {
+            const ParameterSet &params = retained[i];
+            logStartTest(params);
+            bool valid = false;
+            try
+            {
+                cl_context_properties props[3] =
+                {
+                    CL_CONTEXT_PLATFORM,
+                    (cl_context_properties) device.getInfo<CL_DEVICE_PLATFORM>(),
+                    0
+                };
+                std::vector<cl::Device> devices(1, device);
+                cl::Context context(devices, props, NULL);
+                std::pair<double, double> r = callback(context, device, problemSize, params);
+                if (r.first == r.first) // filter out NaN
+                {
+                    assert(r.first <= r.second);
+                    retained2.push_back(params);
+                    results.push_back(r);
+                    if (r.first > maxA)
+                        maxA = r.first;
+                    logEndTest(params, true, r.first);
+                    valid = true;
+                }
+            }
+            catch (InternalError &e)
+            {
+            }
+            catch (cl::Error &e)
+            {
+            }
+            if (!valid)
+                logEndTest(params, false, 0.0);
+        }
+        retained.swap(retained2);
+        retained2.clear();
+        if (retained.empty())
+        {
+            std::cerr << "FATAL ERROR: no suitable kernel found!\n";
+            abort();
+        }
+        logEndGroup();
+
+        if (pass < problemSizes.size() - 1)
+        {
+            for (std::size_t i = 0; i < results.size(); i++)
+                if (results[i].first >= ratio * maxA)
+                    retained2.push_back(retained[i]);
+            retained.swap(retained2);
+            retained2.clear();
+        }
+        else
+        {
+            for (std::size_t i = 0; i < results.size(); i++)
+                if (results[i].second >= maxA)
+                    return retained[i];
+        }
+    }
+    abort(); // should never be reached due to A <= B
 }
 
 CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params)
