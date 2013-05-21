@@ -643,7 +643,7 @@ void TestRadixsort::testEventCallback()
     clogs::Radixsort sort(context, device, clogs::TYPE_UINT);
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
     sort.setEventCallback(eventCallback, &events);
-    sort.enqueue(queue, buffer, NULL, 4);
+    sort.enqueue(queue, buffer, cl::Buffer(), 4, 32);
     queue.finish();
     CPPUNIT_ASSERT(events > 0);
 }
