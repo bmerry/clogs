@@ -31,6 +31,7 @@
 #include <clogs/visibility_push.h>
 #include <CL/cl.hpp>
 #include <cstddef>
+#include <utility>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -156,6 +157,20 @@ private:
               const Type &keyType, const Type &valueType,
               const ParameterSet &params);
 
+    static std::pair<double, double> tuneReduceCallback(
+        const cl::Context &context, const cl::Device &device,
+        std::size_t elements, const ParameterSet &params,
+        const Type &keyType, const Type &valueType);
+
+    static std::pair<double, double> tuneScatterCallback(
+        const cl::Context &context, const cl::Device &device,
+        std::size_t elements, const ParameterSet &params,
+        const Type &keyType, const Type &valueType);
+
+    static std::pair<double, double> tuneBlocksCallback(
+        const cl::Context &context, const cl::Device &device,
+        std::size_t elements, const ParameterSet &params,
+        const Type &keyType, const Type &valueType);
 public:
     /**
      * Constructor.
