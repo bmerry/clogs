@@ -379,7 +379,7 @@ bool Radixsort::valueTypeSupported(const cl::Device &device, const Type &valueTy
 static cl::Buffer makeRandomBuffer(const cl::Context &context, const cl::Device &device, ::size_t size)
 {
     cl::CommandQueue queue(context, device);
-    cl::Buffer buffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, size);
+    cl::Buffer buffer(context, CL_MEM_READ_WRITE, size);
     cl_uchar *data = reinterpret_cast<cl_uchar *>(
         queue.enqueueMapBuffer(buffer, CL_TRUE, CL_MAP_WRITE, 0, size));
     RANDOM_NAMESPACE::mt19937 engine;
