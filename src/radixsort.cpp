@@ -541,8 +541,10 @@ ParameterSet Radixsort::tune(
     for (unsigned int radixBits = 4; radixBits <= 4; radixBits++)
     {
         const unsigned int radix = 1U << radixBits;
-        const ::size_t maxBlocks = roundDownPower2(
-            (device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / radix - 1) / sizeof(cl_uint));
+        const unsigned int scanWorkGroupSize = radix;
+        ::size_t maxBlocks =
+            (device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / radix - 1) / sizeof(cl_uint);
+
         if (maxWorkGroupSize < radix)
             break;
 
@@ -552,7 +554,7 @@ ParameterSet Radixsort::tune(
         cand.getTyped<unsigned int>("RADIX_BITS")->set(radixBits);
         cand.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
         cand.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
-        cand.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(radix);
+        cand.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
         cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterSlice);
         cand.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(1);
 
@@ -580,6 +582,8 @@ ParameterSet Radixsort::tune(
                 for (::size_t scatterWorkScale = 1; scatterWorkScale <= 8; scatterWorkScale++)
                 {
                     ParameterSet params = cand;
+                    const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
+                    params.getTyped< ::size_t>("SCAN_BLOCKS")->set(roundDown(maxBlocks, slicesPerWorkGroup));
                     params.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterWorkGroupSize);
                     params.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(scatterWorkScale);
                     sets.push_back(params);
@@ -598,10 +602,17 @@ ParameterSet Radixsort::tune(
             ::size_t scanWorkGroupSize = cand.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
             ::size_t scatterWorkGroupSize = cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->get();
             const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
+            // Have to reduce the maximum to align with slicesPerWorkGroup, which was 1 earlier
+            maxBlocks = roundDown(maxBlocks, slicesPerWorkGroup);
             for (::size_t scanBlocks = std::max(scanWorkGroupSize / radix, slicesPerWorkGroup); scanBlocks <= maxBlocks; scanBlocks *= 2)
             {
                 ParameterSet params = cand;
                 params.getTyped< ::size_t>("SCAN_BLOCKS")->set(scanBlocks);
+                sets.push_back(params);
+            }
+            {
+                ParameterSet params = cand;
+                params.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
                 sets.push_back(params);
             }
             using namespace FUNCTIONAL_NAMESPACE::placeholders;
