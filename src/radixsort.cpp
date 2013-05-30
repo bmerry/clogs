@@ -376,10 +376,9 @@ bool Radixsort::valueTypeSupported(const cl::Device &device, const Type &valueTy
         || valueType.isStorable(device);
 }
 
-static cl::Buffer makeRandomBuffer(const cl::Context &context, const cl::Device &device, ::size_t size)
+static cl::Buffer makeRandomBuffer(const cl::CommandQueue &queue, ::size_t size)
 {
-    cl::CommandQueue queue(context, device);
-    cl::Buffer buffer(context, CL_MEM_READ_WRITE, size);
+    cl::Buffer buffer(queue.getInfo<CL_QUEUE_CONTEXT>(), CL_MEM_READ_WRITE, size);
     cl_uchar *data = reinterpret_cast<cl_uchar *>(
         queue.enqueueMapBuffer(buffer, CL_TRUE, CL_MAP_WRITE, 0, size));
     RANDOM_NAMESPACE::mt19937 engine;
@@ -400,9 +399,9 @@ std::pair<double, double> Radixsort::tuneReduceCallback(
     std::size_t elements, const ParameterSet &params,
     const Type &keyType, const Type &valueType)
 {
-    const ::size_t keyBufferSize = elements * keyType.getSize();
-    const cl::Buffer keyBuffer = makeRandomBuffer(context, device, keyBufferSize);
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
+    const ::size_t keyBufferSize = elements * keyType.getSize();
+    const cl::Buffer keyBuffer = makeRandomBuffer(queue, keyBufferSize);
 
     Radixsort sort(context, device, keyType, valueType, params);
     const ::size_t blockSize = sort.getBlockSize(elements);
@@ -427,17 +426,17 @@ std::pair<double, double> Radixsort::tuneScatterCallback(
     std::size_t elements, const ParameterSet &params,
     const Type &keyType, const Type &valueType)
 {
+    cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
     const ::size_t keyBufferSize = elements * keyType.getSize();
     const ::size_t valueBufferSize = elements * valueType.getSize();
-    const cl::Buffer keyBuffer = makeRandomBuffer(context, device, keyBufferSize);
+    const cl::Buffer keyBuffer = makeRandomBuffer(queue, keyBufferSize);
     const cl::Buffer outKeyBuffer(context, CL_MEM_READ_WRITE, keyBufferSize);
     cl::Buffer valueBuffer, outValueBuffer;
     if (valueType.getBaseType() != TYPE_VOID)
     {
-        valueBuffer = makeRandomBuffer(context, device, valueBufferSize);
+        valueBuffer = makeRandomBuffer(queue, valueBufferSize);
         outValueBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, valueBufferSize);
     }
-    cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
 
     Radixsort sort(context, device, keyType, valueType, params);
     const ::size_t blockSize = sort.getBlockSize(elements);
@@ -475,17 +474,17 @@ std::pair<double, double> Radixsort::tuneBlocksCallback(
     std::size_t elements, const ParameterSet &params,
     const Type &keyType, const Type &valueType)
 {
+    cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
     const ::size_t keyBufferSize = elements * keyType.getSize();
     const ::size_t valueBufferSize = elements * valueType.getSize();
-    const cl::Buffer keyBuffer = makeRandomBuffer(context, device, keyBufferSize);
+    const cl::Buffer keyBuffer = makeRandomBuffer(queue, keyBufferSize);
     const cl::Buffer outKeyBuffer(context, CL_MEM_READ_WRITE, keyBufferSize);
     cl::Buffer valueBuffer, outValueBuffer;
     if (valueType.getBaseType() != TYPE_VOID)
     {
-        valueBuffer = makeRandomBuffer(context, device, valueBufferSize);
+        valueBuffer = makeRandomBuffer(queue, valueBufferSize);
         outValueBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, valueBufferSize);
     }
-    cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
 
     Radixsort sort(context, device, keyType, valueType, params);
     const ::size_t blockSize = sort.getBlockSize(elements);
