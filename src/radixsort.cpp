@@ -278,7 +278,28 @@ void Radixsort::initialize(
     std::string options;
     options += "-DKEY_T=" + keyType.getName() + " ";
     if (valueType.getBaseType() != TYPE_VOID)
-        options += "-DVALUE_T=" + valueType.getName() + " ";
+    {
+        /* There are cases (at least on NVIDIA) where value types have
+         * different performance even when they are the same size e.g. uchar3
+         * vs uint. Avoid this by canonicalising the value type. This has the
+         * extra benefit that there are fewer possible kernels.
+         */
+        Type kernelValueType = valueType;
+        switch (valueSize)
+        {
+        case 1: kernelValueType = TYPE_UCHAR; break;
+        case 2: kernelValueType = TYPE_USHORT; break;
+        case 4: kernelValueType = TYPE_UINT; break;
+        case 8: kernelValueType = TYPE_ULONG; break;
+        case 16: kernelValueType = Type(TYPE_UINT, 4); break;
+        case 32: kernelValueType = Type(TYPE_UINT, 8); break;
+        case 64: kernelValueType = Type(TYPE_UINT, 16); break;
+        case 128: kernelValueType = Type(TYPE_ULONG, 16); break;
+        }
+        assert(kernelValueType.getSize() == valueSize);
+
+        options += "-DVALUE_T=" + kernelValueType.getName() + " ";
+    }
 
     std::map<std::string, int> defines;
     defines["WARP_SIZE"] = warpSize;
