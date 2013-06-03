@@ -541,7 +541,6 @@ std::pair<double, double> Radixsort::tuneBlocksCallback(
 
 ParameterSet Radixsort::tune(
     Tuner &tuner,
-    const cl::Context &context,
     const cl::Device &device,
     const Type &keyType,
     const Type &valueType)

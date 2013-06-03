@@ -230,8 +230,7 @@ std::pair<double, double> Scan::tuneBlocksCallback(
 }
 
 ParameterSet Scan::tune(
-    Tuner &tuner,
-    const cl::Context &context, const cl::Device &device, const Type &type)
+    Tuner &tuner, const cl::Device &device, const Type &type)
 {
     const size_t elementSize = type.getSize();
     const size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();

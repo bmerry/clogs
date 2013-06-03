@@ -327,7 +327,7 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
                 std::cout << "Tuning scan for " << type.getName() << " elements on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
                 const std::string hash = key.hash();
-                ParameterSet params = Scan::tune(*this, context, device, type);
+                ParameterSet params = Scan::tune(*this, device, type);
                 saveParameters(key, params);
             }
         }
@@ -376,7 +376,7 @@ void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
                             << valueType.getSize() << " byte values on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
                         const std::string hash = key.hash();
-                        ParameterSet params = Radixsort::tune(*this, context, device, keyType, valueType);
+                        ParameterSet params = Radixsort::tune(*this, device, keyType, valueType);
                         saveParameters(key, params);
                     }
                 }

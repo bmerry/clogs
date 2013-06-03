@@ -216,12 +216,10 @@ public:
      * Perform autotuning.
      *
      * @param tuner       Tuner for reporting progress
-     * @param context     Context for executing autotuning tests
      * @param device, keyType, valueType Constructor parameters
      */
     static ParameterSet tune(
         Tuner &tuner,
-        const cl::Context &context,
         const cl::Device &device,
         const Type &keyType,
         const Type &valueType);
