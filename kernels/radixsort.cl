@@ -180,6 +180,9 @@
 #if SCATTER_SLICE < RADIX
 # error "SCATTER_SLICE must be at least RADIX"
 #endif
+#if SCATTER_SLICE * SCATTER_WORK_GROUP_SCALE >= 256
+# error "SCATTER_SLICE * SCATTER_WORK_GROUP_SCALE must be strictly less than 256"
+#endif
 
 /**
  * Shorthand for defining a kernel with a fixed work group size.

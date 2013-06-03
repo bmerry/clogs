@@ -598,7 +598,7 @@ ParameterSet Radixsort::tune(
             for (::size_t scatterWorkGroupSize = scatterSlice; scatterWorkGroupSize <= maxWorkGroupSize; scatterWorkGroupSize *= 2)
             {
                 // TODO: increase search space
-                for (::size_t scatterWorkScale = 1; scatterWorkScale <= 8; scatterWorkScale++)
+                for (::size_t scatterWorkScale = 1; scatterWorkScale <= 255 / scatterSlice; scatterWorkScale++)
                 {
                     ParameterSet params = cand;
                     const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
