@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.3//EN" "http://www.oasis-open.org/docbook/xml/4.3/docbookx.dtd">
 <!--
-   Copyright (c) 2012 University of Cape Town
+   Copyright (c) 2012-2013 University of Cape Town
 
    Permission is hereby granted, free of charge, to any person obtaining a copy
    of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
         </author>
         <copyright>
             <year>2012</year>
+            <year>2013</year>
             <holder>University of Cape Town</holder>
         </copyright>
         <!-- The releaseinfo element is replaced by the stylesheet to inject
@@ -176,6 +177,41 @@
                 the root of the filesystem. This is intended for use with
                 package management tools.
             </para>
+            <para>
+                After installing, it is necessary to tune CLOGS for your OpenCL
+                devices. See the next section for details.
+            </para>
+        </section>
+        <section id="installation.tune">
+            <title>Autotuning</title>
+            <para>
+                CLOGS uses autotuning to choose good tuning parameters for each
+                device. This helps with performance, but unfortunately also
+                means that you need to run the autotuner before using CLOGS.
+                This is done simply by running
+                <command>clogs-tune</command>. You should do this on a
+                system that is otherwise idle, to avoid skewing the results.
+            </para>
+            <para>This can take a long time,
+                particularly for CPU devices. If you have OpenCL CPU devices
+                but don't intend to use them with CLOGS, you can save time by
+                passing <option>--cl-gpu</option> to
+                <command>clogs-tune</command> to only tune for GPU devices.
+            </para>
+            <para>
+                You need to do autotuning when you first install CLOGS or when
+                you do an upgrade. You will also need to do autotuning when
+                adding a new OpenCL device. The previous tuning is remembered,
+                so this will only cause new configurations to be tuned. If for
+                some reason you need to re-do tuning, you can pass
+                <option>--force</option> to <command>clogs-tune</command>.
+            </para>
+            <para>
+                On POSIX systems, the results of autotuning are stored in
+                <filename><envar>$HOME</envar>/.clogs/cache</filename>. On
+                Windows, they are stored in the local application data
+                directory.
+            </para>
         </section>
     </chapter>
 
@@ -316,7 +352,9 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
                 The other type of exception that may occur is
                 <type>clogs::InternalError</type>. This is only thrown for
                 unexpected errors with the implementation, such as when
-                the source for one of the kernels fails to compile.
+                the source for one of the kernels fails to compile. If
+                autotuning has not been done, a <type>clogs::CacheError</type>
+                (a subclass of <type>clogs::InternalError</type>) is thrown.
             </para>
         </section>
         <section id="using.memory">
@@ -394,7 +432,7 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
     <chapter id="license">
         <title>License</title>
         <para>
-            Copyright (c) 2012 University of Cape Town
+            Copyright (c) 2012-2013 University of Cape Town
         </para>
         <para>
             Permission is hereby granted, free of charge, to any person obtaining a copy
