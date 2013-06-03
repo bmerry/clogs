@@ -324,7 +324,7 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
             }
             if (doit)
             {
-                std::cout << "Tuning scan for " << type.getSize() << " byte elements on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
+                std::cout << "Tuning scan for " << type.getName() << " elements on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
                 const std::string hash = key.hash();
                 ParameterSet params = Scan::tune(*this, context, device, type);

@@ -363,10 +363,32 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
 
 ParameterSet Scan::makeKey(const cl::Device &device, const Type &type)
 {
+    /* To reduce the amount of time for tuning, we assume that signed
+     * and unsigned variants are equivalent, and canonicalise to signed.
+     */
+    Type canon;
+    switch (type.getBaseType())
+    {
+    case TYPE_UCHAR:
+        canon = Type(TYPE_CHAR, type.getLength());
+        break;
+    case TYPE_USHORT:
+        canon = Type(TYPE_SHORT, type.getLength());
+        break;
+    case TYPE_UINT:
+        canon = Type(TYPE_INT, type.getLength());
+        break;
+    case TYPE_ULONG:
+        canon = Type(TYPE_LONG, type.getLength());
+        break;
+    default:
+        canon = type;
+    }
+
     ParameterSet key = deviceKey(device);
     key["algorithm"] = new TypedParameter<std::string>("scan");
-    key["version"] = new TypedParameter<int>(1);
-    key["elementSize"] = new TypedParameter<std::size_t>(type.getSize());
+    key["version"] = new TypedParameter<int>(2);
+    key["elementType"] = new TypedParameter<std::string>(canon.getName());
     return key;
 }
 
