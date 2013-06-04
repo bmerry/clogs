@@ -114,8 +114,8 @@
         <section id="Compiling">
             <title>Compiling CLOGS</title>
             <para>
-                CLOGS uses the <olink
-                    href="waf.googlecode.com/svn/docs/wafbook/single.html">waf</olink>
+                CLOGS uses the <ulink
+                    url="waf.googlecode.com/svn/docs/wafbook/single.html">waf</ulink>
                 build system. The build system is included in the
                 distribution, so you do not need to download it separately.
             </para>
