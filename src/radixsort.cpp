@@ -563,6 +563,10 @@ ParameterSet Radixsort::tune(
         const unsigned int scanWorkGroupSize = radix;
         ::size_t maxBlocks =
             (device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / radix - 1) / sizeof(cl_uint);
+        /* Work around devices like G80 lying about the maximum local memory
+         * size, by starting with a smaller size.
+         */
+        ::size_t startBlocks = maxBlocks / 2;
 
         if (maxWorkGroupSize < radix)
             break;
@@ -572,7 +576,7 @@ ParameterSet Radixsort::tune(
         ::size_t scatterSlice = std::max(warpSize, (::size_t) radix);
         cand.getTyped<unsigned int>("RADIX_BITS")->set(radixBits);
         cand.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
-        cand.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
+        cand.getTyped< ::size_t>("SCAN_BLOCKS")->set(startBlocks);
         cand.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
         cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterSlice);
         cand.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(1);
@@ -592,7 +596,7 @@ ParameterSet Radixsort::tune(
                 FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneReduceCallback, _1, _2, _3, _4, keyType, valueType));
         }
 
-        // Tune the scatter kernel, assuming a large maxBlocks
+        // Tune the scatter kernel
         {
             std::vector<ParameterSet> sets;
             for (::size_t scatterWorkGroupSize = scatterSlice; scatterWorkGroupSize <= maxWorkGroupSize; scatterWorkGroupSize *= 2)
@@ -602,7 +606,7 @@ ParameterSet Radixsort::tune(
                 {
                     ParameterSet params = cand;
                     const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
-                    params.getTyped< ::size_t>("SCAN_BLOCKS")->set(roundDown(maxBlocks, slicesPerWorkGroup));
+                    params.getTyped< ::size_t>("SCAN_BLOCKS")->set(roundDown(startBlocks, slicesPerWorkGroup));
                     params.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterWorkGroupSize);
                     params.getTyped< ::size_t>("SCATTER_WORK_SCALE")->set(scatterWorkScale);
                     sets.push_back(params);
