@@ -27,7 +27,7 @@ from waflib.TaskGen import feature, after_method
 from waflib import Task
 
 APPNAME = 'clogs'
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 out = 'build'
 
 variants = {
@@ -243,7 +243,7 @@ def build(bld):
             )
         bld(
                 rule = simple_copy,
-                source = 'doc/benchmark/1.0.0/clogs-benchmark-480gtx.svg',
+                source = 'doc/benchmark/1.2.0/clogs-benchmark-480gtx.svg',
                 target = 'doc/images/clogs-benchmark-480gtx.svg'
             )
         bld(

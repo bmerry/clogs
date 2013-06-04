@@ -418,7 +418,8 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
             </mediaobject>
         </informalfigure>
         <para>
-            The performance on AMD GPUs will need a lot of work:
+            The performance on AMD GPUs still needs work. This graph is for 1.0.x, so
+            performance is expected to be better now but it has not been measured.
         </para>
         <informalfigure>
             <mediaobject>

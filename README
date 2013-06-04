@@ -6,6 +6,7 @@ For the impatient, the process is
 $ ./waf configure [ --prefix=install-path ]
 $ ./waf build
 $ sudo ./waf install
+$ clogs-tune
 
 which will build and install to the install path (defaults to /usr/local),
 and which will install the documentation in /usr/local/share/doc/clogs

@@ -3,6 +3,7 @@
 - Update the Changelog
 - Nuke old versions: rm -rf /usr/local/share/doc/clogs
 - Run './waf dist' and check that the new version can install cleanly
+- Rerun autotuning (first nuke ~/.clogs)
 - Run new benchmarks
 - Rebuild the documentation
 - Upload new documentation to Sourceforge page (install it first):

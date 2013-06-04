@@ -1,4 +1,8 @@
+1.2.0
+-----
+* Kernel parameters are now autotuned (refer to user manual)
 * Added benchmark support for scan
+* Fixed sorting in benchmark tool to support 3-element value types
 * Improved robustness to non-default locale
 * Added --split-debug and --variant=symbols configuration options
 

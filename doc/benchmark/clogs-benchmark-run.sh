@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (c) 2012 University of Cape Town
+# Copyright (c) 2012-2013 University of Cape Town
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+export LC_ALL=C
 for i in 1000 2000 5000 10000 20000 50000 100000 200000 500000 1000000 2000000 5000000 10000000 20000000 50000000; do
-    echo -n "$i "; clogs-benchmark "$@" --iterations 50 --items $i | tail -n 1 | sed 's/.* \(.*\)M.s/\1/'
+    echo -n "$i "; clogs-benchmark "$@" --iterations 50 --items $i --cl-gpu | tail -n 1 | sed 's/.* \(.*\)M.s/\1/'
 done
