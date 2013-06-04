@@ -75,7 +75,7 @@ static clogs::Type matchType(const std::string &typeName)
                     return type;
             }
     }
-    std::cerr << "Type '" << typeName << " is not recognized.\n";
+    std::cerr << "Type '" << typeName << "' is not recognized.\n";
     std::exit(1);
 }
 
@@ -206,6 +206,9 @@ static cl::Buffer randomBuffer(
     std::size_t elements, const clogs::Type &type,
     cl_ulong minValue, cl_ulong maxValue)
 {
+    if (type.getBaseType() == clogs::TYPE_VOID)
+        return cl::Buffer();
+
     int length = type.getSize() / clogs::Type(type.getBaseType()).getSize();
     switch (type.getBaseType())
     {
@@ -250,7 +253,7 @@ static cl::Buffer randomBuffer(
             return randomBuffer<T>(queue, engine, elements, length, (T) minValue, (T) maxValue);
         }
     default:
-        return cl::Buffer(); // handles void
+        return cl::Buffer(); // should never be reached
     }
 }
 
@@ -261,6 +264,9 @@ static cl::Buffer randomBuffer(
     RANDOM_NAMESPACE::mt19937 &engine,
     std::size_t elements, const clogs::Type &type)
 {
+    if (type.getBaseType() == clogs::TYPE_VOID)
+        return cl::Buffer();
+
     int length = type.getSize() / clogs::Type(type.getBaseType()).getSize();
     switch (type.getBaseType())
     {
@@ -322,7 +328,7 @@ static cl::Buffer randomBuffer(
             return randomBuffer<T>(queue, engine, elements, length);
         }
     default:
-        return cl::Buffer(); // handles void
+        return cl::Buffer(); // should never be reached
     }
 }
 
