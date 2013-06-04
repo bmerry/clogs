@@ -1,3 +1,7 @@
+* Added benchmark support for scan
+* Improved robustness to non-default locale
+* Added --split-debug and --variant=symbols configuration options
+
 1.1.0
 -----
 * Add setEventCallback methods to Scan and Radixsort

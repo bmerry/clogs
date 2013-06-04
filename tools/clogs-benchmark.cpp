@@ -183,7 +183,7 @@ static cl::Buffer randomBuffer(
     std::size_t elements, const clogs::Type &type,
     cl_ulong minValue, cl_ulong maxValue)
 {
-    int length = type.getLength();
+    int length = type.getSize() / clogs::Type(type.getBaseType()).getSize();
     switch (type.getBaseType())
     {
     case clogs::TYPE_UCHAR:
@@ -238,7 +238,7 @@ static cl::Buffer randomBuffer(
     RANDOM_NAMESPACE::mt19937 &engine,
     std::size_t elements, const clogs::Type &type)
 {
-    int length = type.getLength();
+    int length = type.getSize() / clogs::Type(type.getBaseType()).getSize();
     switch (type.getBaseType())
     {
     case clogs::TYPE_UCHAR:
