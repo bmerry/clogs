@@ -236,6 +236,10 @@ ParameterSet Scan::tune(
     const size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
     const size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
     const size_t maxBlocks = std::min(2 * maxWorkGroupSize, localMemElements) & ~1;
+    /* Some devices (e.g. G80) can't actually provide all the local memory they
+     * claim they have, so start with a smaller block count and tune it later.
+     */
+    const size_t startBlocks = std::max(size_t(2), maxBlocks / 2) & ~1;
 
     std::vector<std::size_t> problemSizes;
     problemSizes.push_back(65536);
@@ -258,7 +262,7 @@ ParameterSet Scan::tune(
             params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
             params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(1);
             params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(1);
-            params.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
+            params.getTyped< ::size_t>("SCAN_BLOCKS")->set(startBlocks);
             sets.push_back(params);
         }
 
@@ -284,7 +288,7 @@ ParameterSet Scan::tune(
                 params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(bestReduceWorkGroupSize);
                 params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
                 params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(scanWorkScale);
-                params.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
+                params.getTyped< ::size_t>("SCAN_BLOCKS")->set(startBlocks);
                 sets.push_back(params);
             }
         }
