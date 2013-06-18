@@ -52,6 +52,15 @@ namespace detail
 {
 
 /**
+ * Exception thrown when a configuration could not be tuned at all.
+ */
+class CLOGS_API TuneError : public std::runtime_error
+{
+public:
+    TuneError(const std::string &msg) : std::runtime_error(msg) {}
+};
+
+/**
  * Exception thrown when autotuning parameters could not be saved.
  */
 class CLOGS_API SaveParametersError : public std::runtime_error
@@ -87,14 +96,16 @@ CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params);
  *
  * @param devices   Devices to tune on.
  * @param force     Whether to re-tune configurations that have already been tuned.
+ * @param keepGoing Whether to carry on after encounting an otherwise fatal error.
  */
-CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force);
+CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force, bool keepGoing);
 
 class CLOGS_LOCAL Tuner
 {
 private:
     std::set<ParameterSet> seen;
     bool force;
+    bool keepGoing;
 
     void tuneScan(const cl::Context &context, const cl::Device &device);
     void tuneRadixsort(const cl::Context &context, const cl::Device &device);
@@ -105,6 +116,7 @@ public:
     Tuner();
 
     void setForce(bool force);
+    void setKeepGoing(bool keepGoing);
     void tuneAll(const std::vector<cl::Device> &devices);
 
     /**

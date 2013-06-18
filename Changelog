@@ -1,3 +1,5 @@
+* Added --keep-going option to clogs-tune, as a temporary work-around for #23
+
 1.2.0
 -----
 * Kernel parameters are now autotuned (refer to user manual)

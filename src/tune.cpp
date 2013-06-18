@@ -278,13 +278,18 @@ static void parseParameters(std::istream &in, ParameterSet &params)
 
 } // anonymous namespace
 
-Tuner::Tuner() : force(true)
+Tuner::Tuner() : force(true), keepGoing(false)
 {
 }
 
 void Tuner::setForce(bool force)
 {
     this->force = force;
+}
+
+void Tuner::setKeepGoing(bool keepGoing)
+{
+    this->keepGoing = keepGoing;
 }
 
 /**
@@ -327,8 +332,18 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
                 std::cout << "Tuning scan for " << type.getName() << " elements on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
                 const std::string hash = key.hash();
-                ParameterSet params = Scan::tune(*this, device, type);
-                saveParameters(key, params);
+                try
+                {
+                    ParameterSet params = Scan::tune(*this, device, type);
+                    saveParameters(key, params);
+                }
+                catch (TuneError &e)
+                {
+                    if (keepGoing)
+                        std::cerr << "WARNING: " << e.what() << std::endl;
+                    else
+                        throw;
+                }
             }
         }
     }
@@ -376,8 +391,18 @@ void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
                             << valueType.getSize() << " byte values on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
                         const std::string hash = key.hash();
-                        ParameterSet params = Radixsort::tune(*this, device, keyType, valueType);
-                        saveParameters(key, params);
+                        try
+                        {
+                            ParameterSet params = Radixsort::tune(*this, device, keyType, valueType);
+                            saveParameters(key, params);
+                        }
+                        catch (TuneError &e)
+                        {
+                            if (keepGoing)
+                                std::cerr << "WARNING: " << e.what() << std::endl;
+                            else
+                                throw;
+                        }
                     }
                 }
             }
@@ -495,8 +520,7 @@ ParameterSet Tuner::tuneOne(
         retained2.clear();
         if (retained.empty())
         {
-            std::cerr << "FATAL ERROR: no suitable kernel found!\n";
-            abort();
+            throw TuneError("no suitable kernel found");
         }
         logEndGroup();
 
@@ -537,10 +561,11 @@ CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params)
     }
 }
 
-CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force)
+CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force, bool keepGoing)
 {
     Tuner tuner;
     tuner.setForce(force);
+    tuner.setKeepGoing(keepGoing);
     tuner.tuneAll(devices);
 }
 

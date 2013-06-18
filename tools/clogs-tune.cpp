@@ -37,7 +37,8 @@ po::variables_map processOptions(int argc, char **argv)
     po::options_description desc("Options");
     desc.add_options()
         ("help",                    "Show help")
-        ("force",                   "Re-tune already-tuned configurations");
+        ("force",                   "Re-tune already-tuned configurations")
+        ("keep-going",              "Continue tuning after a failure");
 
     po::options_description cl("OpenCL Options");
     addOptions(cl);
@@ -70,14 +71,20 @@ int main(int argc, char **argv)
 {
     po::variables_map vm = processOptions(argc, argv);
     bool force = vm.count("force");
+    bool keepGoing = vm.count("keep-going");
     try
     {
         std::vector<cl::Device> devices = findDevices(vm);
-        clogs::detail::tuneAll(devices, force);
+        clogs::detail::tuneAll(devices, force, keepGoing);
     }
     catch (clogs::detail::SaveParametersError &e)
     {
         std::cerr << e.what() << std::endl;
+        return 1;
+    }
+    catch (clogs::detail::TuneError &e)
+    {
+        std::cerr << "FATAL ERROR: " << e.what() << std::endl;
         return 1;
     }
     return 0;
