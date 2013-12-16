@@ -39,11 +39,18 @@
  */
 
 /**
- * @def WARP_SIZE
+ * @def WARP_SIZE_MEM
  * @hideinitializer
- * The number of threads for which operations occur in lock-step. It is permissible for this
- * to be a factor of the true warp size for the hardware, as long as communication between
- * each group of @c WARP_SIZE elements is synchronized without the use of @c barrier.
+ * The granularity at which a barrier can be omitted for communication using
+ * local memory. This can safely be a factor of the true answer for the
+ * hardware.
+ */
+
+/**
+ * @def WARP_SIZE_SCHEDULE
+ * @hideinitializer
+ * A hint for the number of threads that run in lockstep and which should
+ * avoid divergent branching.
  */
 
 /**
@@ -77,12 +84,20 @@
 # define SCAN_T int /* Keep doxygen happy */
 #endif
 
-#ifndef WARP_SIZE
-# error "WARP_SIZE must be specified"
-# define WARP_SIZE 1 /* Keep doxygen happy */
+#ifndef WARP_SIZE_MEM
+# error "WARP_SIZE_MEM must be specified"
+# define WARP_SIZE_MEM 1 /* Keep doxygen happy */
 #endif
-#if !IS_POWER2(WARP_SIZE)
-# error "WARP_SIZE must be a power of 2"
+#if !IS_POWER2(WARP_SIZE_MEM)
+# error "WARP_SIZE_MEM must be a power of 2"
+#endif
+
+#ifndef WARP_SIZE_SCHEDULE
+# error "WARP_SIZE_SCHEDULE must be specified"
+# define WARP_SIZE_SCHEDULE 1 /* Keep doxygen happy */
+#endif
+#if !IS_POWER2(WARP_SIZE_SCHEDULE)
+# error "WARP_SIZE_SCHEDULE must be a power of 2"
 #endif
 
 #ifndef REDUCE_WORK_GROUP_SIZE
@@ -129,8 +144,8 @@
  * @param in     Input values to reduce.
  * @param len    Number of values to reduce per work-group
  *
- * @pre @a len is a multiple of @c REDUCE_WORK_GROUP_SIZE
- * @todo Skip barriers and conditions below @c WARP_SIZE.
+ * @pre @a len is a multiple of @ref REDUCE_WORK_GROUP_SIZE
+ * @todo Skip barriers and conditions below @ref WARP_SIZE_MEM.
  */
 KERNEL(REDUCE_WORK_GROUP_SIZE)
 void reduce(__global SCAN_T *out, __global const SCAN_T *in, uint len)
@@ -186,13 +201,13 @@ inline void scanExclusiveSmallBottom(__local SCAN_T *v, uint lid)
 }
 
 /**
- * Does an exclusive prefix sum on SCAN_BLOCKS elements.
+ * Does an exclusive prefix sum on @ref SCAN_BLOCKS elements.
  *
  * @param inout  The values to scan, replaced with result.
  * @param offset Offset to add to all elements.
  *
- * @pre SCAN_BLOCKS is even
- * @todo skip barriers and conditions below WARP_SIZE.
+ * @pre @ref SCAN_BLOCKS is even
+ * @todo skip barriers and conditions below @ref WARP_SIZE_MEM.
  */
 KERNEL(SCAN_BLOCKS / 2)
 void scanExclusiveSmall(__global SCAN_T *inout, SCAN_T offset)
@@ -216,15 +231,15 @@ void scanExclusiveSmall(__global SCAN_T *inout, SCAN_T offset)
 }
 
 /**
- * Does an exclusive prefix sum on SCAN_BLOCKS elements, with an
+ * Does an exclusive prefix sum on @ref SCAN_BLOCKS elements, with an
  * offset encoded in a buffer.
  *
  * @param[in,out] inout        The values to scan, replaced with result.
  * @param offset               A fixed offset to add to all values.
  * @param offsetIndex          Index (in units of SCAN_T) into @a offset to find the offset.
  *
- * @pre SCAN_BLOCKS is even
- * @todo skip barriers and conditions below WARP_SIZE.
+ * @pre @ref SCAN_BLOCKS is even
+ * @todo skip barriers and conditions below @ref WARP_SIZE.
  */
 KERNEL(SCAN_BLOCKS / 2)
 void scanExclusiveSmallOffset(__global SCAN_T *inout,
@@ -329,7 +344,7 @@ void scanExclusive(__global SCAN_T *inout, __global const SCAN_T *offsets, uint 
                 const uint pos = scale + lid;
                 x.reduced[pos] = x.reduced[2 * pos] + x.reduced[2 * pos + 1];
             }
-            if (scale > WARP_SIZE)
+            if (scale > WARP_SIZE_MEM)
                 barrier(CLK_LOCAL_MEM_FENCE);
             else
                 mem_fence(CLK_LOCAL_MEM_FENCE); // TODO: replace all mem_fence with volatile
@@ -355,7 +370,7 @@ void scanExclusive(__global SCAN_T *inout, __global const SCAN_T *offsets, uint 
                 x.reduced[2 * pos + 1] = in + left;
                 x.reduced[2 * pos] = in;
             }
-            if (scale >= WARP_SIZE)
+            if (scale >= WARP_SIZE_MEM)
                 barrier(CLK_LOCAL_MEM_FENCE);
             else
                 mem_fence(CLK_LOCAL_MEM_FENCE);

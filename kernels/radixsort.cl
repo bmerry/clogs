@@ -50,12 +50,18 @@
  */
 
 /**
- * @def WARP_SIZE
+ * @def WARP_SIZE_MEM
  * @hideinitializer
- * The number of workitems for which operations occur in lock-step. It is
- * permissible for this to be a factor of the true warp size for the hardware,
- * as long as communication between each group of @c WARP_SIZE elements is
- * synchronized without the use of @c barrier.
+ * The granularity at which a barrier can be omitted for communication using
+ * local memory. This can safely be a factor of the true answer for the
+ * hardware.
+ */
+
+/**
+ * @def WARP_SIZE_SCHEDULE
+ * @hideinitializer
+ * A hint for the number of threads that run in lockstep and which should
+ * avoid divergent branching.
  */
 
 /**
@@ -116,12 +122,20 @@
 /// The sort radix
 #define RADIX (1U << (RADIX_BITS))
 
-#ifndef WARP_SIZE
-# error "WARP_SIZE must be specified"
-# define WARP_SIZE 1 /* Keep doxygen happy */
+#ifndef WARP_SIZE_MEM
+# error "WARP_SIZE_MEM must be specified"
+# define WARP_SIZE_MEM 1 /* Keep doxygen happy */
 #endif
-#if !IS_POWER2(WARP_SIZE)
-# error "WARP_SIZE must be a power of 2"
+#if !IS_POWER2(WARP_SIZE_MEM)
+# error "WARP_SIZE_MEM must be a power of 2"
+#endif
+
+#ifndef WARP_SIZE_SCHEDULE
+# error "WARP_SIZE_SCHEDULE must be specified"
+# define WARP_SIZE_SCHEDULE 1 /* Keep doxygen happy */
+#endif
+#if !IS_POWER2(WARP_SIZE_SCHEDULE)
+# error "WARP_SIZE_SCHEDULE must be a power of 2"
 #endif
 
 #ifndef REDUCE_WORK_GROUP_SIZE
@@ -184,6 +198,12 @@
 # error "SCATTER_SLICE * SCATTER_WORK_GROUP_SCALE must be strictly less than 256"
 #endif
 
+#if WARP_SIZE > 1
+# define WARP_VOLATILE volatile
+#else
+# define WARP_VOLATILE
+#endif
+
 /**
  * Shorthand for defining a kernel with a fixed work group size.
  * This is needed to unconfuse Doxygen's parser.
@@ -197,7 +217,7 @@
  * which is written out to <code>out + RADIX * groupid</code>.
  *
  * @pre @a len is a multiple of @c REDUCE_WORK_GROUP_SIZE
- * @todo Take advantage of WARP_SIZE
+ * @todo Take advantage of @c WARP_SIZE_MEM and/or @c WARP_SIZE_SCHEDULE
  * @todo Rewrite using slices (as for scatter)
  * @todo Rewrite using @c uchar for per-tile counts
  */
@@ -355,13 +375,13 @@ void radixsortScan(__global uint *histogram, uint blocks)
 /**
  * Synchronize between groups of @a threads workitems.
  * Unlike calling @c barrier directly, this function is fast if @a threads
- * is less than the warp size.
+ * is less than @ref WARP_SIZE_MEM.
  *
  * @pre @a threads is a power of 2.
  */
 inline void fastsync(uint threads)
 {
-    if (threads > WARP_SIZE)
+    if (threads > WARP_SIZE_MEM)
         barrier(CLK_LOCAL_MEM_FENCE);
 }
 
@@ -387,10 +407,10 @@ inline bool isPower4(uint value)
  * The input data is a sequence of 4 * @a sumsSize unsigned chars. Each group of 4 contiguous
  * elements is added and written back.
  *
- * The function must be called by some number of workitems, which will cooperatively
- * compute the sums. Ideally this should not be more than @ref WARP_SIZE if fewer workitems
- * are needed, since if there are too many then the extras will repeat the work rather than
- * branching around it.
+ * The function must be called by some number of workitems, which will
+ * cooperatively compute the sums. Ideally this should not be more than @ref
+ * WARP_SIZE_SCHEDULE if fewer workitems are needed, since if there are too
+ * many then the extras will repeat the work rather than branching around it.
  *
  * @param[in]    data          The sequence, aliased as an array of uints.
  * @param[out]   sums          The sums.
@@ -408,7 +428,7 @@ inline bool isPower4(uint value)
  * - All workitems that participated will have visibility of all the results.
  * @bug The inner loop isn't always being unrolled.
  */
-inline void upsweep4(__local const volatile uint * restrict data, __local volatile uchar * restrict sums,
+inline void upsweep4(__local const WARP_VOLATILE uint * restrict data, __local WARP_VOLATILE uchar * restrict sums,
                      uint sumsSize, uint lid, uint threads)
 {
     uint rounds = 1;
@@ -435,10 +455,10 @@ inline void upsweep4(__local const volatile uint * restrict data, __local volati
  * The input data is a sequence of 2 * @a sumsSize unsigned chars. Each group of 2 contiguous
  * elements is added and written back.
  *
- * The function must be called by some number of workitems, which will cooperatively
- * compute the sums. Ideally this should not be more than @ref WARP_SIZE if fewer workitems
- * are needed, since if there are too many then the extras will repeat the work rather than
- * branching around it.
+ * The function must be called by some number of workitems, which will
+ * cooperatively compute the sums. Ideally this should not be more than @ref
+ * WARP_SIZE_SCHEDULE if fewer workitems are needed, since if there are too
+ * many then the extras will repeat the work rather than branching around it.
  *
  * @param[in]    data          The sequence, aliased as an array of ushorts.
  * @param[out]   sums          The sums.
@@ -455,7 +475,7 @@ inline void upsweep4(__local const volatile uint * restrict data, __local volati
  * @post
  * - All workitems that participated will have visibility of all the results.
  */
-inline void upsweep2(__local const volatile ushort * restrict data, __local volatile uchar * restrict sums,
+inline void upsweep2(__local const WARP_VOLATILE ushort * restrict data, __local WARP_VOLATILE uchar * restrict sums,
                      uint sumsSize, uint lid, uint threads)
 {
     uint rounds = 1;
@@ -503,9 +523,9 @@ inline void upsweep2(__local const volatile ushort * restrict data, __local vola
  * @post
  * - The data will be visible to all calling workitems.
  */
-inline void upsweep(__local volatile uint *data_i,
-                    __local volatile ushort *data_s,
-                    __local volatile uchar *data_c,
+inline void upsweep(__local WARP_VOLATILE uint *data_i,
+                    __local WARP_VOLATILE ushort *data_s,
+                    __local WARP_VOLATILE uchar *data_c,
                     uint fullSize, uint sumsSize, uint lid, uint threads)
 {
 #pragma unroll
@@ -545,17 +565,17 @@ inline void upsweep(__local volatile uint *data_i,
  * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
  * - The results do not overflow.
  */
-inline void downsweep4(__local volatile uint * restrict data, __local const volatile uchar * restrict sums,
+inline void downsweep4(__local WARP_VOLATILE uint * restrict data, __local const WARP_VOLATILE uchar * restrict sums,
                        uint sumsSize, uint lid, uint threads, bool forceZero)
 {
     uint rounds = 1;
     if (sumsSize > threads)
         rounds = sumsSize / threads;
-    else if (sumsSize < threads && threads <= WARP_SIZE)
+    else if (sumsSize < threads && threads <= WARP_SIZE_SCHEDULE)
         lid &= sumsSize - 1;
 
     fastsync(threads);
-    if (sumsSize < threads && threads > WARP_SIZE && lid >= sumsSize)
+    if (sumsSize < threads && threads > WARP_SIZE_SCHEDULE && lid >= sumsSize)
         return;
 #pragma unroll
     for (uint i = 0; i < rounds; i++)
@@ -594,17 +614,17 @@ inline void downsweep4(__local volatile uint * restrict data, __local const vola
  * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
  * - The results do not overflow.
  */
-inline void downsweep2(__local volatile ushort *restrict data, __local const volatile uchar * restrict sums,
+inline void downsweep2(__local WARP_VOLATILE ushort *restrict data, __local const WARP_VOLATILE uchar * restrict sums,
                        uint sumsSize, uint lid, uint threads, bool forceZero)
 {
     uint rounds = 1;
     if (sumsSize > threads)
         rounds = sumsSize / threads;
-    else if (sumsSize < threads && threads <= WARP_SIZE)
+    else if (sumsSize < threads && threads <= WARP_SIZE_SCHEDULE)
         lid &= sumsSize - 1;
 
     fastsync(threads);
-    if (sumsSize < threads && threads > WARP_SIZE && lid >= sumsSize)
+    if (sumsSize < threads && threads > WARP_SIZE_SCHEDULE && lid >= sumsSize)
         return;
 #pragma unroll
     for (uint i = 0; i < rounds; i++)
@@ -647,9 +667,9 @@ inline void downsweep2(__local volatile ushort *restrict data, __local const vol
  * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
  * - The results do not overflow.
  */
-inline void downsweep(__local volatile uint *data_i,
-                      __local volatile ushort *data_s,
-                      __local volatile uchar *data_c,
+inline void downsweep(__local WARP_VOLATILE uint *data_i,
+                      __local WARP_VOLATILE ushort *data_s,
+                      __local WARP_VOLATILE uchar *data_c,
                       uint fullSize, uint sumsSize, uint lid, uint threads, bool forceZero)
 {
     if (!isPower4(fullSize / sumsSize))
@@ -747,7 +767,7 @@ inline void radixsortScatterTile(
     uint start,
     uint end,
     uint firstBit,
-    __local volatile ScatterData *wg,
+    __local WARP_VOLATILE ScatterData *wg,
     uint lid)
 {
     // Number of elements in wg->level1, for convenience
@@ -883,7 +903,7 @@ void radixsortScatter(__global KEY_T * restrict outKeys,
 #endif
                      )
 {
-    __local volatile ScatterData wd[SCATTER_SLICES];
+    __local WARP_VOLATILE ScatterData wd[SCATTER_SLICES];
 
     const uint local_id = get_local_id(0);
     const uint lid = local_id & (SCATTER_SLICE - 1);
@@ -929,12 +949,12 @@ void radixsortScatter(__global KEY_T * restrict outKeys,
 
 __kernel void testUpsweep2(__global const uchar *g_data, __global uchar *g_sums, uint dataSize, uint sumsSize)
 {
-    __local volatile union
+    __local WARP_VOLATILE union
     {
         ushort s[64];
         uchar c[128];
     } data;
-    __local volatile uchar sums[64];
+    __local WARP_VOLATILE uchar sums[64];
 
     if (get_local_id(0) == 0)
     {
@@ -956,12 +976,12 @@ __kernel void testUpsweep2(__global const uchar *g_data, __global uchar *g_sums,
 
 __kernel void testUpsweep4(__global const uchar *g_data, __global uchar *g_sums, uint dataSize, uint sumsSize)
 {
-    __local volatile union
+    __local WARP_VOLATILE union
     {
         uint i[64];
         uchar c[256];
     } data;
-    __local volatile uchar sums[64];
+    __local WARP_VOLATILE uchar sums[64];
 
     if (get_local_id(0) == 0)
     {
@@ -983,7 +1003,7 @@ __kernel void testUpsweep4(__global const uchar *g_data, __global uchar *g_sums,
 
 __kernel void testUpsweep(__global const uchar *g_data, __global uchar *g_sums, uint dataSize, uint sumsSize)
 {
-    __local volatile union
+    __local WARP_VOLATILE union
     {
         uint i[128];
         ushort s[256];
@@ -1012,12 +1032,12 @@ __kernel void testUpsweep(__global const uchar *g_data, __global uchar *g_sums, 
 
 __kernel void testDownsweep2(__global uchar *g_data, __global const uchar *g_sums, uint dataSize, uint sumsSize, uint forceZero)
 {
-    __local volatile union
+    __local WARP_VOLATILE union
     {
         ushort s[64];
         uchar c[128];
     } data;
-    __local volatile uchar sums[64];
+    __local WARP_VOLATILE uchar sums[64];
 
     if (get_local_id(0) == 0)
     {
@@ -1043,12 +1063,12 @@ __kernel void testDownsweep2(__global uchar *g_data, __global const uchar *g_sum
 
 __kernel void testDownsweep4(__global uchar *g_data, __global const uchar *g_sums, uint dataSize, uint sumsSize, uint forceZero)
 {
-    __local volatile union
+    __local WARP_VOLATILE union
     {
         uint i[64];
         uchar c[256];
     } data;
-    __local volatile uchar sums[64];
+    __local WARP_VOLATILE uchar sums[64];
 
     if (get_local_id(0) == 0)
     {
@@ -1074,7 +1094,7 @@ __kernel void testDownsweep4(__global uchar *g_data, __global const uchar *g_sum
 
 __kernel void testDownsweep(__global uchar *g_data, __global const uchar *g_sums, uint dataSize, uint sumsSize, uint forceZero)
 {
-    __local volatile union
+    __local WARP_VOLATILE union
     {
         uint i[128];
         ushort s[256];

@@ -272,8 +272,9 @@ void Radixsort::initialize(
     valueSize = valueType.getSize();
     radixBits = params.getTyped<unsigned int>("RADIX_BITS")->get();
     radix = 1U << radixBits;
-    const ::size_t warpSize = params.getTyped< ::size_t>("WARP_SIZE")->get();
-    scatterSlice = std::max(warpSize, ::size_t(radix));
+    const ::size_t warpSizeMem = params.getTyped< ::size_t>("WARP_SIZE_MEM")->get();
+    const ::size_t warpSizeSchedule = params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->get();
+    scatterSlice = std::max(warpSizeSchedule, ::size_t(radix));
 
     std::string options;
     options += "-DKEY_T=" + keyType.getName() + " ";
@@ -302,7 +303,8 @@ void Radixsort::initialize(
     }
 
     std::map<std::string, int> defines;
-    defines["WARP_SIZE"] = warpSize;
+    defines["WARP_SIZE_MEM"] = warpSizeMem;
+    defines["WARP_SIZE_SCHEDULE"] = warpSizeSchedule;
     defines["REDUCE_WORK_GROUP_SIZE"] = reduceWorkGroupSize;
     defines["SCAN_WORK_GROUP_SIZE"] = scanWorkGroupSize;
     defines["SCATTER_WORK_GROUP_SIZE"] = scatterWorkGroupSize;
@@ -359,7 +361,8 @@ Radixsort::Radixsort(
 ParameterSet Radixsort::parameters()
 {
     ParameterSet ans;
-    ans["WARP_SIZE"] = new TypedParameter< ::size_t>();
+    ans["WARP_SIZE_MEM"] = new TypedParameter< ::size_t>();
+    ans["WARP_SIZE_SCHEDULE"] = new TypedParameter< ::size_t>();
     ans["REDUCE_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
     ans["SCAN_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
     ans["SCATTER_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
@@ -376,7 +379,7 @@ ParameterSet Radixsort::makeKey(
 {
     ParameterSet key = deviceKey(device);
     key["algorithm"] = new TypedParameter<std::string>("radixsort");
-    key["version"] = new TypedParameter<int>(2);
+    key["version"] = new TypedParameter<int>(3);
     key["keyType"] = new TypedParameter<std::string>(keyType.getName());
     key["valueSize"] = new TypedParameter<std::size_t>(valueType.getSize());
     return key;
@@ -553,7 +556,8 @@ ParameterSet Radixsort::tune(
     problemSizes.push_back(elements);
 
     const ::size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
-    const ::size_t warpSize = getWarpSize(device);
+    const ::size_t warpSizeMem = getWarpSizeMem(device);
+    const ::size_t warpSizeSchedule = getWarpSizeSchedule(device);
 
     ParameterSet out;
     // TODO: change to e.g. 2-6 after adding code to select the best one
@@ -573,9 +577,10 @@ ParameterSet Radixsort::tune(
 
         ParameterSet cand = parameters();
         // Set default values, which are later tuned
-        ::size_t scatterSlice = std::max(warpSize, (::size_t) radix);
+        ::size_t scatterSlice = std::max(warpSizeSchedule, (::size_t) radix);
         cand.getTyped<unsigned int>("RADIX_BITS")->set(radixBits);
-        cand.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+        cand.getTyped< ::size_t>("WARP_SIZE_MEM")->set(warpSizeMem);
+        cand.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->set(warpSizeSchedule);
         cand.getTyped< ::size_t>("SCAN_BLOCKS")->set(startBlocks);
         cand.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
         cand.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->set(scatterSlice);

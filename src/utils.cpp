@@ -64,12 +64,34 @@ bool deviceHasExtension(const cl::Device &device, const std::string &extension)
     return found;
 }
 
-unsigned int getWarpSize(const cl::Device &device)
+unsigned int getWarpSizeMem(const cl::Device &device)
 {
+    /* According to an AMD engineer, AMD GPU wavefronts do not guarantee the
+     * synchronization semantics implied by this function, so we do not
+     * try to detect them.
+     */
     if (deviceHasExtension(device, "cl_nv_device_attribute_query"))
         return device.getInfo<CL_DEVICE_WARP_SIZE_NV>();
     else
         return 1U;
+}
+
+unsigned int getWarpSizeSchedule(const cl::Device &device)
+{
+    if (deviceHasExtension(device, "cl_nv_device_attribute_query"))
+        return device.getInfo<CL_DEVICE_WARP_SIZE_NV>();
+    else
+    {
+        cl::Platform platform(device.getInfo<CL_DEVICE_PLATFORM>());
+        if (platform.getInfo<CL_PLATFORM_NAME>() == "AMD Accelerated Parallel Processing")
+        {
+            if (device.getInfo<CL_DEVICE_TYPE>() & CL_DEVICE_TYPE_GPU)
+                return 64U; // true for many AMD GPUs, not all
+            else
+                return 1U;  // might eventually need to change if autovectorization is done
+        }
+    }
+    return 1U;
 }
 
 cl::Program build(

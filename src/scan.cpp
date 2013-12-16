@@ -59,7 +59,8 @@ namespace detail
 ParameterSet Scan::parameters()
 {
     ParameterSet ans;
-    ans["WARP_SIZE"] = new TypedParameter< ::size_t>();
+    ans["WARP_SIZE_MEM"] = new TypedParameter< ::size_t>();
+    ans["WARP_SIZE_SCHEDULE"] = new TypedParameter< ::size_t>();
     ans["REDUCE_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
     ans["SCAN_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
     ans["SCAN_WORK_SCALE"] = new TypedParameter< ::size_t>();
@@ -72,14 +73,16 @@ void Scan::initialize(const cl::Context &context, const cl::Device &device, cons
     const ::size_t elementSize = type.getSize();
 
     this->elementSize = elementSize;
-    ::size_t warpSize = params.getTyped< ::size_t>("WARP_SIZE")->get();
+    ::size_t warpSizeMem = params.getTyped< ::size_t>("WARP_SIZE_MEM")->get();
+    ::size_t warpSizeSchedule = params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->get();
     reduceWorkGroupSize = params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
     scanWorkGroupSize = params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
     scanWorkScale = params.getTyped< ::size_t>("SCAN_WORK_SCALE")->get();
     maxBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
 
     std::map<std::string, int> defines;
-    defines["WARP_SIZE"] = warpSize;
+    defines["WARP_SIZE_MEM"] = warpSizeMem;
+    defines["WARP_SIZE_SCHEDULE"] = warpSizeSchedule;
     defines["REDUCE_WORK_GROUP_SIZE"] = reduceWorkGroupSize;
     defines["SCAN_WORK_GROUP_SIZE"] = scanWorkGroupSize;
     defines["SCAN_WORK_SCALE"] = scanWorkScale;
@@ -245,7 +248,8 @@ ParameterSet Scan::tune(
     problemSizes.push_back(65536);
     problemSizes.push_back(32 * 1024 * 1024 / elementSize);
 
-    const size_t warpSize = getWarpSize(device);
+    const size_t warpSizeMem = getWarpSizeMem(device);
+    const size_t warpSizeSchedule = getWarpSizeSchedule(device);
 
     size_t bestReduceWorkGroupSize = 0;
     size_t bestScanWorkGroupSize = 0;
@@ -258,7 +262,8 @@ ParameterSet Scan::tune(
         for (::size_t reduceWorkGroupSize = 1; reduceWorkGroupSize <= maxWorkGroupSize; reduceWorkGroupSize *= 2)
         {
             ParameterSet params = parameters();
-            params.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+            params.getTyped< ::size_t>("WARP_SIZE_MEM")->set(warpSizeMem);
+            params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->set(warpSizeSchedule);
             params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
             params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(1);
             params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(1);
@@ -284,7 +289,8 @@ ParameterSet Scan::tune(
             for (size_t scanWorkScale = 1; scanWorkScale <= maxWorkScale; scanWorkScale *= 2)
             {
                 ParameterSet params = parameters();
-                params.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+                params.getTyped< ::size_t>("WARP_SIZE_MEM")->set(warpSizeMem);
+                params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->set(warpSizeSchedule);
                 params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(bestReduceWorkGroupSize);
                 params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
                 params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(scanWorkScale);
@@ -302,13 +308,14 @@ ParameterSet Scan::tune(
     }
 
     {
-        /* Tune number of blocks. 
+        /* Tune number of blocks.
          */
         std::vector<ParameterSet> sets;
         for (size_t blocks = 2; blocks <= maxBlocks; blocks *= 2)
         {
             ParameterSet params = parameters();
-            params.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+            params.getTyped< ::size_t>("WARP_SIZE_MEM")->set(warpSizeMem);
+            params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->set(warpSizeSchedule);
             params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(bestReduceWorkGroupSize);
             params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(bestScanWorkGroupSize);
             params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(bestScanWorkScale);
@@ -330,7 +337,8 @@ ParameterSet Scan::tune(
         throw std::runtime_error("Failed to tune " + type.getName());
 
     ParameterSet params = parameters();
-    params.getTyped< ::size_t>("WARP_SIZE")->set(warpSize);
+    params.getTyped< ::size_t>("WARP_SIZE_MEM")->set(warpSizeMem);
+    params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->set(warpSizeSchedule);
     params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(bestReduceWorkGroupSize);
     params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(bestScanWorkGroupSize);
     params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(bestScanWorkScale);
@@ -390,7 +398,7 @@ ParameterSet Scan::makeKey(const cl::Device &device, const Type &type)
 
     ParameterSet key = deviceKey(device);
     key["algorithm"] = new TypedParameter<std::string>("scan");
-    key["version"] = new TypedParameter<int>(2);
+    key["version"] = new TypedParameter<int>(3);
     key["elementType"] = new TypedParameter<std::string>(canon.getName());
     return key;
 }

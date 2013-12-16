@@ -183,7 +183,8 @@ void TestParameterSet::testAssign()
     a["SCAN_BLOCKS"] = new TypedParameter<std::size_t>(256);
     a["SCAN_WORK_GROUP_SIZE"] = new TypedParameter<std::size_t>(1);
     a["SCAN_WORK_SCALE"] = new TypedParameter<std::size_t>(8);
-    a["WARP_SIZE"] = new TypedParameter<std::size_t>(1);
+    a["WARP_SIZE_MEM"] = new TypedParameter<std::size_t>(1);
+    a["WARP_SIZE_SCHEDULE"] = new TypedParameter<std::size_t>(1);
 
     b["SCAN_WORK_SCALE"] = new TypedParameter<std::size_t>(1337);
     b["dummy"] = new TypedParameter<std::size_t>(5);

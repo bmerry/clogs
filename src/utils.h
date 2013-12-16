@@ -53,7 +53,18 @@ CLOGS_LOCAL bool deviceHasExtension(const cl::Device &device, const std::string 
  */
 CLOGS_LOCAL const std::map<std::string, std::string> &getSourceMap();
 
-CLOGS_LOCAL unsigned int getWarpSize(const cl::Device &device);
+/**
+ * Subgroups of this size are guaranteed to have a synchronized view of
+ * local memory at sequence points, provided that memory is declared volatile.
+ */
+CLOGS_LOCAL unsigned int getWarpSizeMem(const cl::Device &device);
+
+/**
+ * Subgroups of this size are expected to be scheduled as SIMD, making it
+ * worth avoiding branch divergence below this level. Unlike getWarpSizeMem,
+ * this is purely a hint and does not affect correctness.
+ */
+CLOGS_LOCAL unsigned int getWarpSizeSchedule(const cl::Device &device);
 
 CLOGS_LOCAL cl::Program build(
     const cl::Context &context,
