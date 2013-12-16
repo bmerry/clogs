@@ -715,8 +715,6 @@ typedef struct
 
     /// Difference between global and local memory offsets for each digit
     uint bias[RADIX];
-    /// Global memory offset for first key of each digit
-    uint offsets[RADIX];
     /// The sort digit extracted from the keys
     uchar digits[SCATTER_TILE];
     /**
@@ -741,21 +739,20 @@ typedef struct
  * @param          firstBit       First bit forming the radix to sort on.
  * @param[in,out]  wg             Local data storage for the slice.
  * @param          lid            ID of this workitem within the slice.
+ * @param          offset         The offset into @a outKeys and @a outValues where the
+ *                                elements for digit @a lid should be placed
+ *                                (undefined if @a lid >= @ref RADIX).
+ * @return         The new value for @a offset (incremented by the digit frequency)
  *
  * @pre
- * - <code>wg->offsets</code> contains the offset into @a outKeys and @a
- *   outValues where the elements for each digit should be placed.
  * - @a firstBit < 32.
  * - @a lid takes on the values 0, 1, ..., @ref SCATTER_SLICE once each.
- * @post
- * - <code>wg->offsets</code> has been advanced by the number of elements
- *   of each digit.
  *
  * @todo Use a serial up/downsweep first, since the loops in @ref upsweep and
  * @ref downsweep don't seem to get unrolled. Would work best with an add @ref
  * SCATTER_WORK_SCALE.
  */
-inline void radixsortScatterTile(
+inline uint radixsortScatterTile(
     __global KEY_T *outKeys,
 #ifdef VALUE_T
     __global VALUE_T *outValues,
@@ -768,7 +765,8 @@ inline void radixsortScatterTile(
     uint end,
     uint firstBit,
     __local WARP_VOLATILE ScatterData *wg,
-    uint lid)
+    uint lid,
+    uint offset)
 {
     // Number of elements in wg->level1, for convenience
     const uint level1Size = RADIX * SCATTER_SLICE;
@@ -825,8 +823,8 @@ inline void radixsortScatterTile(
      */
     if (lid < RADIX)
     {
-        wg->bias[lid] = wg->offsets[lid] - wg->level1[RADIX + lid]; // conflict-free
-        wg->offsets[lid] += digitCount;
+        wg->bias[lid] = offset - wg->level1[RADIX + lid]; // conflict-free
+        offset += digitCount;
     }
 
     /* Compute the permutation. level0 gives a workitem-scale scan of
@@ -872,6 +870,7 @@ inline void radixsortScatterTile(
 
     // The next loop iteration will overwrite the keys, so we need to synchronize here.
     fastsync(SCATTER_SLICE);
+    return offset;
 }
 
 /**
@@ -911,8 +910,9 @@ void radixsortScatter(__global KEY_T * restrict outKeys,
     const uint block = get_group_id(0) * SCATTER_SLICES + slice;
 
     /* Read initial offsets from global memory */
+    uint offset = 0;
     if (lid < RADIX)
-        wd[slice].offsets[lid] = histogram[block * RADIX + lid];
+        offset = histogram[block * RADIX + lid];
 
     uint start = block * len;
     uint stop = start + len;
@@ -923,19 +923,21 @@ void radixsortScatter(__global KEY_T * restrict outKeys,
      */
     for (; start < stop; start += SCATTER_TILE)
     {
-        radixsortScatterTile(outKeys,
+        offset = radixsortScatterTile(
+            outKeys,
 #ifdef VALUE_T
-                             outValues,
+            outValues,
 #endif
-                             inKeys,
+            inKeys,
 #ifdef VALUE_T
-                             inValues,
+            inValues,
 #endif
-                             start,
-                             end,
-                             firstBit,
-                             &wd[slice],
-                             lid);
+            start,
+            end,
+            firstBit,
+            &wd[slice],
+            lid,
+            offset);
     }
 
 #undef SCATTER_SLICES
