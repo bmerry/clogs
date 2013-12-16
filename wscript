@@ -101,7 +101,7 @@ def configure_variant_gcc(conf):
         conf.env.append_value('LINKFLAGS', '-s')
     conf.env.append_value('CFLAGS', ccflags)
     conf.env.append_value('CXXFLAGS', ccflags)
-    conf.env['LIB_PROGRAM_OPTIONS'] = ['boost_program_options-mt']
+    conf.env['LIB_PROGRAM_OPTIONS'] = ['boost_program_options']
 
 def configure_platform_unix(conf):
     conf.define('CLOGS_FS_UNIX', 1, quote = False)
