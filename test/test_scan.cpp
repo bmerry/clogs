@@ -139,7 +139,7 @@ void TestScan::testSimple(const clogs::Type &type, size_t size, OffsetType useOf
     generate_n(back_inserter(hValues), size, gen);
     hValues.push_back(T(0xDEADBEEF)); // sentinel for check for overrun
 
-    T hOffset[2] = {0, useOffset != OFFSET_NONE ? gen() : 0}; // first element is just padded to test indexing
+    T hOffset[2] = {T(0), T(useOffset != OFFSET_NONE ? gen() : 0)}; // first element is just padding to test indexing
 
     cl::Buffer dValues(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, (size + 1) * sizeof(T), &hValues[0]);
     cl::Buffer dOffset(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(T) * 2, &hOffset[0]);

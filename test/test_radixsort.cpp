@@ -386,7 +386,6 @@ void TestRadixsort::testDownsweep4(unsigned int sumsSize, unsigned int threads, 
 template<typename KeyTag>
 void TestRadixsort::testReduce(const size_t size)
 {
-    typedef typename KeyTag::type Key;
     clogs::Type keyType = KeyTag::makeType();
     clogs::detail::Radixsort sort(context, device, keyType);
     mt19937 engine;
@@ -484,7 +483,6 @@ template<typename KeyTag, typename ValueTag>
 void TestRadixsort::testScatter(size_t size)
 {
     typedef typename KeyTag::type Key;
-    typedef typename ValueTag::type Value;
     clogs::Type keyType = KeyTag::makeType();
     clogs::Type valueType = ValueTag::makeType();
 
@@ -568,7 +566,6 @@ template<typename KeyTag, typename ValueTag>
 void TestRadixsort::testSort(size_t size, unsigned int bits, size_t tmpKeysSize, size_t tmpValuesSize)
 {
     typedef typename KeyTag::type Key;
-    typedef typename ValueTag::type Value;
     clogs::Type keyType = KeyTag::makeType();
     clogs::Type valueType = ValueTag::makeType();
 
