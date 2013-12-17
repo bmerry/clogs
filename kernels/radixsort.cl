@@ -109,6 +109,20 @@
  * The number of bits to extract from the key in each sorting pass.
  */
 
+/**
+ * @def UPSWEEP
+ * @hideinitializer
+ * Generated code for reducing the @c level1 array. It must yield digit
+ * counts.
+ */
+
+/**
+ * @def DOWNSWEEP
+ * @hideinitializer
+ * Generated code for prefix summing the @c level1 array, which runs
+ * after @ref UPSWEEP.
+ */
+
 #ifndef KEY_T
 # error "KEY_T must be specified"
 # define KEY_T uint /* Keep doxygen happy */
@@ -165,6 +179,15 @@
 #endif
 #if SCAN_WORK_GROUP_SIZE < RADIX
 # error "SCAN_WORK_GROUP_SIZE must be at least RADIX"
+#endif
+
+#ifndef UPSWEEP
+# error "UPSWEEP must be defined"
+# define UPSWEEP() do {} while (0)   /* Keep doxygen happy */
+#endif
+#ifndef DOWNSWEEP
+# error "DOWNSWEEP must be defined"
+# define DOWNSWEEP() do {} while (0) /* Keep doxygen happy */
 #endif
 
 #ifndef SCATTER_WORK_SCALE
