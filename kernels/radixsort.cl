@@ -409,20 +409,24 @@ inline void fastsync(uint threads)
 }
 
 /**
- * Tests whether a value is a power of 2.
+ * Add the 4 bytes packed into a 32-bit word.
  */
-inline bool isPower2(uint value)
+inline uint sum4(uint v)
 {
-    return value > 0 && (value & (value - 1)) == 0;
+    /* 0xaabbccdd * 0x01010101 == 0x(a+b+c+d)(b+c+d)(c+d)(d), so
+     * taking the high byte gives the sum. This works on any
+     * endian system.
+     */
+    return (v * 0x01010101) >> 24;
 }
 
 /**
- * Tests whether a value is a power of 4.
+ * Add the 2 bytes packed into a 16-bit word.
  */
-inline bool isPower4(uint value)
+inline uint sum2(uint v)
 {
-    /* UINT_MAX/3 is 010101... in binary. */
-    return isPower2(value) && (value & (UINT_MAX / 3)) != 0;
+    // See sum4
+    return (v * 0x0101) >> 8;
 }
 
 /**
@@ -457,7 +461,7 @@ inline void upsweepMulti(__local const WARP_VOLATILE uint * restrict data,
 #pragma unroll
     for (uint i = 0; i < rounds; i++)
         sum += data[lid * rounds + i];
-    sums[lid] = (sum * 0x01010101) >> 24;
+    sums[lid] = sum4(sum);
     fastsync(sumsSize);
 }
 
@@ -493,12 +497,7 @@ inline void upsweep4(__local const WARP_VOLATILE uint * restrict data, __local W
         lid &= sumsSize - 1;         // too many workitems - repeat work
 
     uint in = data[lid];
-    /* 0xaabbccdd * 0x01010101 == 0x(a+b+c+d)(b+c+d)(c+d)(d), so
-     * taking the high byte gives the sum. This works on any
-     * endian system.
-     */
-    uint out = (in * 0x01010101) >> 24;
-    sums[lid] = out;
+    sums[lid] = sum4(in);
 
     fastsync(threads); // TODO: could be a smaller number?
 }
@@ -535,7 +534,7 @@ inline void upsweep2(__local const WARP_VOLATILE ushort * restrict data, __local
         lid &= sumsSize - 1;
 
     uint in = data[lid];
-    uint out = (in * 0x0101) >> 8;
+    uint out = sum2(in);
     sums[lid] = out;
 
     fastsync(threads); // TODO: could be a smaller number?
