@@ -571,11 +571,11 @@ inline void downsweep4(__local WARP_VOLATILE uint * restrict data, __local const
     uint rounds = 1;
     if (sumsSize > threads)
         rounds = sumsSize / threads;
-    else if (sumsSize < threads && threads <= WARP_SIZE_SCHEDULE)
+    else if (sumsSize < threads && threads <= WARP_SIZE_MEM)
         lid &= sumsSize - 1;
 
     fastsync(threads);
-    if (sumsSize < threads && threads > WARP_SIZE_SCHEDULE && lid >= sumsSize)
+    if (sumsSize < threads && threads > WARP_SIZE_MEM && lid >= sumsSize)
         return;
 #pragma unroll
     for (uint i = 0; i < rounds; i++)
@@ -625,11 +625,11 @@ inline void downsweep2(__local WARP_VOLATILE ushort *restrict data, __local cons
     uint rounds = 1;
     if (sumsSize > threads)
         rounds = sumsSize / threads;
-    else if (sumsSize < threads && threads <= WARP_SIZE_SCHEDULE)
+    else if (sumsSize < threads && threads <= WARP_SIZE_MEM)
         lid &= sumsSize - 1;
 
     fastsync(threads);
-    if (sumsSize < threads && threads > WARP_SIZE_SCHEDULE && lid >= sumsSize)
+    if (sumsSize < threads && threads > WARP_SIZE_MEM && lid >= sumsSize)
         return;
 #pragma unroll
     for (uint i = 0; i < rounds; i++)
