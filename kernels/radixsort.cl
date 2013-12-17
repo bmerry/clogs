@@ -581,9 +581,14 @@ inline void downsweep4(__local WARP_VOLATILE uint * restrict data, __local const
     for (uint i = 0; i < rounds; i++)
     {
         uint old = data[lid + i * threads];
-        uint out = old * 0x01010100;
+        uint out;
         if (!forceZero)
-            out += sums[lid + i * threads] * 0x01010101;
+        {
+            uint s = sums[lid + i * threads];
+            out = (old + s) * 0x01010100 + s;
+        }
+        else
+            out = old * 0x01010100;
         data[lid + i * threads] = out;
     }
 }
@@ -630,9 +635,16 @@ inline void downsweep2(__local WARP_VOLATILE ushort *restrict data, __local cons
     for (uint i = 0; i < rounds; i++)
     {
         uint old = data[lid + i * threads];
-        uint out = old * 0x0100;
+        uint out;
         if (!forceZero)
-            out += sums[lid + i * threads] * 0x0101;
+        {
+            uint s = sums[lid + i * threads];
+            out = (old + s) * 0x0100 + s;
+        }
+        else
+        {
+            out = old * 0x0100;
+        }
         data[lid + i * threads] = out;
     }
 }
