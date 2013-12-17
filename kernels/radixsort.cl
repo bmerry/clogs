@@ -402,6 +402,18 @@ inline bool isPower4(uint value)
     return isPower2(value) && (value & (UINT_MAX / 3)) != 0;
 }
 
+inline void upsweepMulti(__local const WARP_VOLATILE uint * restrict data,
+                         __local WARP_VOLATILE uchar * restrict sums,
+                         uint fullSize, uint sumsSize, uint lid)
+{
+    const uint rounds = fullSize / sumsSize / 4;
+    uint sum = 0;
+    for (uint i = 0; i < rounds; i++)
+        sum += data[lid * rounds + i];
+    sums[lid] = (sum * 0x01010101) >> 24;
+    fastsync(sumsSize);
+}
+
 /**
  * Compute sums of sets of 4 elements.
  * The input data is a sequence of 4 * @a sumsSize unsigned chars. Each group of 4 contiguous
@@ -528,6 +540,11 @@ inline void upsweep(__local WARP_VOLATILE uint *data_i,
                     __local WARP_VOLATILE uchar *data_c,
                     uint fullSize, uint sumsSize, uint lid, uint threads)
 {
+    if (fullSize >= 4 * threads && sumsSize <= threads)
+    {
+        upsweepMulti(data_i + (fullSize / 4), data_c + threads, fullSize, threads, lid);
+        fullSize = threads;
+    }
 #pragma unroll
     for (uint scale = fullSize / 4; scale >= sumsSize; scale >>= 2)
     {
@@ -536,6 +553,23 @@ inline void upsweep(__local WARP_VOLATILE uint *data_i,
     if (!isPower4(fullSize / sumsSize))
     {
         upsweep2(data_s + sumsSize, data_c + sumsSize, sumsSize, lid, threads);
+    }
+}
+
+inline void downsweepMulti(
+    __local WARP_VOLATILE uint * restrict data,
+    __local const WARP_VOLATILE uchar * sums,
+    uint fullSize, uint sumsSize, uint lid)
+{
+    fastsync(sumsSize);
+    uint rounds = fullSize / sumsSize / 4;
+    uint sum = sums[lid];
+    for (int i = 0; i < rounds; i++)
+    {
+        uint old = data[lid * rounds + i];
+        uint m = (old + sum) * 0x01010101;
+        data[lid * rounds + i] = m - old;
+        sum = m >> 24;
     }
 }
 
@@ -684,6 +718,12 @@ inline void downsweep(__local WARP_VOLATILE uint *data_i,
                       __local WARP_VOLATILE uchar *data_c,
                       uint fullSize, uint sumsSize, uint lid, uint threads, bool forceZero)
 {
+    uint realFullSize = fullSize;
+    if (fullSize >= 4 * threads && sumsSize < threads)
+    {
+        fullSize = threads;
+    }
+
     if (!isPower4(fullSize / sumsSize))
     {
         downsweep2(data_s + sumsSize, data_c + sumsSize, sumsSize, lid, threads, forceZero);
@@ -695,6 +735,9 @@ inline void downsweep(__local WARP_VOLATILE uint *data_i,
     {
         downsweep4(data_i + scale, data_c + scale, scale, lid, threads, forceZero && scale == sumsSize);
     }
+
+    if (realFullSize > fullSize)
+        downsweepMulti(data_i + (realFullSize / 4), data_c + fullSize, realFullSize, fullSize, lid);
 }
 
 /**
@@ -1015,6 +1058,33 @@ __kernel void testUpsweep4(__global const uchar *g_data, __global uchar *g_sums,
     }
 }
 
+__kernel void testUpsweepMulti(__global const uchar *g_data, __global uchar *g_sums, uint dataSize, uint sumsSize)
+{
+    __local WARP_VOLATILE union
+    {
+        uint i[256];
+        uchar c[1024];
+    } data;
+    __local WARP_VOLATILE uchar sums[256];
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < dataSize; i++)
+            data.c[i] = g_data[i];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    upsweepMulti(data.i, sums, dataSize, sumsSize, get_local_id(0));
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < sumsSize; i++)
+            g_sums[i] = sums[i];
+    }
+}
+
 __kernel void testUpsweep(__global const uchar *g_data, __global uchar *g_sums, uint dataSize, uint sumsSize)
 {
     __local WARP_VOLATILE union
@@ -1094,6 +1164,37 @@ __kernel void testDownsweep4(__global uchar *g_data, __global const uchar *g_sum
     barrier(CLK_LOCAL_MEM_FENCE);
 
     downsweep4(data.i, sums, sumsSize, get_local_id(0), get_local_size(0), forceZero);
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < dataSize; i++)
+        {
+            g_data[i] = data.c[i];
+        }
+    }
+}
+
+__kernel void testDownsweepMulti(__global uchar *g_data, __global const uchar *g_sums, uint dataSize, uint sumsSize, uint forceZero)
+{
+    __local WARP_VOLATILE union
+    {
+        uint i[256];
+        uchar c[1024];
+    } data;
+    __local WARP_VOLATILE uchar sums[256];
+
+    if (get_local_id(0) == 0)
+    {
+        for (uint i = 0; i < dataSize; i++)
+            data.c[i] = g_data[i];
+        for (uint i = 0; i < sumsSize; i++)
+            sums[i] = g_sums[i];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    downsweepMulti(data.i, sums, dataSize, sumsSize, get_local_id(0));
 
     barrier(CLK_LOCAL_MEM_FENCE);
 

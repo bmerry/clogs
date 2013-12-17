@@ -102,9 +102,11 @@ private:
 public:
     void testUpsweep2(unsigned int sumsSize, unsigned int threads);
     void testUpsweep4(unsigned int sumsSize, unsigned int threads);
+    void testUpsweepMulti(unsigned int sumsSize);
     void testUpsweep(unsigned int dataSize, unsigned int sumsSize, unsigned int threads);
     void testDownsweep2(unsigned int sumsSize, unsigned int threads, bool forceZero);
     void testDownsweep4(unsigned int sumsSize, unsigned int threads, bool forceZero);
+    void testDownsweepMulti(unsigned int sumsSize);
     void testDownsweep(unsigned int dataSize, unsigned int sumsSize, unsigned int threads, bool forceZero);
 
     /// Test the front-end reduction
@@ -150,6 +152,7 @@ CPPUNIT_TEST_SUITE_REGISTRATION(TestRadixsort);
 void TestRadixsort::addUpsweepTests(TestSuiteBuilderContextType &context)
 {
     for (unsigned int sumsSize = 1; sumsSize <= 64; sumsSize *= 2)
+    {
         for (unsigned int threads = 1; threads <= 64; threads *= 2)
         {
             std::ostringstream name;
@@ -157,6 +160,10 @@ void TestRadixsort::addUpsweepTests(TestSuiteBuilderContextType &context)
             CLOGS_TEST_BIND_NAME(testUpsweep2, name.str(), sumsSize, threads);
             CLOGS_TEST_BIND_NAME(testUpsweep4, name.str(), sumsSize, threads);
         }
+        std::ostringstream name;
+        name << sumsSize;
+        CLOGS_TEST_BIND_NAME(testUpsweepMulti, name.str(), sumsSize);
+    }
     for (unsigned int dataSize = 1; dataSize <= 128; dataSize <<= 1)
         for (unsigned int sumsSize = 1; sumsSize <= dataSize; sumsSize <<= 1)
             for (unsigned int threads = 1; threads <= 64; threads *= 2)
@@ -170,6 +177,7 @@ void TestRadixsort::addUpsweepTests(TestSuiteBuilderContextType &context)
 void TestRadixsort::addDownsweepTests(TestSuiteBuilderContextType &context)
 {
     for (unsigned int sumsSize = 1; sumsSize <= 64; sumsSize *= 2)
+    {
         for (unsigned int threads = 1; threads <= 64; threads *= 2)
             for (unsigned int forceZero = 0; forceZero <= 1; forceZero++)
             {
@@ -178,6 +186,10 @@ void TestRadixsort::addDownsweepTests(TestSuiteBuilderContextType &context)
                 CLOGS_TEST_BIND_NAME(testDownsweep2, name.str(), sumsSize, threads, forceZero);
                 CLOGS_TEST_BIND_NAME(testDownsweep4, name.str(), sumsSize, threads, forceZero);
             }
+        std::ostringstream name;
+        name << sumsSize;
+        CLOGS_TEST_BIND_NAME(testDownsweepMulti, name.str(), sumsSize);
+    }
     for (unsigned int dataSize = 1; dataSize <= 128; dataSize <<= 1)
         for (unsigned int sumsSize = 1; sumsSize <= dataSize; sumsSize <<= 1)
             for (unsigned int threads = 1; threads <= 64; threads *= 2)
@@ -373,6 +385,11 @@ void TestRadixsort::testUpsweep4(unsigned int sumsSize, unsigned int threads)
     testUpsweepN(4, "testUpsweep4", sumsSize, threads);
 }
 
+void TestRadixsort::testUpsweepMulti(unsigned int sumsSize)
+{
+    testUpsweepN(16, "testUpsweepMulti", sumsSize, sumsSize);
+}
+
 void TestRadixsort::testDownsweep2(unsigned int sumsSize, unsigned int threads, bool forceZero)
 {
     testDownsweepN(2, "testDownsweep2", sumsSize, threads, forceZero);
@@ -381,6 +398,11 @@ void TestRadixsort::testDownsweep2(unsigned int sumsSize, unsigned int threads, 
 void TestRadixsort::testDownsweep4(unsigned int sumsSize, unsigned int threads, bool forceZero)
 {
     testDownsweepN(4, "testDownsweep4", sumsSize, threads, forceZero);
+}
+
+void TestRadixsort::testDownsweepMulti(unsigned int sumsSize)
+{
+    testDownsweepN(16, "testDownsweepMulti", sumsSize, sumsSize, false);
 }
 
 template<typename KeyTag>
