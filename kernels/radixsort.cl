@@ -748,10 +748,6 @@ typedef struct
  * @pre
  * - @a firstBit < 32.
  * - @a lid takes on the values 0, 1, ..., @ref SCATTER_SLICE once each.
- *
- * @todo Use a serial up/downsweep first, since the loops in @ref upsweep and
- * @ref downsweep don't seem to get unrolled. Would work best with an add @ref
- * SCATTER_WORK_SCALE.
  */
 inline uint radixsortScatterTile(
     __global KEY_T *outKeys,
