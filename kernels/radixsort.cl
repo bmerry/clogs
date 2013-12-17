@@ -425,6 +425,29 @@ inline bool isPower4(uint value)
     return isPower2(value) && (value & (UINT_MAX / 3)) != 0;
 }
 
+/**
+ * Compute sums of groups of elements.
+ * The input data is a sequence of @a fullSize unsigned chars. Each group
+ * of @a fullSize / @a sumsSize elements is added and written back to @a
+ * sums.
+ *
+ * The function must be called by exactly @a sumsSize workitems, which will
+ * cooperatively compute the sums.
+ *
+ * @param[in]    data          The sequence, aliased as an array of uints.
+ * @param[out]   sums          The sums.
+ * @param        fullSize      Length of the input sequence.
+ * @param        sumsSize      Length of the output sequence.
+ * @param        lid           ID for this calling workitem.
+ *
+ * @pre
+ * - Suitable barriers are in place for all the calling workitems to see all the data.
+ * - @a sumsSize is a power of 2.
+ * - @a lid takes on the values 0, 1, ..., @a sumsSize - 1 across the calling workitems.
+ * - The sums do not overflow.
+ * @post
+ * - All workitems that participated will have visibility of all the results.
+ */
 inline void upsweepMulti(__local const WARP_VOLATILE uint * restrict data,
                          __local WARP_VOLATILE uchar * restrict sums,
                          uint fullSize, uint sumsSize, uint lid)
@@ -440,8 +463,8 @@ inline void upsweepMulti(__local const WARP_VOLATILE uint * restrict data,
 
 /**
  * Compute sums of sets of 4 elements.
- * The input data is a sequence of 4 * @a sumsSize unsigned chars. Each group of 4 contiguous
- * elements is added and written back.
+ * The input data is a sequence of 4 * @a sumsSize unsigned chars. Each group
+ * of 4 contiguous elements is added and written back to @a sums.
  *
  * The function must be called by some number of workitems, which will
  * cooperatively compute the sums. Ideally this should not be more than @ref
@@ -457,12 +480,11 @@ inline void upsweepMulti(__local const WARP_VOLATILE uint * restrict data,
  * @pre
  * - Suitable barriers are in place for all the calling workitems to see all the data.
  * - @a sumsSize is a power of 2.
- * - @a threads is a power of 2.
+ * - @a threads is a power of 2 which is at least @a sumsSize.
  * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
  * - The sums do not overflow.
  * @post
  * - All workitems that participated will have visibility of all the results.
- * @bug The inner loop isn't always being unrolled.
  */
 inline void upsweep4(__local const WARP_VOLATILE uint * restrict data, __local WARP_VOLATILE uchar * restrict sums,
                      uint sumsSize, uint lid, uint threads)
@@ -483,8 +505,8 @@ inline void upsweep4(__local const WARP_VOLATILE uint * restrict data, __local W
 
 /**
  * Compute sums of sets of 2 elements.
- * The input data is a sequence of 2 * @a sumsSize unsigned chars. Each group of 2 contiguous
- * elements is added and written back.
+ * The input data is a sequence of 2 * @a sumsSize unsigned chars. Each group
+ * of 2 contiguous elements is added and written back to @a sums.
  *
  * The function must be called by some number of workitems, which will
  * cooperatively compute the sums. Ideally this should not be more than @ref
@@ -500,7 +522,7 @@ inline void upsweep4(__local const WARP_VOLATILE uint * restrict data, __local W
  * @pre
  * - Suitable barriers are in place for all the calling workitems to see all the data.
  * - @a sumsSize is a power of 2.
- * - @a threads is a power of 2.
+ * - @a threads is a power of 2 which is at least @a sumsSize.
  * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
  * - The sums do not overflow.
  * @post
@@ -519,6 +541,30 @@ inline void upsweep2(__local const WARP_VOLATILE ushort * restrict data, __local
     fastsync(threads); // TODO: could be a smaller number?
 }
 
+/**
+ * Compute exclusive scan from scanned reduction. The input contains
+ * @a fullSize @c uchar values, and @a sumsSize "sums". Each section of
+ * @a fullSize / @a sumsSize input values is replaced by its exclusive scan,
+ * plus (per-element) the corresponding sum.
+ *
+ * The function must be called by @a sumsSize workitems, which will
+ * cooperatively compute the results.
+ *
+ * @note It is not required that the data are visible to the calling workitems,
+ * and on return the outputs are not guaranteed to be visible to the calling
+ * threads.
+ *
+ * @param[in,out]    data         A <code>uint *</code> alias to the input sequence, replaced by the outputs.
+ * @param[in]        sums         The sums to add back to the input sequence.
+ * @param            fullSize     The size of the input sequence.
+ * @param            sumsSize     The number of sums.
+ * @param            lid          ID of the calling workitem.
+ *
+ * @pre
+ * - @a sumsSize is a power of 2.
+ * - @a lid takes on the values 0, 1, ..., @a sumsSize - 1 across the calling workitems.
+ * - The results do not overflow.
+ */
 inline void downsweepMulti(
     __local WARP_VOLATILE uint * restrict data,
     __local const WARP_VOLATILE uchar * sums,
@@ -558,7 +604,7 @@ inline void downsweepMulti(
  *
  * @pre
  * - @a sumsSize is a power of 2.
- * - @a threads is a power of 2.
+ * - @a threads is a power of 2 which is at least @a sumsSize.
  * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
  * - The results do not overflow.
  */
@@ -609,7 +655,7 @@ inline void downsweep4(__local WARP_VOLATILE uint * restrict data, __local const
  *
  * @pre
  * - @a sumsSize is a power of 2.
- * - @a threads is a power of 2.
+ * - @a threads is a power of 2, which is at least @a sumsSize.
  * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
  * - The results do not overflow.
  */
