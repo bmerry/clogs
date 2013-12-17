@@ -276,8 +276,18 @@ void Radixsort::initialize(
     const ::size_t warpSizeSchedule = params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->get();
     scatterSlice = std::max(warpSizeSchedule, ::size_t(radix));
 
-    std::string options;
-    options += "-DKEY_T=" + keyType.getName() + " ";
+    std::map<std::string, int> defines;
+    std::map<std::string, std::string> stringDefines;
+    defines["WARP_SIZE_MEM"] = warpSizeMem;
+    defines["WARP_SIZE_SCHEDULE"] = warpSizeSchedule;
+    defines["REDUCE_WORK_GROUP_SIZE"] = reduceWorkGroupSize;
+    defines["SCAN_WORK_GROUP_SIZE"] = scanWorkGroupSize;
+    defines["SCATTER_WORK_GROUP_SIZE"] = scatterWorkGroupSize;
+    defines["SCATTER_WORK_SCALE"] = scatterWorkScale;
+    defines["SCATTER_SLICE"] = scatterSlice;
+    defines["SCAN_BLOCKS"] = scanBlocks;
+    defines["RADIX_BITS"] = radixBits;
+    stringDefines["KEY_T"] = keyType.getName();
     if (valueType.getBaseType() != TYPE_VOID)
     {
         /* There are cases (at least on NVIDIA) where value types have
@@ -299,25 +309,79 @@ void Radixsort::initialize(
         }
         assert(kernelValueType.getSize() == valueSize);
 
-        options += "-DVALUE_T=" + kernelValueType.getName() + " ";
+        stringDefines["VALUE_T"] = kernelValueType.getName();
     }
 
-    std::map<std::string, int> defines;
-    defines["WARP_SIZE_MEM"] = warpSizeMem;
-    defines["WARP_SIZE_SCHEDULE"] = warpSizeSchedule;
-    defines["REDUCE_WORK_GROUP_SIZE"] = reduceWorkGroupSize;
-    defines["SCAN_WORK_GROUP_SIZE"] = scanWorkGroupSize;
-    defines["SCATTER_WORK_GROUP_SIZE"] = scatterWorkGroupSize;
-    defines["SCATTER_WORK_SCALE"] = scatterWorkScale;
-    defines["SCATTER_SLICE"] = scatterSlice;
-    defines["SCAN_BLOCKS"] = scanBlocks;
-    defines["RADIX_BITS"] = radixBits;
+    /* Generate code for upsweep and downsweep. This is done here rather
+     * than relying on loop unrolling, constant folding and so on because
+     * compilers don't always figure that out correctly (particularly when
+     * it comes to an inner loop whose trip count depends on the counter
+     * from an outer loop.
+     */
+    std::vector<std::string> upsweepStmts, downsweepStmts;
+    std::vector< ::size_t> stops;
+    stops.push_back(1);
+    stops.push_back(radix);
+    if (scatterSlice > radix)
+        stops.push_back(scatterSlice);
+    stops.push_back(scatterSlice * radix);
+    for (int i = int(stops.size()) - 2; i >= 0; i--)
+    {
+        ::size_t from = stops[i + 1];
+        ::size_t to = stops[i];
+        if (to >= scatterSlice)
+        {
+            std::string toStr = detail::toString(to);
+            std::string fromStr = detail::toString(from);
+            upsweepStmts.push_back("upsweepMulti(wg->level1i + " + fromStr + " / 4, wg->level1 + "
+                                   + toStr + ", " + fromStr + ", " + toStr + ", lid);");
+            downsweepStmts.push_back("downsweepMulti(wg->level1i + " + fromStr + " / 4, wg->level1 + "
+                                   + toStr + ", " + fromStr + ", " + toStr + ", lid);");
+        }
+        else
+        {
+            while (from >= to * 4)
+            {
+                std::string fromStr = detail::toString(from);
+                std::string toStr = detail::toString(from / 4);
+                bool forceZero = (from == 4);
+                upsweepStmts.push_back("upsweep4(wg->level1i + " + toStr + ", wg->level1 + "
+                                       + toStr + ", " + toStr + ", lid, SCATTER_SLICE);");
+                downsweepStmts.push_back("downsweep4(wg->level1i + " + toStr + ", wg->level1 + "
+                                       + toStr + ", " + toStr + ", lid, SCATTER_SLICE, "
+                                       + (forceZero ? "true" : "false") + ");");
+                from /= 4;
+            }
+            if (from == to * 2)
+            {
+                std::string fromStr = detail::toString(from);
+                std::string toStr = detail::toString(from / 2);
+                bool forceZero = (from == 2);
+                upsweepStmts.push_back("upsweep2(wg->level1s + " + toStr + ", wg->level1 + "
+                                       + toStr + ", " + toStr + ", lid, SCATTER_SLICE);");
+                downsweepStmts.push_back("downsweep2(wg->level1s + " + toStr + ", wg->level1 + "
+                                       + toStr + ", " + toStr + ", lid, SCATTER_SLICE, "
+                                       + (forceZero ? "true" : "false") + ");");
+            }
+        }
+    }
+    std::ostringstream upsweep, downsweep;
+    upsweep << "do { ";
+    for (std::size_t i = 0; i < upsweepStmts.size(); i++)
+        upsweep << upsweepStmts[i];
+    upsweep << " } while (0)";
+    downsweep << "do { ";
+    for (int i = int(downsweepStmts.size()) - 1; i >= 0; i--)
+        downsweep << downsweepStmts[i];
+    downsweep << "} while (0)";
+    stringDefines["UPSWEEP()"] = upsweep.str();
+    stringDefines["DOWNSWEEP()"] = downsweep.str();
 
     try
     {
         histogram = cl::Buffer(context, CL_MEM_READ_WRITE, scanBlocks * radix * sizeof(cl_uint));
         std::vector<cl::Device> devices(1, device);
-        program = build(context, devices, "radixsort.cl", defines, options);
+        program = build(context, devices, "radixsort.cl", defines, stringDefines, "");
 
         reduceKernel = cl::Kernel(program, "radixsortReduce");
 

@@ -408,6 +408,7 @@ inline void upsweepMulti(__local const WARP_VOLATILE uint * restrict data,
 {
     const uint rounds = fullSize / sumsSize / 4;
     uint sum = 0;
+#pragma unroll
     for (uint i = 0; i < rounds; i++)
         sum += data[lid * rounds + i];
     sums[lid] = (sum * 0x01010101) >> 24;
@@ -443,23 +444,18 @@ inline void upsweepMulti(__local const WARP_VOLATILE uint * restrict data,
 inline void upsweep4(__local const WARP_VOLATILE uint * restrict data, __local WARP_VOLATILE uchar * restrict sums,
                      uint sumsSize, uint lid, uint threads)
 {
-    uint rounds = 1;
-    if (sumsSize > threads)
-        rounds = sumsSize / threads; // too few workitems - make them work harder
-    else if (sumsSize < threads)
+    if (sumsSize < threads)
         lid &= sumsSize - 1;         // too many workitems - repeat work
 
-    for (uint i = 0; i < rounds; i++)
-    {
-        uint in = data[lid + i * threads];
-        /* 0xaabbccdd * 0x01010101 == 0x(a+b+c+d)(b+c+d)(c+d)(d), so
-         * taking the high byte gives the sum. This works on any
-         * endian system.
-         */
-        uint out = (in * 0x01010101) >> 24;
-        sums[lid + i * threads] = out;
-    }
-    fastsync(threads);
+    uint in = data[lid];
+    /* 0xaabbccdd * 0x01010101 == 0x(a+b+c+d)(b+c+d)(c+d)(d), so
+     * taking the high byte gives the sum. This works on any
+     * endian system.
+     */
+    uint out = (in * 0x01010101) >> 24;
+    sums[lid] = out;
+
+    fastsync(threads); // TODO: could be a smaller number?
 }
 
 /**
@@ -490,70 +486,14 @@ inline void upsweep4(__local const WARP_VOLATILE uint * restrict data, __local W
 inline void upsweep2(__local const WARP_VOLATILE ushort * restrict data, __local WARP_VOLATILE uchar * restrict sums,
                      uint sumsSize, uint lid, uint threads)
 {
-    uint rounds = 1;
-    if (sumsSize > threads)
-        rounds = sumsSize / threads;
-    else if (sumsSize < threads)
+    if (sumsSize < threads)
         lid &= sumsSize - 1;
 
-    for (uint i = 0; i < rounds; i++)
-    {
-        uint in = data[lid + i * threads];
-        uint out = (in * 0x0101) >> 8;
-        sums[lid + i * threads] = out;
-    }
-    fastsync(threads);
-}
+    uint in = data[lid];
+    uint out = (in * 0x0101) >> 8;
+    sums[lid] = out;
 
-/**
- * Sum up arbitrary lengths of data.
- * The input is a sequence of @a fullSize uchars, stored at positions
- * [@a fullSize, 2 * @a fullSize) in @a data_c. Each block of @a fullSize / @a
- * sumsSize of them is summed and the sums are written to the range
- * [@a sumsSize, 2 * @a sumsSize). Additionally, the values in the range
- * [@a 2 * @a sumsSize, @a fullSize) may be overwritten with bookkeeping
- * values that allow @ref downsweep to work.
- *
- * The function must be called by some number of workitems, which will cooperatively
- * compute the sums.
- *
- * @param[in,out]    data_i      A <code>uint *</code> alias to @a data_c.
- * @param[in,out]    data_s      A <code>ushort *</code> alias to @a data_c.
- * @param[in,out]    data_c      The input and output data (see above).
- * @param            fullSize    The number of elements to sum.
- * @param            sumsSize    The number of sums to produce.
- * @param            lid         ID of the calling workitem.
- * @param            threads     Number of calling workitems.
- *
- * @pre
- * - Suitable barriers are in place for all the calling workitems to see all the data.
- * - @a fullSize and @a sumsSize are powers of 2.
- * - @a fullSize >= @a sumsSize.
- * - @a threads is a power of 2.
- * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
- * - The sums do not overflow.
- * @post
- * - The data will be visible to all calling workitems.
- */
-inline void upsweep(__local WARP_VOLATILE uint *data_i,
-                    __local WARP_VOLATILE ushort *data_s,
-                    __local WARP_VOLATILE uchar *data_c,
-                    uint fullSize, uint sumsSize, uint lid, uint threads)
-{
-    if (fullSize >= 4 * threads && sumsSize <= threads)
-    {
-        upsweepMulti(data_i + (fullSize / 4), data_c + threads, fullSize, threads, lid);
-        fullSize = threads;
-    }
-#pragma unroll
-    for (uint scale = fullSize / 4; scale >= sumsSize; scale >>= 2)
-    {
-        upsweep4(data_i + scale, data_c + scale, scale, lid, threads);
-    }
-    if (!isPower4(fullSize / sumsSize))
-    {
-        upsweep2(data_s + sumsSize, data_c + sumsSize, sumsSize, lid, threads);
-    }
+    fastsync(threads); // TODO: could be a smaller number?
 }
 
 inline void downsweepMulti(
@@ -602,29 +542,26 @@ inline void downsweepMulti(
 inline void downsweep4(__local WARP_VOLATILE uint * restrict data, __local const WARP_VOLATILE uchar * restrict sums,
                        uint sumsSize, uint lid, uint threads, bool forceZero)
 {
-    uint rounds = 1;
-    if (sumsSize > threads)
-        rounds = sumsSize / threads;
-    else if (sumsSize < threads && threads <= WARP_SIZE_MEM)
-        lid &= sumsSize - 1;
+    fastsync(threads); // TODO: could be smaller?
 
-    fastsync(threads);
-    if (sumsSize < threads && threads > WARP_SIZE_MEM && lid >= sumsSize)
-        return;
-#pragma unroll
-    for (uint i = 0; i < rounds; i++)
+    if (sumsSize < threads)
     {
-        uint old = data[lid + i * threads];
-        uint out;
-        if (!forceZero)
-        {
-            uint s = sums[lid + i * threads];
-            out = (old + s) * 0x01010100 + s;
-        }
-        else
-            out = old * 0x01010100;
-        data[lid + i * threads] = out;
+        if (threads <= WARP_SIZE_MEM)
+            lid &= sumsSize - 1;
+        else if (lid >= sumsSize)
+            return;
     }
+
+    uint old = data[lid];
+    uint out;
+    if (!forceZero)
+    {
+        uint s = sums[lid];
+        out = (old + s) * 0x01010100 + s;
+    }
+    else
+        out = old * 0x01010100;
+    data[lid] = out;
 }
 
 /**
@@ -656,88 +593,28 @@ inline void downsweep4(__local WARP_VOLATILE uint * restrict data, __local const
 inline void downsweep2(__local WARP_VOLATILE ushort *restrict data, __local const WARP_VOLATILE uchar * restrict sums,
                        uint sumsSize, uint lid, uint threads, bool forceZero)
 {
-    uint rounds = 1;
-    if (sumsSize > threads)
-        rounds = sumsSize / threads;
-    else if (sumsSize < threads && threads <= WARP_SIZE_MEM)
-        lid &= sumsSize - 1;
+    fastsync(threads); // TODO: could be smaller?
 
-    fastsync(threads);
-    if (sumsSize < threads && threads > WARP_SIZE_MEM && lid >= sumsSize)
-        return;
-#pragma unroll
-    for (uint i = 0; i < rounds; i++)
+    if (sumsSize < threads)
     {
-        uint old = data[lid + i * threads];
-        uint out;
-        if (!forceZero)
-        {
-            uint s = sums[lid + i * threads];
-            out = (old + s) * 0x0100 + s;
-        }
-        else
-        {
-            out = old * 0x0100;
-        }
-        data[lid + i * threads] = out;
-    }
-}
-
-/**
- * Compute exclusive scan from reduced sums.
- * The data to scan is contained in the range [@a fullSize, 2 * @a fullSize) and the
- * computed sums in [@a sumsSize, 2 * @a sumsSize) of @a data_c. Each block of
- * @a fullSize / @a sumsSize input values is replaced by its exclusive scan, plus (per-element)
- * the corresponding sum.
- *
- * @note It is not required that the data are visible to the calling workitems,
- * and on return the outputs are not guaranteed to be visible to the calling
- * workitems.
- *
- * @param[in,out]    data_i      A <code>uint *</code> alias to @a data_c.
- * @param[in,out]    data_s      A <code>ushort *</code> alias to @a data_c.
- * @param[in,out]    data_c      The input and output data (see above).
- * @param            fullSize    The number of elements to san.
- * @param            sumsSize    The number of sums to use.
- * @param            lid         ID of the calling workitem.
- * @param            threads     Number of calling workitems.
- * @param            forceZero   If true, @a sums is ignored and treated as zero.
- *
- * @pre
- * - Values [2 * @a sumsSize, @a fullSize) have been computed by calling @ref upsweep with
- *   the same @a fullSize, @a sumsSize and @a threads.
- * - @a fullSize is a power of 2.
- * - @a sumsSize is a power of 2.
- * - @a fullSize >= @a sumsSize, and if @a fullSize == @a sumsSize then @a forceZero is false.
- * - @a threads is a power of 2.
- * - @a lid takes on the values 0, 1, ..., @a threads - 1 across the calling workitems.
- * - The results do not overflow.
- */
-inline void downsweep(__local WARP_VOLATILE uint *data_i,
-                      __local WARP_VOLATILE ushort *data_s,
-                      __local WARP_VOLATILE uchar *data_c,
-                      uint fullSize, uint sumsSize, uint lid, uint threads, bool forceZero)
-{
-    uint realFullSize = fullSize;
-    if (fullSize >= 4 * threads && sumsSize < threads)
-    {
-        fullSize = threads;
+        if (threads <= WARP_SIZE_MEM)
+            lid &= sumsSize - 1;
+        else if (lid >= sumsSize)
+            return;
     }
 
-    if (!isPower4(fullSize / sumsSize))
+    uint old = data[lid];
+    uint out;
+    if (!forceZero)
     {
-        downsweep2(data_s + sumsSize, data_c + sumsSize, sumsSize, lid, threads, forceZero);
-        sumsSize *= 2;
-        forceZero = false;
+        uint s = sums[lid];
+        out = (old + s) * 0x0100 + s;
     }
-#pragma unroll
-    for (uint scale = sumsSize; scale < fullSize; scale <<= 2)
+    else
     {
-        downsweep4(data_i + scale, data_c + scale, scale, lid, threads, forceZero && scale == sumsSize);
+        out = old * 0x0100;
     }
-
-    if (realFullSize > fullSize)
-        downsweepMulti(data_i + (realFullSize / 4), data_c + fullSize, realFullSize, fullSize, lid);
+    data[lid] = out;
 }
 
 /**
@@ -862,14 +739,12 @@ inline uint radixsortScatterTile(
     fastsync(SCATTER_SLICE);
 
     /* Reduce, making sure that we take a stop at RADIX granularity to get digit counts */
-    upsweep(wg->level1i, wg->level1s, wg->level1, level1Size, RADIX, lid, SCATTER_SLICE);
-    upsweep(wg->level1i, wg->level1s, wg->level1, RADIX, 1, lid, SCATTER_SLICE);
+    UPSWEEP();
 
     const uint digitCount = wg->level1[RADIX + lid];
 
     /* Scan */
-    downsweep(wg->level1i, wg->level1s, wg->level1, RADIX, 1, lid, SCATTER_SLICE, true);
-    downsweep(wg->level1i, wg->level1s, wg->level1, level1Size, RADIX, lid, SCATTER_SLICE, false);
+    DOWNSWEEP();
 
     fastsync(SCATTER_SLICE);
 
@@ -1085,35 +960,6 @@ __kernel void testUpsweepMulti(__global const uchar *g_data, __global uchar *g_s
     }
 }
 
-__kernel void testUpsweep(__global const uchar *g_data, __global uchar *g_sums, uint dataSize, uint sumsSize)
-{
-    __local WARP_VOLATILE union
-    {
-        uint i[128];
-        ushort s[256];
-        uchar c[512];
-    } data;
-
-    if (get_local_id(0) == 0)
-    {
-        for (uint i = 0; i < 2 * dataSize; i++)
-            data.c[i] = 0;
-        for (uint i = 0; i < dataSize; i++)
-            data.c[dataSize + i] = g_data[i];
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    upsweep(data.i, data.s, data.c, dataSize, sumsSize, get_local_id(0), get_local_size(0));
-
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    if (get_local_id(0) == 0)
-    {
-        for (uint i = 0; i < sumsSize; i++)
-            g_sums[i] = data.c[sumsSize + i];
-    }
-}
-
 __kernel void testDownsweep2(__global uchar *g_data, __global const uchar *g_sums, uint dataSize, uint sumsSize, uint forceZero)
 {
     __local WARP_VOLATILE union
@@ -1203,51 +1049,6 @@ __kernel void testDownsweepMulti(__global uchar *g_data, __global const uchar *g
         for (uint i = 0; i < dataSize; i++)
         {
             g_data[i] = data.c[i];
-        }
-    }
-}
-
-__kernel void testDownsweep(__global uchar *g_data, __global const uchar *g_sums, uint dataSize, uint sumsSize, uint forceZero)
-{
-    __local WARP_VOLATILE union
-    {
-        uint i[128];
-        ushort s[256];
-        uchar c[512];
-    } data;
-
-    if (get_local_id(0) == 0)
-    {
-        for (uint i = 0; i < 2 * dataSize; i++)
-            data.c[i] = 0;
-        // Note ordering here: if dataSize == sumsSize, we want to be sure to
-        // overwrite the incoming data with the sums.
-        for (uint i = 0; i < dataSize; i++)
-            data.c[dataSize + i] = g_data[i];
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    upsweep(data.i, data.s, data.c, dataSize, sumsSize, get_local_id(0), get_local_size(0));
-
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    if (get_local_id(0) == 0)
-    {
-        for (uint i = 0; i < sumsSize; i++)
-            data.c[sumsSize + i] = g_sums[i];
-    }
-
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    downsweep(data.i, data.s, data.c, dataSize, sumsSize, get_local_id(0), get_local_size(0), forceZero);
-
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    if (get_local_id(0) == 0)
-    {
-        for (uint i = 0; i < dataSize; i++)
-        {
-            g_data[i] = data.c[dataSize + i];
         }
     }
 }

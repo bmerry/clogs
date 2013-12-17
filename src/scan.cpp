@@ -81,18 +81,20 @@ void Scan::initialize(const cl::Context &context, const cl::Device &device, cons
     maxBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
 
     std::map<std::string, int> defines;
+    std::map<std::string, std::string> stringDefines;
     defines["WARP_SIZE_MEM"] = warpSizeMem;
     defines["WARP_SIZE_SCHEDULE"] = warpSizeSchedule;
     defines["REDUCE_WORK_GROUP_SIZE"] = reduceWorkGroupSize;
     defines["SCAN_WORK_GROUP_SIZE"] = scanWorkGroupSize;
     defines["SCAN_WORK_SCALE"] = scanWorkScale;
     defines["SCAN_BLOCKS"] = maxBlocks;
+    stringDefines["SCAN_T"] = type.getName();
 
     try
     {
         sums = cl::Buffer(context, CL_MEM_READ_WRITE, maxBlocks * elementSize);
         std::vector<cl::Device> devices(1, device);
-        program = build(context, devices, "scan.cl", defines, std::string(" -DSCAN_T=") + type.getName());
+        program = build(context, devices, "scan.cl", defines, stringDefines, "");
 
         reduceKernel = cl::Kernel(program, "reduce");
         reduceKernel.setArg(0, sums);

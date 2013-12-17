@@ -32,6 +32,8 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <sstream>
+#include <locale>
 #include <CL/cl.hpp>
 #include <clogs/visibility_pop.h>
 
@@ -66,11 +68,21 @@ CLOGS_LOCAL unsigned int getWarpSizeMem(const cl::Device &device);
  */
 CLOGS_LOCAL unsigned int getWarpSizeSchedule(const cl::Device &device);
 
+template<typename T>
+static inline std::string toString(const T &x)
+{
+    std::ostringstream o;
+    o.imbue(std::locale::classic());
+    o << x;
+    return o.str();
+}
+
 CLOGS_LOCAL cl::Program build(
     const cl::Context &context,
     const std::vector<cl::Device> &devices,
     const std::string &filename,
     const std::map<std::string, int> &defines,
+    const std::map<std::string, std::string> &stringDefines,
     const std::string &options = "");
 
 template<typename T>

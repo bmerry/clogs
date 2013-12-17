@@ -99,6 +99,7 @@ cl::Program build(
     const std::vector<cl::Device> &devices,
     const std::string &filename,
     const std::map<std::string, int> &defines,
+    const std::map<std::string, std::string> &stringDefines,
     const std::string &options)
 {
     const std::map<std::string, std::string> &sourceMap = detail::getSourceMap();
@@ -108,7 +109,12 @@ cl::Program build(
 
     std::ostringstream s;
     s.imbue(std::locale::classic());
-    for (std::map<std::string, int>::const_iterator i = defines.begin(); i != defines.end(); i++)
+    for (std::map<std::string, int>::const_iterator i = defines.begin(); i != defines.end(); ++i)
+    {
+        s << "#define " << i->first << " " << i->second << "\n";
+    }
+    for (std::map<std::string, std::string>::const_iterator i = stringDefines.begin();
+         i != stringDefines.end(); ++i)
     {
         s << "#define " << i->first << " " << i->second << "\n";
     }
