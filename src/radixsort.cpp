@@ -33,6 +33,7 @@
 #include <CL/cl.hpp>
 #include <cstddef>
 #include <map>
+#include <set>
 #include <string>
 #include <cassert>
 #include <climits>
@@ -696,17 +697,32 @@ ParameterSet Radixsort::tune(
             const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
             // Have to reduce the maximum to align with slicesPerWorkGroup, which was 1 earlier
             maxBlocks = roundDown(maxBlocks, slicesPerWorkGroup);
+            std::set< ::size_t> scanBlockCands;
             for (::size_t scanBlocks = std::max(scanWorkGroupSize / radix, slicesPerWorkGroup); scanBlocks <= maxBlocks; scanBlocks *= 2)
             {
-                ParameterSet params = cand;
-                params.getTyped< ::size_t>("SCAN_BLOCKS")->set(scanBlocks);
-                sets.push_back(params);
+                scanBlockCands.insert(scanBlocks);
             }
+            /* Also try with block counts that are a multiple of the number of compute units,
+             * which gives a more balanced work distribution.
+             */
+            for (::size_t scanBlocks = device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
+                 scanBlocks <= maxBlocks; scanBlocks *= 2)
+            {
+                ::size_t blocks = roundDown(scanBlocks, slicesPerWorkGroup);
+                if (blocks >= scanWorkGroupSize / radix)
+                    scanBlockCands.insert(blocks);
+            }
+            // Finally, try the upper limit, in case performance is monotonic
+            scanBlockCands.insert(maxBlocks);
+
+            for (std::set< ::size_t>::const_iterator i = scanBlockCands.begin();
+                 i != scanBlockCands.end(); ++i)
             {
                 ParameterSet params = cand;
-                params.getTyped< ::size_t>("SCAN_BLOCKS")->set(maxBlocks);
+                params.getTyped< ::size_t>("SCAN_BLOCKS")->set(*i);
                 sets.push_back(params);
             }
+
             using namespace FUNCTIONAL_NAMESPACE::placeholders;
             cand = tuner.tuneOne(
                 device, sets, problemSizes,
