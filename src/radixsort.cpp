@@ -616,7 +616,7 @@ ParameterSet Radixsort::tune(
     const ::size_t elements = dataSize / (keyType.getSize() + valueType.getSize());
 
     std::vector<std::size_t> problemSizes;
-    problemSizes.push_back(65536);
+    problemSizes.push_back(1024 * 1024);
     problemSizes.push_back(elements);
 
     const ::size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
