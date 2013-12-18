@@ -333,9 +333,9 @@ void Radixsort::initialize(
         {
             std::string toStr = detail::toString(to);
             std::string fromStr = detail::toString(from);
-            upsweepStmts.push_back("upsweepMulti(wg->level1i + " + fromStr + " / 4, wg->level1 + "
+            upsweepStmts.push_back("upsweepMulti(wg->hist.level1.i, wg->hist.level2.c + "
                                    + toStr + ", " + fromStr + ", " + toStr + ", lid);");
-            downsweepStmts.push_back("downsweepMulti(wg->level1i + " + fromStr + " / 4, wg->level1 + "
+            downsweepStmts.push_back("downsweepMulti(wg->hist.level1.i, wg->hist.level2.c + "
                                    + toStr + ", " + fromStr + ", " + toStr + ", lid);");
         }
         else
@@ -345,9 +345,9 @@ void Radixsort::initialize(
                 std::string fromStr = detail::toString(from);
                 std::string toStr = detail::toString(from / 4);
                 bool forceZero = (from == 4);
-                upsweepStmts.push_back("upsweep4(wg->level1i + " + toStr + ", wg->level1 + "
+                upsweepStmts.push_back("upsweep4(wg->hist.level2.i + " + toStr + ", wg->hist.level2.c + "
                                        + toStr + ", " + toStr + ", lid, SCATTER_SLICE);");
-                downsweepStmts.push_back("downsweep4(wg->level1i + " + toStr + ", wg->level1 + "
+                downsweepStmts.push_back("downsweep4(wg->hist.level2.i + " + toStr + ", wg->hist.level2.c + "
                                        + toStr + ", " + toStr + ", lid, SCATTER_SLICE, "
                                        + (forceZero ? "true" : "false") + ");");
                 from /= 4;
@@ -357,9 +357,9 @@ void Radixsort::initialize(
                 std::string fromStr = detail::toString(from);
                 std::string toStr = detail::toString(from / 2);
                 bool forceZero = (from == 2);
-                upsweepStmts.push_back("upsweep2(wg->level1s + " + toStr + ", wg->level1 + "
+                upsweepStmts.push_back("upsweep2(wg->hist.level2.s + " + toStr + ", wg->hist.level2.c + "
                                        + toStr + ", " + toStr + ", lid, SCATTER_SLICE);");
-                downsweepStmts.push_back("downsweep2(wg->level1s + " + toStr + ", wg->level1 + "
+                downsweepStmts.push_back("downsweep2(wg->hist.level2.s + " + toStr + ", wg->hist.level2.c + "
                                        + toStr + ", " + toStr + ", lid, SCATTER_SLICE, "
                                        + (forceZero ? "true" : "false") + ");");
             }

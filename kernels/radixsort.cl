@@ -697,17 +697,29 @@ typedef struct
          * reductions, using the offsets required by @ref upsweep and
          * @ref downsweep. The bottom-level data are arranged
          * digit-major, workitem-minor.
+         *
+         * The unions allow for efficient loading of 2 or 4 values at once.
          */
-        uchar level1[SCATTER_SLICE * RADIX * 2];
-        /// Alias of @ref level1, for use in upsweep/downsweep
-        ushort level1s[SCATTER_SLICE * RADIX];
-        /// Alias of @ref level1, for use in upsweep/downsweep
-        uint level1i[SCATTER_SLICE * RADIX / 2];
+        struct
+        {
+            union
+            {
+                uchar c[SCATTER_SLICE * RADIX];
+                ushort s[SCATTER_SLICE * RADIX / 2];
+                uint i[SCATTER_SLICE * RADIX / 4];
+            } level1;
 
+            union
+            {
+                uchar c[SCATTER_SLICE * 2];
+                ushort s[SCATTER_SLICE];
+                uint i[SCATTER_SLICE / 2];
+            } level2;
+        } hist;
 #ifdef VALUE_T
         /**
          * Values that are being sorted. This is aliased with
-         * @ref level1 purely to reduce local memory storage.
+         * the histogram storage purely to reduce local memory storage.
          */
         VALUE_T values[SCATTER_TILE];
 #endif
@@ -764,7 +776,7 @@ inline uint radixsortScatterTile(
     uint lid,
     uint offset)
 {
-    // Number of elements in wg->level1, for convenience
+    // Number of elements in wg->hist.level1, for convenience
     const uint level1Size = RADIX * SCATTER_SLICE;
 
     // Each workitem processes SCATTER_WORK_SCALE consecutive keys.
@@ -788,7 +800,7 @@ inline uint radixsortScatterTile(
 
     /* Zero out level1 array */
     for (uint i = 0; i < RADIX / 4; i++)
-        wg->level1i[level1Size / 4 + i * SCATTER_SLICE + lid] = 0;
+        wg->hist.level1.i[i * SCATTER_SLICE + lid] = 0;
 
     fastsync(SCATTER_SLICE);
 
@@ -796,16 +808,16 @@ inline uint radixsortScatterTile(
     {
         const uint kidx = lid * SCATTER_WORK_SCALE + i;
         const uint digit = wg->digits[kidx]; // SCATTER_WORK_SCALE/4-way bank conflict
-        l1addr[i] = level1Size + digit * SCATTER_SLICE + lid;
-        level0[i] = wg->level1[l1addr[i]];
-        wg->level1[l1addr[i]] = level0[i] + 1;
+        l1addr[i] = digit * SCATTER_SLICE + lid;
+        level0[i] = wg->hist.level1.c[l1addr[i]];
+        wg->hist.level1.c[l1addr[i]] = level0[i] + 1;
     }
     fastsync(SCATTER_SLICE);
 
     /* Reduce, making sure that we take a stop at RADIX granularity to get digit counts */
     UPSWEEP();
 
-    const uint digitCount = wg->level1[RADIX + lid];
+    const uint digitCount = wg->hist.level2.c[RADIX + lid];
 
     /* Scan */
     DOWNSWEEP();
@@ -817,7 +829,7 @@ inline uint radixsortScatterTile(
      */
     if (lid < RADIX)
     {
-        wg->bias[lid] = offset - wg->level1[RADIX + lid]; // conflict-free
+        wg->bias[lid] = offset - wg->hist.level2.c[RADIX + lid]; // conflict-free
         offset += digitCount;
     }
 
@@ -827,7 +839,7 @@ inline uint radixsortScatterTile(
     for (uint i = 0; i < SCATTER_WORK_SCALE; i++)
     {
         const uint kidx = lid * SCATTER_WORK_SCALE + i;
-        uint pos = level0[i] + wg->level1[l1addr[i]];
+        uint pos = level0[i] + wg->hist.level1.c[l1addr[i]];
         wg->shuf[pos] = kidx;
     }
 
