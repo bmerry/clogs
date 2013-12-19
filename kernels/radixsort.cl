@@ -327,10 +327,13 @@ void radixsortScan(__global uint *histogram, uint blocks)
 
     const uint lid = get_local_id(0);
     /* Load the data from global memory */
-    for (uint i = 0; i < blocks * RADIX; i += SCAN_WORK_GROUP_SIZE)
-        hist[i + lid] = histogram[i + lid];
-    for (uint i = blocks * RADIX; i < SCAN_BLOCKS * RADIX; i += SCAN_WORK_GROUP_SIZE)
-        hist[i + lid] = 0;
+    uint limit = blocks * RADIX;
+    for (uint i = 0; i < SCAN_BLOCKS * RADIX; i += SCAN_WORK_GROUP_SIZE)
+    {
+        uint addr = i + lid;
+        uint v = histogram[addr];
+        hist[addr] = (addr < limit) ? v : 0;
+    }
     barrier(CLK_LOCAL_MEM_FENCE);
 
     /* Use entire workgroup to do local prefix sums on chunks of size
