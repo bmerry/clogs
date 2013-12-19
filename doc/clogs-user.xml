@@ -66,7 +66,7 @@
                 test suite require porting.
             </para>
             <para>
-                It has been tested on an NVIDIA GeForce 480 GTX, an AMD Radeon HD 6790
+                It has been tested on an NVIDIA GeForce 480 GTX, an AMD R9 270
                 and on a CPU using the AMD APP SDK. It is expected to work on
                 any OpenCL implementation but this is untested, and it is
                 unlikely to have optimal performance.
@@ -80,7 +80,7 @@
                         <filename type="header">CL/cl.hpp</filename>).
                 </para></listitem>
                 <listitem><para>
-                        A C++ compiler. GCC 4.6 and Visual C++ 2010 has been
+                        A C++ compiler. GCC 4.8 and Visual C++ 2010 have been
                         tested. Older versions should work fine too, but it is
                         not tested regularly.
                 </para></listitem>
@@ -297,7 +297,7 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
                 the number of passes and hence improve performance.
             </para>
             <para>
-                Both of the classes we can covered so far have additional
+                Both of the classes we have covered so far have additional
                 features, which are described in the reference manual.
             </para>
         </section>
@@ -306,7 +306,7 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
             <para>
                 For a complete example of using the API, refer to
                 <filename>tools/clogs-benchmark.cpp</filename>, which is a tool
-                for benchmarking the performance of CLOGS when sorting. This tool
+                for benchmarking the performance of CLOGS. This tool
                 is also installed when you install CLOGS, so you can obtain
                 estimates of sorting performance from the command-line.
             </para>
@@ -340,7 +340,7 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
             <title>Error handling</title>
             <para>
                 The source of CLOGS is compiled with
-                <symbol>__CL_ENABLE_EXCEPTIONS</symbol> defined, so any errors
+                <symbol>__CL_ENABLE_EXCEPTIONS</symbol> defined, so any error
                 caused internally will be thrown as a
                 <type>cl::Error</type>. Additionally, the reference
                 documentation lists some higher-level conditions which
@@ -402,29 +402,19 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
     <chapter id="performance">
         <title>Performance</title>
         <para>
-            CLOGS has had relatively little performance tuning, and in
-            particular has not been tuned on any system other than NVIDIA's
-            Fermi architecture. It is not yet as fast as some CUDA sorting
+            While the code is heavily optimized, CLOGS has had relatively
+            little device-specific performance tuning. The radix sort
+            has been tuned on NVIDIA Fermi and GCN architectures, and the scan
+            has only be tuned on Fermi. It is not yet as fast as some CUDA sorting
             implementations. The graph below gives an indication of sorting
-            rates on one GPU. Note that the Y axis is the rate, not the
-            time: it needs a <emphasis>lot</emphasis> to achieve maximum
+            rates. Note that the Y axis is the rate, not the
+            time: it needs a <emphasis>lot</emphasis> of input to achieve maximum
             throughput.
         </para>
         <informalfigure>
             <mediaobject>
                 <imageobject>
-                    <imagedata format="SVG" fileref="clogs-benchmark-480gtx.svg"/>
-                </imageobject>
-            </mediaobject>
-        </informalfigure>
-        <para>
-            The performance on AMD GPUs still needs work. This graph is for 1.0.x, so
-            performance is expected to be better now but it has not been measured.
-        </para>
-        <informalfigure>
-            <mediaobject>
-                <imageobject>
-                    <imagedata format="SVG" fileref="clogs-benchmark-hd6790.svg"/>
+                    <imagedata format="SVG" fileref="clogs-benchmark.svg"/>
                 </imageobject>
             </mediaobject>
         </informalfigure>
