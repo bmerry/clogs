@@ -28,16 +28,19 @@
 # clogs version. It is currently run manually rather than from the build
 # system, so that people don't need gnuplot just to build.
 
-set terminal svg size 800,400
+set terminal svg dashed size 800,400
 set output out
 set log x
 set key outside
-set title "CLOGS sorting rate on ".device
+set title "CLOGS sorting rate"
 set xlabel "Elements"
 set ylabel "MKeys/s"
 set ytics mirror
 set grid ytics
 set mytics
-plot in.'uint-void.txt' title "uint keys / no values" with linespoints, \
-     in.'uint-uint.txt' title "uint keys / uint values" with linespoints, \
-     in.'ulong-float4.txt' title "ulong keys / float4 values" with linespoints
+plot in.'480gtx/uint-void.txt' title "480 GTX / uint keys / no values" with linespoints lt 1 lc 1, \
+     in.'480gtx/uint-uint.txt' title "480 GTX / uint keys / uint values" with linespoints lt 1 lc 2, \
+     in.'480gtx/ulong-float4.txt' title "480 GTX / ulong keys / float4 values" with linespoints lt 1 lc 3, \
+     in.'r9-270/uint-void.txt' title "R9 270 / uint keys / no values" with linespoints lt 3 lc 1, \
+     in.'r9-270/uint-uint.txt' title "R9 270 / uint keys / uint values" with linespoints lt 3 lc 2, \
+     in.'r9-270/ulong-float4.txt' title "R9 270 / ulong keys / float4 values" with linespoints lt 3 lc 3

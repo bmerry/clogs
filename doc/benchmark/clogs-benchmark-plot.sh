@@ -20,6 +20,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-gnuplot -e "in='1.0.0/480gtx/'; out='1.0.0/clogs-benchmark-480gtx.svg'; device='GeForce 480 GTX'" clogs-benchmark.plot
-gnuplot -e "in='1.0.2/hd6790/'; out='1.0.2/clogs-benchmark-hd6790.svg'; device='Radeon HD 6790'" clogs-benchmark.plot
-gnuplot -e "in='1.2.0/480gtx/'; out='1.2.0/clogs-benchmark-480gtx.svg'; device='GeForce 480 GTX'" clogs-benchmark.plot
+gnuplot -e "in='1.2.1/'; out='1.2.1/clogs-benchmark.svg'" clogs-benchmark.plot
