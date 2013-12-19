@@ -629,9 +629,9 @@ ParameterSet Radixsort::tune(
     for (unsigned int radixBits = 4; radixBits <= 4; radixBits++)
     {
         const unsigned int radix = 1U << radixBits;
-        const unsigned int scanWorkGroupSize = radix;
+        const unsigned int scanWorkGroupSize = 4 * radix; // TODO: autotune it
         ::size_t maxBlocks =
-            (device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / radix - 1) / sizeof(cl_uint);
+            (device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / sizeof(cl_uint) - 2 * scanWorkGroupSize) / radix;
         /* Work around devices like G80 lying about the maximum local memory
          * size, by starting with a smaller size.
          */

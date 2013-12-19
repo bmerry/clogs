@@ -323,65 +323,58 @@ KERNEL(SCAN_WORK_GROUP_SIZE)
 void radixsortScan(__global uint *histogram, uint blocks)
 {
     __local uint hist[SCAN_BLOCKS * RADIX];
-    __local uint sums[RADIX];
+    __local uint sums[2 * SCAN_WORK_GROUP_SIZE];
 
     const uint lid = get_local_id(0);
     /* Load the data from global memory */
     for (uint i = 0; i < blocks * RADIX; i += SCAN_WORK_GROUP_SIZE)
         hist[i + lid] = histogram[i + lid];
+    for (uint i = blocks * RADIX; i < SCAN_BLOCKS * RADIX; i += SCAN_WORK_GROUP_SIZE)
+        hist[i + lid] = 0;
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    /* Sum up blocks independently for each radix and compute their scans
-     * at the same time.
+    /* Use entire workgroup to do local prefix sums on chunks of size
+     * chunkRows.
      */
-    if (lid < RADIX)
+    const uint chunks = SCAN_WORK_GROUP_SIZE / RADIX;
+    const uint chunkRows = SCAN_BLOCKS / chunks;
+    const uint digit = lid % RADIX;
+    const uint chunk = lid / RADIX;
+    const uint firstRow = chunk * chunkRows;
+
+    uint sum = 0;
+    for (uint i = 0; i < chunkRows; i++)
     {
-        uint sum = 0;
-        for (uint i = 0; i < blocks * RADIX; i += RADIX)
-        {
-            uint next = hist[i + lid];
-            hist[i + lid] = sum;
-            sum += next;
-        }
-        sums[lid] = sum;
+        uint addr = (firstRow + i) * RADIX + digit;
+        uint next = hist[addr];
+        hist[addr] = sum;
+        sum += next;
     }
+
+    // Save and transpose
+    sums[lid] = 0;
+    sums[SCAN_WORK_GROUP_SIZE + digit * chunks + chunk] = sum;
+
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    /* Scan the radix sums - upsweep */
-    uint pos = lid + 1;
-    for (uint scale = 1; scale < RADIX / 2; scale <<= 1)
+    // Prefix sum independently on each digit
+    sum = sums[SCAN_WORK_GROUP_SIZE + lid];
+    for (uint scale = 1; scale <= SCAN_WORK_GROUP_SIZE / 2; scale *= 2)
     {
-        pos <<= 1;
-        if (pos <= RADIX)
-            sums[pos - 1] += sums[pos - scale - 1];
-        barrier(CLK_LOCAL_MEM_FENCE);
-    }
-    /* Make the top-level scan exclusive */
-    if (lid == 0)
-        sums[RADIX - 1] = 0;
-    // only workitem 0 accesses this element, so no barrier needed here
-
-    /* Scan the radix sums - downsweep */
-    pos <<= 1;
-    for (uint scale = RADIX / 2; scale >= 1; scale >>= 1)
-    {
-        if (pos <= RADIX)
-        {
-            const uint left = sums[pos - 1 - scale];
-            const uint right = sums[pos - 1];
-            sums[pos - 1 - scale] = right;
-            sums[pos - 1] = left + right;
-        }
-        pos >>= 1;
+        uint prev = sums[SCAN_WORK_GROUP_SIZE - scale + lid];
+        sum += prev;
+        sums[SCAN_WORK_GROUP_SIZE + lid] = sum;
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    /* Transfer radix sums back to individual entries, and at the same
-     * time write them out.
+    /* Transfer prefix-summed sums back to individual entries, and at the
+     * same time write them out.
      */
-    for (uint i = 0; i < blocks * RADIX; i += SCAN_WORK_GROUP_SIZE)
+    for (uint i = 0; i < SCAN_BLOCKS * RADIX; i += SCAN_WORK_GROUP_SIZE)
     {
-        const uint total = hist[i + lid] + sums[(i + lid) % RADIX];
+        const uint chunk = i / (chunkRows * RADIX);
+        sum = sums[SCAN_WORK_GROUP_SIZE - 1 + digit * chunks + chunk];
+        const uint total = hist[i + lid] + sum;
         histogram[i + lid] = total;
     }
 }
@@ -776,9 +769,6 @@ inline uint radixsortScatterTile(
     uint lid,
     uint offset)
 {
-    // Number of elements in wg->hist.level1, for convenience
-    const uint level1Size = RADIX * SCATTER_SLICE;
-
     // Each workitem processes SCATTER_WORK_SCALE consecutive keys.
     // For each of these, level0 contains the number of previous keys
     // (within that set) that have the same value.
