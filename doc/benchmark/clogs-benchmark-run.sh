@@ -31,10 +31,10 @@ if ! [ -d "$1" ]; then
 fi
 small_sizes="1000 2000 5000 10000 20000 50000 100000 200000 500000 1000000 2000000 5000000 10000000"
 big_sizes="20000000 50000000"
-(for i in $small_sizes $bigsizes; do
+(for i in $small_sizes $big_sizes; do
     echo -n "$i "; clogs-benchmark --key-type=uint --value-type=uint --iterations 50 --items $i --cl-gpu | tail -n 1 | sed 's/.* \(.*\)M.s/\1/'
 done) > "$1/uint-uint.txt"
-(for i in $small_sizes $bigsizes; do
+(for i in $small_sizes $big_sizes; do
     echo -n "$i "; clogs-benchmark --key-type=uint --value-type=void --iterations 50 --items $i --cl-gpu | tail -n 1 | sed 's/.* \(.*\)M.s/\1/'
 done) > "$1/uint-void.txt"
 (for i in $small_sizes; do
