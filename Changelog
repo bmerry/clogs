@@ -1,3 +1,9 @@
+1.2.2
+-----
+* Fix a race condition in radix sort (mostly affects CPU devices)
+* Work around an AMD driver bug that caused segfaults in tuning
+* Avoid passing defines with both -D and #define
+
 1.2.1
 -----
 * Performance improvements, particularly for AMD GPUs
