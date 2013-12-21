@@ -613,11 +613,18 @@ ParameterSet Radixsort::tune(
     const Type &keyType,
     const Type &valueType)
 {
-    const ::size_t dataSize = device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / 8;
+    /* Limit memory usage, otherwise devices with lots of RAM will take a long
+     * time to tune. For GPUs we need a large problem size to get accurate
+     * statistics, but for CPUs we use less to keep tuning time down.
+     */
+    bool isCPU = device.getInfo<CL_DEVICE_TYPE>() & CL_DEVICE_TYPE_CPU;
+    const ::size_t maxDataSize = isCPU ? 32 * 1024 * 1024 : 256 * 1024 * 1024;
+    const ::size_t dataSize = std::min(maxDataSize, device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / 8);
     const ::size_t elements = dataSize / (keyType.getSize() + valueType.getSize());
 
     std::vector<std::size_t> problemSizes;
-    problemSizes.push_back(1024 * 1024);
+    if (elements > 1024 * 1024)
+        problemSizes.push_back(1024 * 1024);
     problemSizes.push_back(elements);
 
     const ::size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
