@@ -128,15 +128,7 @@ cl::Program build(
     bool failed = false;
     try
     {
-        std::string allOptions = options;
-        for (std::map<std::string, int>::const_iterator i = defines.begin(); i != defines.end(); i++)
-        {
-            std::ostringstream d;
-            d.imbue(std::locale::classic());
-            d << " -D" << i->first << "=" << i->second;
-            allOptions += d.str();
-        }
-        int status = program.build(devices, allOptions.c_str());
+        int status = program.build(devices, options.c_str());
         if (status != 0)
             failed = true;
     }
