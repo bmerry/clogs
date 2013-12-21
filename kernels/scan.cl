@@ -39,6 +39,14 @@
  */
 
 /**
+ * @def SCAN_PAD_T
+ * @hideinitializer
+ * If @ref SCAN_T is a 3-element type, this is the corresponding 4-element
+ * type. It is used to work around driver bugs that make 3-element kernel
+ * argument break. In other cases, it is undefined.
+ */
+
+/**
  * @def WARP_SIZE_MEM
  * @hideinitializer
  * The granularity at which a barrier can be omitted for communication using
@@ -82,6 +90,13 @@
 #ifndef SCAN_T
 # error "SCAN_T must be specified"
 # define SCAN_T int /* Keep doxygen happy */
+#endif
+
+#ifndef SCAN_PAD_T
+# define SCAN_PAD_T SCAN_T
+# define SCAN_UNPAD(x) (x)
+#else
+# define SCAN_UNPAD(x) ((x).s012)
 #endif
 
 #ifndef WARP_SIZE_MEM
@@ -210,7 +225,7 @@ inline void scanExclusiveSmallBottom(__local SCAN_T *v, uint lid)
  * @todo skip barriers and conditions below @ref WARP_SIZE_MEM.
  */
 KERNEL(SCAN_BLOCKS / 2)
-void scanExclusiveSmall(__global SCAN_T *inout, SCAN_T offset)
+void scanExclusiveSmall(__global SCAN_T *inout, SCAN_PAD_T offset)
 {
     const unsigned int lid = get_local_id(0);
     const unsigned int wgs = SCAN_BLOCKS / 2; // work group size
@@ -219,7 +234,7 @@ void scanExclusiveSmall(__global SCAN_T *inout, SCAN_T offset)
     /* Copy to local memory for computation, shifting by one to turn an
      * exclusive problem into an inclusive one
      */
-    v[lid] = (lid == 0) ? offset : inout[lid - 1];
+    v[lid] = (lid == 0) ? SCAN_UNPAD(offset) : inout[lid - 1];
     v[lid + wgs] = inout[lid + wgs - 1];
     barrier(CLK_LOCAL_MEM_FENCE);
 

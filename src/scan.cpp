@@ -89,6 +89,11 @@ void Scan::initialize(const cl::Context &context, const cl::Device &device, cons
     defines["SCAN_WORK_SCALE"] = scanWorkScale;
     defines["SCAN_BLOCKS"] = maxBlocks;
     stringDefines["SCAN_T"] = type.getName();
+    if (type.getLength() == 3)
+    {
+        Type padded(type.getBaseType(), 4);
+        stringDefines["SCAN_PAD_T"] = padded.getName();
+    }
 
     try
     {
