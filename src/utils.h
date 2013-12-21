@@ -77,6 +77,12 @@ static inline std::string toString(const T &x)
     return o.str();
 }
 
+/**
+ * Define UNIT_TESTS when building programs. This is only for use by the
+ * test code.
+ */
+CLOGS_LOCAL void enableUnitTests();
+
 CLOGS_LOCAL cl::Program build(
     const cl::Context &context,
     const std::vector<cl::Device> &devices,

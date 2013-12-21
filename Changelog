@@ -1,6 +1,8 @@
 1.2.3
 -----
-* Fix a bug causing incorrect results when SCAN_BLOCKS is small
+* Fix a bug causing incorrect results when SCAN_BLOCKS is small (#26)
+* Avoid building the unit test kernels except when testing (#24)
+* Speed up tuning on CPU devices (#25)
 
 1.2.2
 -----

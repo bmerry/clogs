@@ -94,6 +94,13 @@ unsigned int getWarpSizeSchedule(const cl::Device &device)
     return 1U;
 }
 
+static bool unitTestsEnabled = false;
+
+void enableUnitTests()
+{
+    unitTestsEnabled = true;
+}
+
 cl::Program build(
     const cl::Context &context,
     const std::vector<cl::Device> &devices,
@@ -118,6 +125,8 @@ cl::Program build(
     {
         s << "#define " << i->first << " " << i->second << "\n";
     }
+    if (unitTestsEnabled)
+        s << "#define UNIT_TESTS 1\n";
     s << "#line 1 \"" << filename << "\"\n";
     const std::string header = s.str();
     cl::Program::Sources sources(2);

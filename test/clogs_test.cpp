@@ -39,6 +39,7 @@
 #include <CL/cl.hpp>
 #include "clogs_test.h"
 #include "../tools/options.h"
+#include "../src/utils.h"
 
 using namespace std;
 namespace po = boost::program_options;
@@ -132,6 +133,7 @@ static po::variables_map processOptions(int argc, const char **argv)
 
 int main(int argc, const char ** argv)
 {
+    clogs::detail::enableUnitTests();
     try
     {
         po::variables_map vm = processOptions(argc, argv);

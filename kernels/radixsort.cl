@@ -949,6 +949,8 @@ void radixsortScatter(__global KEY_T * restrict outKeys,
  * TODO: arrange build so that it is only included when building the tests
  ********************************************************************************************/
 
+#ifdef UNIT_TESTS
+
 __kernel void testUpsweep2(__global const uchar *g_data, __global uchar *g_sums, uint dataSize, uint sumsSize)
 {
     __local WARP_VOLATILE union
@@ -1122,3 +1124,5 @@ __kernel void testDownsweepMulti(__global uchar *g_data, __global const uchar *g
         }
     }
 }
+
+#endif // UNIT_TESTS
