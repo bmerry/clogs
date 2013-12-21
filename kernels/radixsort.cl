@@ -365,6 +365,7 @@ void radixsortScan(__global uint *histogram, uint blocks)
     for (uint scale = 1; scale <= SCAN_WORK_GROUP_SIZE / 2; scale *= 2)
     {
         uint prev = sums[SCAN_WORK_GROUP_SIZE - scale + lid];
+        barrier(CLK_LOCAL_MEM_FENCE);
         sum += prev;
         sums[SCAN_WORK_GROUP_SIZE + lid] = sum;
         barrier(CLK_LOCAL_MEM_FENCE);
