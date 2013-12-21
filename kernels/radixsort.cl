@@ -360,7 +360,7 @@ void radixsortScan(__global uint *histogram, uint blocks)
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // Prefix sum independently on each digit
+    // Prefix sum the sums array
     sum = sums[SCAN_WORK_GROUP_SIZE + lid];
     for (uint scale = 1; scale <= SCAN_WORK_GROUP_SIZE / 2; scale *= 2)
     {
@@ -376,7 +376,7 @@ void radixsortScan(__global uint *histogram, uint blocks)
      */
     for (uint i = 0; i < SCAN_BLOCKS * RADIX; i += SCAN_WORK_GROUP_SIZE)
     {
-        const uint chunk = i / (chunkRows * RADIX);
+        const uint chunk = (i + lid) / (chunkRows * RADIX);
         sum = sums[SCAN_WORK_GROUP_SIZE - 1 + digit * chunks + chunk];
         const uint total = hist[i + lid] + sum;
         histogram[i + lid] = total;
