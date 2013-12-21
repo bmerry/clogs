@@ -188,7 +188,5 @@ std::ostream &operator<<(std::ostream &o, const ParameterSet &params)
     return o;
 }
 
-CLOGS_LOCAL ParameterSet getParameters(const std::string &algorithm, const ParameterSet &key);
-
 } // namespace detail
 } // namespace clogs
