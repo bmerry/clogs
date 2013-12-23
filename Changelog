@@ -1,3 +1,5 @@
+* Fix definition of WARP_VOLATILE (#28)
+
 1.2.3
 -----
 * Fix a bug causing incorrect results when SCAN_BLOCKS is small (#26)

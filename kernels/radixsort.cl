@@ -221,7 +221,7 @@
 # error "SCATTER_SLICE * SCATTER_WORK_GROUP_SCALE must be strictly less than 256"
 #endif
 
-#if WARP_SIZE > 1
+#if WARP_SIZE_MEM > 1
 # define WARP_VOLATILE volatile
 #else
 # define WARP_VOLATILE
