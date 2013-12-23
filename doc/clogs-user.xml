@@ -67,9 +67,10 @@
             </para>
             <para>
                 It has been tested on an NVIDIA GeForce 480 GTX, an AMD R9 270
-                and on a CPU using the AMD APP SDK. It is expected to work on
-                any OpenCL implementation but this is untested, and it is
-                unlikely to have optimal performance.
+                and on a CPU using the AMD APP SDK. The Intel SDK for OpenCL
+                Applications 2013 is not supported as it has numerous bugs. Other
+                OpenCL implementations are expected to work, but they are
+                untested and unlikely to have optimal performance.
             </para>
             <para>
                 The following dependencies are required to build CLOGS:
