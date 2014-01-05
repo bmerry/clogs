@@ -20,4 +20,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-gnuplot -e "in='1.2.3/'; out='1.2.3/clogs-benchmark.svg'" clogs-benchmark.plot
+gnuplot -e "in='1.2.4/'; out='1.2.4/clogs-benchmark.svg'" clogs-benchmark.plot

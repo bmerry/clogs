@@ -1,21 +1,25 @@
 - Build and run the test suite
 - Update the version number in wscript
 - Update the Changelog
-- Nuke old versions: rm -rf /usr/local/share/doc/clogs
+- Nuke old versions: rm -rf /usr/local/share/doc/clogs /usr/local/lib/libclogs*
+- On machines with 480 GTX and R9 270
+  - Install the new version
+  - rm -rf ~/.clogs/cache
+  - clogs-tune --cl-gpu
+  - Run benchmark
+- Update clogs-benchmark-plot.sh with new version and run it
+- Add the new benchmarks to git
 - Run './waf dist' and check that the new version can install cleanly
-- Rerun autotuning (first nuke ~/.clogs)
-- Run new benchmarks
-- Rebuild the documentation
 - Upload new documentation to Sourceforge page (install it first):
     rsync -va --delete /usr/local/share/doc/clogs/ bmerry@web.sourceforge.net:/home/project-web/clogs/htdocs/doc/
 - Check that the wiki page is up to date
 - Create a new version in trac
 - Upload the tarball to the file release system
-    sftp bmerry@frs.sourceforge.net
-    cd /home/frs/project/clogs
-    mkdir <release>
-    cd <release>
-    put clogs-<release>.tar.bz2
+  - sftp bmerry@frs.sourceforge.net
+  - cd /home/frs/project/clogs
+  - mkdir <release>
+  - cd <release>
+  - put clogs-<release>.tar.bz2
 - Mark the new release as the latest version
 - Tag the release
 - Update project info on freecode.com
