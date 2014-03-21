@@ -64,6 +64,27 @@ std::string TypedDeserializer<std::string>::operator()(const std::string &s) con
     }
 }
 
+std::string TypedSerializer<std::vector<unsigned char> >::operator()(
+    const std::vector<unsigned char> &x) const
+{
+    std::string s(x.begin(), x.end());
+    return base64encode(s);
+}
+
+std::vector<unsigned char> TypedDeserializer<std::vector<unsigned char> >::operator()(
+    const std::string &s) const
+{
+    try
+    {
+        std::string x = base64decode(s);
+        return std::vector<unsigned char>(x.begin(), x.end());
+    }
+    catch (Base64DecodeError &e)
+    {
+        throw CacheError(e.what());
+    }
+}
+
 ParameterSet::ParameterSet()
 {
 }

@@ -65,10 +65,13 @@ ParameterSet Scan::parameters()
     ans["SCAN_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
     ans["SCAN_WORK_SCALE"] = new TypedParameter< ::size_t>();
     ans["SCAN_BLOCKS"] = new TypedParameter< ::size_t>();
+    ans["PROGRAM_BINARY"] = new TypedParameter<std::vector<unsigned char> >();
     return ans;
 }
 
-void Scan::initialize(const cl::Context &context, const cl::Device &device, const Type &type, const ParameterSet &params)
+void Scan::initialize(
+    const cl::Context &context, const cl::Device &device, const Type &type,
+    ParameterSet &params, bool tuning)
 {
     const ::size_t elementSize = type.getSize();
 
@@ -79,6 +82,7 @@ void Scan::initialize(const cl::Context &context, const cl::Device &device, cons
     scanWorkGroupSize = params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
     scanWorkScale = params.getTyped< ::size_t>("SCAN_WORK_SCALE")->get();
     maxBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
+    std::vector<unsigned char> &binary = params.getTyped<std::vector<unsigned char> >("PROGRAM_BINARY")->get();
 
     std::map<std::string, int> defines;
     std::map<std::string, std::string> stringDefines;
@@ -98,8 +102,8 @@ void Scan::initialize(const cl::Context &context, const cl::Device &device, cons
     try
     {
         sums = cl::Buffer(context, CL_MEM_READ_WRITE, maxBlocks * elementSize);
-        std::vector<cl::Device> devices(1, device);
-        program = build(context, devices, "scan.cl", defines, stringDefines, "");
+
+        program = build(context, device, "scan.cl", defines, stringDefines, "", &binary, tuning);
 
         reduceKernel = cl::Kernel(program, "reduce");
         reduceKernel.setArg(0, sums);
@@ -121,7 +125,7 @@ void Scan::initialize(const cl::Context &context, const cl::Device &device, cons
 
 std::pair<double, double> Scan::tuneReduceCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, const ParameterSet &params,
+    std::size_t elements, ParameterSet &params,
     const Type &type)
 {
     const ::size_t reduceWorkGroupSize = params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
@@ -168,7 +172,7 @@ std::pair<double, double> Scan::tuneReduceCallback(
 
 std::pair<double, double> Scan::tuneScanCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, const ParameterSet &params,
+    std::size_t elements, ParameterSet &params,
     const Type &type)
 {
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, elements * type.getSize());
@@ -212,7 +216,7 @@ std::pair<double, double> Scan::tuneScanCallback(
 
 std::pair<double, double> Scan::tuneBlocksCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, const ParameterSet &params,
+    std::size_t elements, ParameterSet &params,
     const Type &type)
 {
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, elements * type.getSize());
@@ -350,6 +354,8 @@ ParameterSet Scan::tune(
     params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(bestScanWorkGroupSize);
     params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(bestScanWorkScale);
     params.getTyped< ::size_t>("SCAN_BLOCKS")->set(bestBlocks);
+    // Instantiate just to populate the program
+    Scan dummy(contextForDevice(device), device, type, params);
 
     tuner.logResult(params);
     return params;
@@ -369,14 +375,14 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &typ
     ParameterSet key = makeKey(device, type);
     ParameterSet params = parameters();
     getParameters(key, params);
-    initialize(context, device, type, params);
+    initialize(context, device, type, params, false);
 }
 
 Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type,
-           const ParameterSet &params)
+           ParameterSet &params)
     : eventCallback(NULL), eventCallbackUserData(NULL)
 {
-    initialize(context, device, type, params);
+    initialize(context, device, type, params, true);
 }
 
 ParameterSet Scan::makeKey(const cl::Device &device, const Type &type)
@@ -405,7 +411,7 @@ ParameterSet Scan::makeKey(const cl::Device &device, const Type &type)
 
     ParameterSet key = deviceKey(device);
     key["algorithm"] = new TypedParameter<std::string>("scan");
-    key["version"] = new TypedParameter<int>(3);
+    key["version"] = new TypedParameter<int>(4);
     key["elementType"] = new TypedParameter<std::string>(canon.getName());
     return key;
 }

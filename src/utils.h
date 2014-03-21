@@ -68,6 +68,11 @@ CLOGS_LOCAL unsigned int getWarpSizeMem(const cl::Device &device);
  */
 CLOGS_LOCAL unsigned int getWarpSizeSchedule(const cl::Device &device);
 
+/**
+ * Create a context that contains only @a device.
+ */
+CLOGS_LOCAL cl::Context contextForDevice(const cl::Device &device);
+
 template<typename T>
 static inline std::string toString(const T &x)
 {
@@ -83,13 +88,21 @@ static inline std::string toString(const T &x)
  */
 CLOGS_LOCAL void enableUnitTests();
 
+/**
+ * Create a program from either source or binary. If binary is a non-empty
+ * string, it is used, falling back to using the source if CL_INVALID_BINARY
+ * is returned. However, if @a allowSource is false then the binary must
+ * succeed or an exception is thrown. If source was used and @a binary is
+ * non-NULL, it is updated with the new program binary.
+ */
 CLOGS_LOCAL cl::Program build(
     const cl::Context &context,
-    const std::vector<cl::Device> &devices,
+    const cl::Device &device,
     const std::string &filename,
     const std::map<std::string, int> &defines,
     const std::map<std::string, std::string> &stringDefines,
-    const std::string &options = "");
+    const std::string &options,
+    std::vector<unsigned char> *binary, bool allowSource);
 
 template<typename T>
 static inline T roundDownPower2(T x)

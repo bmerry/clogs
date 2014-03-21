@@ -32,6 +32,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 #include <map>
 #include <cstddef>
 #include <locale>
@@ -103,6 +104,22 @@ public:
     std::string operator()(const std::string &s) const;
 };
 
+template<> class CLOGS_LOCAL TypedSerializer<std::vector<unsigned char> >
+{
+public:
+    typedef std::string result_type;
+
+    std::string operator()(const std::vector<unsigned char> &x) const;
+};
+
+template<> class CLOGS_LOCAL TypedDeserializer<std::vector<unsigned char> >
+{
+public:
+    typedef std::vector<unsigned char> result_type;
+
+    std::vector<unsigned char> operator()(const std::string &s) const;
+};
+
 template<typename T>
 class CLOGS_LOCAL TypedParameter : public Parameter
 {
@@ -112,6 +129,7 @@ private:
 public:
     explicit TypedParameter(const T &value = T()) : value(value) {}
     T get() const { return value; }
+    T &get() { return value; }
     void set(const T &value) { this->value = value; }
     virtual Parameter *clone() const { return new TypedParameter<T>(*this); }
 

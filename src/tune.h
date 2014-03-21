@@ -154,7 +154,7 @@ public:
             const cl::Context &,
             const cl::Device &,
             std::size_t,
-            const ParameterSet &)> callback,
+            ParameterSet &)> callback,
         double ratio = 0.5);
 
     /**

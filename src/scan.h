@@ -97,31 +97,32 @@ private:
      * or during autotuning.
      *
      * @param context, device, type    Constructor arguments
-     * @param params                   Autotuned parameters
+     * @param[in,out] params           Autotuned parameters (augmented with program if not already present)
+     * @param tuning                   If true, build the program if not already present
      */
     void initialize(
         const cl::Context &context, const cl::Device &device, const Type &type,
-        const ParameterSet &params);
+        ParameterSet &params, bool tuning);
 
     /**
      * Constructor for autotuning
      */
     Scan(const cl::Context &context, const cl::Device &device, const Type &type,
-         const ParameterSet &params);
+         ParameterSet &params);
 
     static std::pair<double, double> tuneReduceCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, const ParameterSet &parameters,
+        std::size_t elements, ParameterSet &parameters,
         const Type &type);
 
     static std::pair<double, double> tuneScanCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, const ParameterSet &parameters,
+        std::size_t elements, ParameterSet &parameters,
         const Type &type);
 
     static std::pair<double, double> tuneBlocksCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, const ParameterSet &parameters,
+        std::size_t elements, ParameterSet &parameters,
         const Type &type);
 public:
     /**

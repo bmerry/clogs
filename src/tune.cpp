@@ -58,6 +58,7 @@
 #include "parameters.h"
 #include "scan.h"
 #include "radixsort.h"
+#include "utils.h"
 
 namespace clogs
 {
@@ -456,7 +457,8 @@ void Tuner::logEndTest(const ParameterSet &params, bool success, double rate)
 
 void Tuner::logResult(const ParameterSet &params)
 {
-    std::cout << params << std::endl;
+    // std::cout << params << std::endl;
+    (void) params;
 }
 
 ParameterSet Tuner::tuneOne(
@@ -468,7 +470,7 @@ ParameterSet Tuner::tuneOne(
         const cl::Context &,
         const cl::Device &,
         std::size_t,
-        const ParameterSet &)> callback,
+        ParameterSet &)> callback,
     double ratio)
 {
     std::vector<ParameterSet> retained = parameterSets;
@@ -482,19 +484,12 @@ ParameterSet Tuner::tuneOne(
         double maxA = -HUGE_VAL;
         for (std::size_t i = 0; i < retained.size(); i++)
         {
-            const ParameterSet &params = retained[i];
+            ParameterSet &params = retained[i];
             logStartTest(params);
             bool valid = false;
             try
             {
-                cl_context_properties props[3] =
-                {
-                    CL_CONTEXT_PLATFORM,
-                    (cl_context_properties) device.getInfo<CL_DEVICE_PLATFORM>(),
-                    0
-                };
-                std::vector<cl::Device> devices(1, device);
-                cl::Context context(devices, props, NULL);
+                cl::Context context = contextForDevice(device);
                 std::pair<double, double> r = callback(context, device, problemSize, params);
                 if (r.first == r.first) // filter out NaN
                 {

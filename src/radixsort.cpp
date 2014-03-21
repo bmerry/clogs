@@ -381,8 +381,7 @@ void Radixsort::initialize(
     try
     {
         histogram = cl::Buffer(context, CL_MEM_READ_WRITE, scanBlocks * radix * sizeof(cl_uint));
-        std::vector<cl::Device> devices(1, device);
-        program = build(context, devices, "radixsort.cl", defines, stringDefines, "");
+        program = build(context, device, "radixsort.cl", defines, stringDefines, "", NULL, true);
 
         reduceKernel = cl::Kernel(program, "radixsortReduce");
 
