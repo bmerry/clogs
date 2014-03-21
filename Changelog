@@ -1,3 +1,5 @@
+* Program binaries are now extracted during tuning and saved in the cache. This can also make tuning faster on systems that don't cache kernels.
+
 1.2.4
 -----
 * Fix definition of WARP_VOLATILE (#28)
