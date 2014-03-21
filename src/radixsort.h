@@ -143,33 +143,34 @@ private:
      * or during autotuning.
      *
      * @param context, device, keyType, valueType    Constructor arguments
-     * @param params                                 Autotuned parameters
+     * @param[in,out] params                         Autotuned parameters (updated with binary if @a autotuning)
+     * @param tuning                                 Whether this construction is for autotuning
      */
     void initialize(
         const cl::Context &context, const cl::Device &device,
         const Type &keyType, const Type &valueType,
-        const ParameterSet &params);
+        ParameterSet &params, bool tuning);
 
     /**
      * Constructor for autotuning
      */
     Radixsort(const cl::Context &context, const cl::Device &device,
               const Type &keyType, const Type &valueType,
-              const ParameterSet &params);
+              ParameterSet &params);
 
     static std::pair<double, double> tuneReduceCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, const ParameterSet &params,
+        std::size_t elements, ParameterSet &params,
         const Type &keyType, const Type &valueType);
 
     static std::pair<double, double> tuneScatterCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, const ParameterSet &params,
+        std::size_t elements, ParameterSet &params,
         const Type &keyType, const Type &valueType);
 
     static std::pair<double, double> tuneBlocksCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, const ParameterSet &params,
+        std::size_t elements, ParameterSet &params,
         const Type &keyType, const Type &valueType);
 public:
     /**

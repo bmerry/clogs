@@ -262,7 +262,7 @@ void Radixsort::setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &va
 void Radixsort::initialize(
     const cl::Context &context, const cl::Device &device,
     const Type &keyType, const Type &valueType,
-    const ParameterSet &params)
+    ParameterSet &params, bool tuning)
 {
     reduceWorkGroupSize = params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
     scanWorkGroupSize = params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
@@ -276,6 +276,7 @@ void Radixsort::initialize(
     const ::size_t warpSizeMem = params.getTyped< ::size_t>("WARP_SIZE_MEM")->get();
     const ::size_t warpSizeSchedule = params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->get();
     scatterSlice = std::max(warpSizeSchedule, ::size_t(radix));
+    std::vector<unsigned char> &binary = params.getTyped<std::vector<unsigned char> >("PROGRAM_BINARY")->get();
 
     std::map<std::string, int> defines;
     std::map<std::string, std::string> stringDefines;
@@ -381,7 +382,7 @@ void Radixsort::initialize(
     try
     {
         histogram = cl::Buffer(context, CL_MEM_READ_WRITE, scanBlocks * radix * sizeof(cl_uint));
-        program = build(context, device, "radixsort.cl", defines, stringDefines, "", NULL, true);
+        program = build(context, device, "radixsort.cl", defines, stringDefines, "", &binary, tuning);
 
         reduceKernel = cl::Kernel(program, "radixsortReduce");
 
@@ -400,10 +401,10 @@ void Radixsort::initialize(
 Radixsort::Radixsort(
     const cl::Context &context, const cl::Device &device,
     const Type &keyType, const Type &valueType,
-    const ParameterSet &params)
+    ParameterSet &params)
     : eventCallback(NULL), eventCallbackUserData(NULL)
 {
-    initialize(context, device, keyType, valueType, params);
+    initialize(context, device, keyType, valueType, params, true);
 }
 
 Radixsort::Radixsort(
@@ -419,7 +420,7 @@ Radixsort::Radixsort(
     ParameterSet key = makeKey(device, keyType, valueType);
     ParameterSet params = parameters();
     getParameters(key, params);
-    initialize(context, device, keyType, valueType, params);
+    initialize(context, device, keyType, valueType, params, false);
 }
 
 ParameterSet Radixsort::parameters()
@@ -433,6 +434,7 @@ ParameterSet Radixsort::parameters()
     ans["SCATTER_WORK_SCALE"] = new TypedParameter< ::size_t>();
     ans["SCAN_BLOCKS"] = new TypedParameter< ::size_t>();
     ans["RADIX_BITS"] = new TypedParameter<unsigned int>();
+    ans["PROGRAM_BINARY"] = new TypedParameter<std::vector<unsigned char> >();
     return ans;
 }
 
@@ -443,7 +445,7 @@ ParameterSet Radixsort::makeKey(
 {
     ParameterSet key = deviceKey(device);
     key["algorithm"] = new TypedParameter<std::string>("radixsort");
-    key["version"] = new TypedParameter<int>(3);
+    key["version"] = new TypedParameter<int>(4);
     key["keyType"] = new TypedParameter<std::string>(keyType.getName());
     key["valueSize"] = new TypedParameter<std::size_t>(valueType.getSize());
     return key;
@@ -484,7 +486,7 @@ static cl::Buffer makeRandomBuffer(const cl::CommandQueue &queue, ::size_t size)
 
 std::pair<double, double> Radixsort::tuneReduceCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, const ParameterSet &params,
+    std::size_t elements, ParameterSet &params,
     const Type &keyType, const Type &valueType)
 {
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
@@ -511,7 +513,7 @@ std::pair<double, double> Radixsort::tuneReduceCallback(
 
 std::pair<double, double> Radixsort::tuneScatterCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, const ParameterSet &params,
+    std::size_t elements, ParameterSet &params,
     const Type &keyType, const Type &valueType)
 {
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
@@ -559,7 +561,7 @@ std::pair<double, double> Radixsort::tuneScatterCallback(
 
 std::pair<double, double> Radixsort::tuneBlocksCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, const ParameterSet &params,
+    std::size_t elements, ParameterSet &params,
     const Type &keyType, const Type &valueType)
 {
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
@@ -604,6 +606,14 @@ std::pair<double, double> Radixsort::tuneBlocksCallback(
     // Fewer blocks means better performance on small problem sizes, so only
     // use more blocks if it makes a real improvement
     return std::make_pair(rate, rate * 1.05);
+}
+
+static void clearBinary(ParameterSet &params)
+{
+    TypedParameter<std::vector<unsigned char> > *binary;
+    binary = params.getTyped<std::vector<unsigned char> >("PROGRAM_BINARY");
+    if (binary != NULL)
+        binary->set(std::vector<unsigned char>());
 }
 
 ParameterSet Radixsort::tune(
@@ -670,6 +680,7 @@ ParameterSet Radixsort::tune(
             cand = tuner.tuneOne(
                 device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneReduceCallback, _1, _2, _3, _4, keyType, valueType));
+            clearBinary(cand);
         }
 
         // Tune the scatter kernel
@@ -692,6 +703,7 @@ ParameterSet Radixsort::tune(
             cand = tuner.tuneOne(
                 device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneScatterCallback, _1, _2, _3, _4, keyType, valueType));
+            clearBinary(cand);
         }
 
         // Tune the block count
@@ -733,11 +745,15 @@ ParameterSet Radixsort::tune(
             cand = tuner.tuneOne(
                 device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneBlocksCallback, _1, _2, _3, _4, keyType, valueType));
+            clearBinary(cand);
         }
 
         // TODO: benchmark the whole combination
         out = cand;
     }
+
+    /* Generate the binary */
+    Radixsort(contextForDevice(device), device, keyType, valueType, out);
     tuner.logResult(out);
     return out;
 }
