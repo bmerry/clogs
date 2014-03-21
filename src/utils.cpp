@@ -161,7 +161,7 @@ cl::Program build(
     VECTOR_CLASS<cl::Device> devices(1, device);
 
     /* Try binary first */
-    if (binary != NULL && !binary->empty())
+    if (binary != NULL && !binary->empty() && !unitTestsEnabled)
     {
         cl::Program::Binaries binaries(1);
         binaries[0] = std::make_pair(static_cast<const void *>(&(*binary)[0]), binary->size());
@@ -183,7 +183,7 @@ cl::Program build(
     }
 
     // Binary missing or did not work
-    if (!allowSource)
+    if (!allowSource && !unitTestsEnabled)
         throw CacheError("cached program binary missing or invalid");
 
     const std::map<std::string, std::string> &sourceMap = detail::getSourceMap();
