@@ -70,12 +70,13 @@ private:
     void *eventCallbackUserData;
 
     /**
-     * Implementation of @ref enqueueInternal, supporting both offsetting and
+     * Implementation of @ref enqueue, supporting both offsetting and
      * non-offsetting. If @a offsetBuffer is not @c NULL, we are doing offseting.
      */
     void enqueueInternal(
         const cl::CommandQueue &commandQueue,
-        const cl::Buffer &buffer,
+        const cl::Buffer &inBuffer,
+        const cl::Buffer &outBuffer,
         ::size_t elements,
         const void *offsetCPU,
         const cl::Buffer *offsetBuffer,
@@ -142,7 +143,8 @@ public:
      * @see @ref clogs::Scan::enqueue.
      */
     void enqueue(const cl::CommandQueue &commandQueue,
-                 const cl::Buffer &buffer,
+                 const cl::Buffer &inBuffer,
+                 const cl::Buffer &outBuffer,
                  ::size_t elements,
                  const void *offset = NULL,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
@@ -153,7 +155,8 @@ public:
      * @see clogs::Scan::enqueue.
      */
     void enqueue(const cl::CommandQueue &commandQueue,
-                 const cl::Buffer &buffer,
+                 const cl::Buffer &inBuffer,
+                 const cl::Buffer &outBuffer,
                  ::size_t elements,
                  const cl::Buffer &offsetBuffer,
                  cl_uint offsetIndex,

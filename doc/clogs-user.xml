@@ -32,6 +32,7 @@
         <copyright>
             <year>2012</year>
             <year>2013</year>
+            <year>2014</year>
             <holder>University of Cape Town</holder>
         </copyright>
         <!-- The releaseinfo element is replaced by the stylesheet to inject
@@ -245,10 +246,10 @@
 ...
 clogs::Scan scanner(context, device, clogs::TYPE_UINT);
 ...
-scanner.enqueue(queue, dataBuffer, numElements);</programlisting>
+scanner.enqueue(queue, inBuffer, outBuffer, numElements);</programlisting>
             <para>
                 The above code first allocates an object that can be used to
-                perform scans. The constructor handles compilation of the
+                perform scans. The constructor handles loading of the
                 internal kernels and allocation of internal storage. These
                 objects are quite slow to create and should be reused where
                 possible.
@@ -262,6 +263,11 @@ scanner.enqueue(queue, dataBuffer, numElements);</programlisting>
                 work in the same way as the other enqueuing functions in
                 the OpenCL C++ API, and allow scans to be combined with other
                 kernel launches in a dependency graph.
+            </para>
+            <para>
+                This is an out-of-place scan, where the output is stored
+                separately from the input. It is also possible to a scan
+                in-place by passing the same value for both buffers.
             </para>
             <para>
                 Now let us look at a slightly more complex sorting example.

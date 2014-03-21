@@ -115,7 +115,7 @@ void Scan::initialize(
         scanSmallKernelOffset.setArg(0, sums);
 
         scanKernel = cl::Kernel(program, "scanExclusive");
-        scanKernel.setArg(1, sums);
+        scanKernel.setArg(2, sums);
     }
     catch (cl::Error &e)
     {
@@ -187,8 +187,9 @@ std::pair<double, double> Scan::tuneScanCallback(
     Scan scan(context, device, type, params);
     cl::Event event;
     scan.scanKernel.setArg(0, buffer);
-    scan.scanKernel.setArg(2, (cl_uint) blockSize);
-    scan.scanKernel.setArg(3, (cl_uint) elements);
+    scan.scanKernel.setArg(1, buffer);
+    scan.scanKernel.setArg(3, (cl_uint) blockSize);
+    scan.scanKernel.setArg(4, (cl_uint) elements);
     // Warmup pass
     queue.enqueueNDRangeKernel(
         scan.scanKernel,
@@ -225,10 +226,10 @@ std::pair<double, double> Scan::tuneBlocksCallback(
     Scan scan(context, device, type, params);
     cl::Event event;
     // Warmup pass
-    scan.enqueue(queue, buffer, elements, NULL, NULL, NULL);
+    scan.enqueue(queue, buffer, buffer, elements, NULL, NULL, NULL);
     queue.finish();
     // Timing pass
-    scan.enqueue(queue, buffer, elements, NULL, NULL, &event);
+    scan.enqueue(queue, buffer, buffer, elements, NULL, NULL, &event);
     queue.finish();
 
     event.wait();
@@ -429,7 +430,8 @@ void Scan::setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void
 }
 
 void Scan::enqueueInternal(const cl::CommandQueue &commandQueue,
-                           const cl::Buffer &buffer,
+                           const cl::Buffer &inBuffer,
+                           const cl::Buffer &outBuffer,
                            ::size_t elements,
                            const void *offsetHost,
                            const cl::Buffer *offsetBuffer,
@@ -438,13 +440,21 @@ void Scan::enqueueInternal(const cl::CommandQueue &commandQueue,
                            cl::Event *event)
 {
     /* Validate parameters */
-    if (buffer.getInfo<CL_MEM_SIZE>() < elements * elementSize)
+    if (inBuffer.getInfo<CL_MEM_SIZE>() < elements * elementSize)
     {
         throw cl::Error(CL_INVALID_VALUE, "clogs::Scan::enqueue: range out of buffer bounds");
     }
-    if (!(buffer.getInfo<CL_MEM_FLAGS>() & CL_MEM_READ_WRITE))
+    if (outBuffer.getInfo<CL_MEM_SIZE>() < elements * elementSize)
     {
-        throw cl::Error(CL_INVALID_VALUE, "clogs::Scan::enqueue: buffer is not read-write");
+        throw cl::Error(CL_INVALID_VALUE, "clogs::Scan::enqueue: range out of buffer bounds");
+    }
+    if (!(inBuffer.getInfo<CL_MEM_FLAGS>() & (CL_MEM_READ_WRITE | CL_MEM_READ_ONLY)))
+    {
+        throw cl::Error(CL_INVALID_VALUE, "clogs::Scan::enqueue: input buffer is not readable");
+    }
+    if (!(outBuffer.getInfo<CL_MEM_FLAGS>() & (CL_MEM_READ_WRITE | CL_MEM_WRITE_ONLY)))
+    {
+        throw cl::Error(CL_INVALID_VALUE, "clogs::Scan::enqueue: output buffer is not writable");
     }
     if (offsetBuffer != NULL)
     {
@@ -471,12 +481,13 @@ void Scan::enqueueInternal(const cl::CommandQueue &commandQueue,
     assert((allBlocks - 1) * blockSize <= elements);
     assert(allBlocks * blockSize >= elements);
 
-    reduceKernel.setArg(1, buffer);
+    reduceKernel.setArg(1, inBuffer);
     reduceKernel.setArg(2, (cl_uint) blockSize);
 
-    scanKernel.setArg(0, buffer);
-    scanKernel.setArg(2, (cl_uint) blockSize);
-    scanKernel.setArg(3, (cl_uint) elements);
+    scanKernel.setArg(0, inBuffer);
+    scanKernel.setArg(1, outBuffer);
+    scanKernel.setArg(3, (cl_uint) blockSize);
+    scanKernel.setArg(4, (cl_uint) elements);
 
     const cl::Kernel &smallKernel = offsetBuffer ? scanSmallKernelOffset : scanSmallKernel;
     if (offsetBuffer != NULL)
@@ -526,24 +537,26 @@ void Scan::enqueueInternal(const cl::CommandQueue &commandQueue,
 }
 
 void Scan::enqueue(const cl::CommandQueue &commandQueue,
-                   const cl::Buffer &buffer,
+                   const cl::Buffer &inBuffer,
+                   const cl::Buffer &outBuffer,
                    ::size_t elements,
                    const void *offset,
                    const VECTOR_CLASS<cl::Event> *events,
                    cl::Event *event)
 {
-    enqueueInternal(commandQueue, buffer, elements, offset, NULL, 0, events, event);
+    enqueueInternal(commandQueue, inBuffer, outBuffer, elements, offset, NULL, 0, events, event);
 }
 
 void Scan::enqueue(const cl::CommandQueue &commandQueue,
-                   const cl::Buffer &buffer,
+                   const cl::Buffer &inBuffer,
+                   const cl::Buffer &outBuffer,
                    ::size_t elements,
                    const cl::Buffer &offsetBuffer,
                    cl_uint offsetIndex,
                    const VECTOR_CLASS<cl::Event> *events,
                    cl::Event *event)
 {
-    enqueueInternal(commandQueue, buffer, elements, NULL, &offsetBuffer, offsetIndex, events, event);
+    enqueueInternal(commandQueue, inBuffer, outBuffer, elements, NULL, &offsetBuffer, offsetIndex, events, event);
 }
 
 } // namespace detail
@@ -570,7 +583,18 @@ void Scan::enqueue(const cl::CommandQueue &commandQueue,
                    const VECTOR_CLASS<cl::Event> *events,
                    cl::Event *event)
 {
-    detail_->enqueue(commandQueue, buffer, elements, offset, events, event);
+    detail_->enqueue(commandQueue, buffer, buffer, elements, offset, events, event);
+}
+
+void Scan::enqueue(const cl::CommandQueue &commandQueue,
+                   const cl::Buffer &inBuffer,
+                   const cl::Buffer &outBuffer,
+                   ::size_t elements,
+                   const void *offset,
+                   const VECTOR_CLASS<cl::Event> *events,
+                   cl::Event *event)
+{
+    detail_->enqueue(commandQueue, inBuffer, outBuffer, elements, offset, events, event);
 }
 
 void Scan::enqueue(const cl::CommandQueue &commandQueue,
@@ -581,7 +605,19 @@ void Scan::enqueue(const cl::CommandQueue &commandQueue,
                    const VECTOR_CLASS<cl::Event> *events,
                    cl::Event *event)
 {
-    detail_->enqueue(commandQueue, buffer, elements, offsetBuffer, offsetIndex, events, event);
+    detail_->enqueue(commandQueue, buffer, buffer, elements, offsetBuffer, offsetIndex, events, event);
+}
+
+void Scan::enqueue(const cl::CommandQueue &commandQueue,
+                   const cl::Buffer &inBuffer,
+                   const cl::Buffer &outBuffer,
+                   ::size_t elements,
+                   const cl::Buffer &offsetBuffer,
+                   cl_uint offsetIndex,
+                   const VECTOR_CLASS<cl::Event> *events,
+                   cl::Event *event)
+{
+    detail_->enqueue(commandQueue, inBuffer, outBuffer, elements, offsetBuffer, offsetIndex, events, event);
 }
 
 } // namespace clogs

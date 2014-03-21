@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012, 2014 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -282,7 +282,8 @@ void scanExclusiveSmallOffset(__global SCAN_T *inout,
 /**
  * Does an exclusive scan a possibly large range, given initial offsets per work-group.
  *
- * @param[in,out] inout   Sequence to scan, replaced in-place
+ * @param[in]     in      Sequence to scan
+ * @param[out]    out     Prefix sums (may be the same buffer as @a in
  * @param         offsets The starting offset for each work-group
  * @param         len     Number of elements to scan per work-group
  * @param         total   Total number of elements to scan
@@ -290,7 +291,12 @@ void scanExclusiveSmallOffset(__global SCAN_T *inout,
  * @pre @a len is a multiple of @c SCAN_WORK_SCALE * @c SCAN_WORK_GROUP_SIZE
  */
 KERNEL(SCAN_WORK_GROUP_SIZE)
-void scanExclusive(__global SCAN_T *inout, __global const SCAN_T *offsets, uint len, uint total)
+void scanExclusive(
+    __global const SCAN_T *in,
+    __global SCAN_T *out,
+    __global const SCAN_T *offsets,
+    uint len,
+    uint total)
 {
     /* The algorithm operates on tiles of size SCAN_WORK_GROUP_SIZE*SCAN_WORK_SCALE.
      * Each tile is scanned in a two-level hierarchy. Each workitem reads SCAN_WORK_SCALE
@@ -323,8 +329,10 @@ void scanExclusive(__global SCAN_T *inout, __global const SCAN_T *offsets, uint 
     const uint lid = get_local_id(0);
     SCAN_T offset;
 
-    inout += get_group_id(0) * len;
-    total -= get_group_id(0) * len;
+    size_t bias = get_group_id(0) * len;
+    in += bias;
+    out += bias;
+    total -= bias;
     offset = offsets[get_group_id(0)];
     for (uint start = 0; start < len; start += SCAN_WORK_SCALE * SCAN_WORK_GROUP_SIZE)
     {
@@ -332,7 +340,7 @@ void scanExclusive(__global SCAN_T *inout, __global const SCAN_T *offsets, uint 
         for (uint i = 0; i < SCAN_WORK_SCALE; i++)
         {
             uint addr = start + lid + i * SCAN_WORK_GROUP_SIZE;
-            x.raw[lid + i * SCAN_WORK_GROUP_SIZE] = (addr < total) ? inout[addr] : (SCAN_T) 0;
+            x.raw[lid + i * SCAN_WORK_GROUP_SIZE] = (addr < total) ? in[addr] : (SCAN_T) 0;
         }
         barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -406,7 +414,7 @@ void scanExclusive(__global SCAN_T *inout, __global const SCAN_T *offsets, uint 
         {
             uint addr = start + lid + i * SCAN_WORK_GROUP_SIZE;
             if (addr < total)
-                inout[addr] = x.raw[lid + i * SCAN_WORK_GROUP_SIZE];
+                out[addr] = x.raw[lid + i * SCAN_WORK_GROUP_SIZE];
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }

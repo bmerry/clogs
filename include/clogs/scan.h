@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 University of Cape Town
+/* Copyright (c) 2012, 2014 University of Cape Town
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -98,6 +98,19 @@ public:
     void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
 
     /**
+     * Enqueue a scan operation on a command queue (in-place).
+     *
+     * This is equivalent to calling
+     * @c enqueue(@a commandQueue, @a buffer, @a buffer, @a elements, @a offset, @a events, @a event);
+     */
+    void enqueue(const cl::CommandQueue &commandQueue,
+                 const cl::Buffer &buffer,
+                 ::size_t elements,
+                 const void *offset = NULL,
+                 const VECTOR_CLASS<cl::Event> *events = NULL,
+                 cl::Event *event = NULL);
+
+    /**
      * Enqueue a scan operation on a command queue.
      *
      * An initial offset may optionally be passed in @a offset, which will be
@@ -105,8 +118,11 @@ public:
      * type of element specified to the constructor. If no offset is desired,
      * @c NULL may be passed instead.
      *
+     * The input and output buffers may be the same to do an in-place scan.
+     *
      * @param commandQueue         The command queue to use.
-     * @param buffer               The buffer to scan.
+     * @param inBuffer             The buffer to scan.
+     * @param outBuffer            The buffer to fill with output.
      * @param elements             The number of elements to scan.
      * @param offset               The offset to add to all elements, or @c NULL.
      * @param events               Events to wait for before starting.
@@ -122,9 +138,24 @@ public:
      *   before @c i, plus the @a offset (if any).
      */
     void enqueue(const cl::CommandQueue &commandQueue,
-                 const cl::Buffer &buffer,
+                 const cl::Buffer &inBuffer,
+                 const cl::Buffer &outBuffer,
                  ::size_t elements,
                  const void *offset = NULL,
+                 const VECTOR_CLASS<cl::Event> *events = NULL,
+                 cl::Event *event = NULL);
+
+    /**
+     * Enqueue a scan operation on a command queue, with an offset in a buffer (in-place).
+     *
+     * This is equivalent to calling
+     * @c enqueue(@a commandQueue, @a buffer, @a buffer, @a elements, @a offsetBuffer, @a offsetIndex, @a events, @a event);
+     */
+    void enqueue(const cl::CommandQueue &commandQueue,
+                 const cl::Buffer &buffer,
+                 ::size_t elements,
+                 const cl::Buffer &offsetBuffer,
+                 cl_uint offsetIndex,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
                  cl::Event *event = NULL);
 
@@ -140,8 +171,11 @@ public:
      * scan is used with one extra element at the end to hold the grand total,
      * and the subsequent passes use this extra element as the offset.
      *
+     * The input and output buffers may be the same to do an in-place scan.
+     *
      * @param commandQueue         The command queue to use.
-     * @param buffer               The buffer to scan.
+     * @param inBuffer             The buffer to scan.
+     * @param outBuffer            The buffer to fill with output.
      * @param elements             The number of elements to scan.
      * @param offsetBuffer         Buffer containing a value to add to all elements.
      * @param offsetIndex          Index (in units of the scan type) into @a offsetBuffer.
@@ -160,7 +194,8 @@ public:
      *   before @c i, plus the offset.
      */
     void enqueue(const cl::CommandQueue &commandQueue,
-                 const cl::Buffer &buffer,
+                 const cl::Buffer &inBuffer,
+                 const cl::Buffer &outBuffer,
                  ::size_t elements,
                  const cl::Buffer &offsetBuffer,
                  cl_uint offsetIndex,
