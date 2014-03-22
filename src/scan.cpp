@@ -412,7 +412,7 @@ ParameterSet Scan::makeKey(const cl::Device &device, const Type &type)
 
     ParameterSet key = deviceKey(device);
     key["algorithm"] = new TypedParameter<std::string>("scan");
-    key["version"] = new TypedParameter<int>(4);
+    key["version"] = new TypedParameter<int>(5);
     key["elementType"] = new TypedParameter<std::string>(canon.getName());
     return key;
 }
