@@ -102,7 +102,7 @@ public:
     void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
 
     /**
-     * Enqueue a scan operation on a command queue.
+     * Enqueue a sort operation on a command queue.
      *
      * If the range of the keys is known to be smaller than the range of the
      * the type holding them, passing an appropriate @a maxBits can improve
