@@ -27,7 +27,7 @@ from waflib.TaskGen import feature, after_method
 from waflib import Task
 
 APPNAME = 'clogs'
-VERSION = '1.2.4'
+VERSION = '1.3.0'
 out = 'build'
 
 variants = {
