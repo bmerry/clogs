@@ -23,7 +23,7 @@
 # define __CL_ENABLE_EXCEPTIONS
 #endif
 
-#include <CL/cl.hpp>
+#include "../src/clhpp11.h"
 #include <boost/program_options.hpp>
 #include <vector>
 #include "options.h"

@@ -36,7 +36,7 @@
 #include <string>
 #include <stdexcept>
 #include <typeinfo>
-#include <CL/cl.hpp>
+#include "../src/clhpp11.h"
 #include "clogs_test.h"
 #include "../tools/options.h"
 #include "../src/utils.h"

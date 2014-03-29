@@ -1,5 +1,6 @@
 * Program binaries are now extracted during tuning and saved in the cache (see #8). This can also make tuning faster on systems that don't cache kernels.
 * Out-of-place scan is now supported (partially implements #12).
+* Workaround to avoid depending on OpenCL 1.2 ICD
 
 1.2.4
 -----

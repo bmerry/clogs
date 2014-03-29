@@ -30,7 +30,7 @@
 #endif
 
 #include <clogs/visibility_push.h>
-#include <CL/cl.hpp>
+#include "clhpp11.h"
 #include <map>
 #include <string>
 #include <vector>
