@@ -78,8 +78,15 @@
             </para>
             <itemizedlist>
                 <listitem><para>
-                        An OpenCL implementation and headers (including
-                        <filename type="header">CL/cl.hpp</filename>).
+                        An OpenCL implementation and headers, including a recent
+                        version of <filename type="header">CL/cl.hpp</filename>.
+                        If you have compilation problems, it might be that your
+                        vendor SDK is providing an old version. You can
+                        download the latest from the <ulink
+                            url="http://www.khronos.org/registry/cl">registry</ulink>. Note
+                        that you should use the version for the latest version of OpenCL
+                        (currently 1.2), even if you are targeting an older
+                        OpenCL version.
                 </para></listitem>
                 <listitem><para>
                         A C++ compiler. GCC 4.8 and Visual C++ 2010 have been
