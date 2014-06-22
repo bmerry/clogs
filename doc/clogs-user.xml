@@ -460,5 +460,21 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
             OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
             SOFTWARE.
         </para>
+        <section>
+            <title>SQLite 3</title>
+            <para>
+                This software includes SQLite 3.8.5, which is in the public
+                domain. For details, refer to the <ulink
+                    url="http://sqlite.org/copyright.html">website</ulink>.
+            </para>
+        </section>
+        <section>
+            <title>MD5</title>
+            <para>
+                The files <filename>src/md5.c</filename> and
+                <filename>src/md5.h</filename> are copyright Aladdin
+                Enterprises. Refer to the source code for the license terms.
+            </para>
+        </section>
     </chapter>
 </book>
