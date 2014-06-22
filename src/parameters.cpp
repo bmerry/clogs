@@ -36,9 +36,6 @@
 #include <clogs/visibility_pop.h>
 
 #include "parameters.h"
-#include "md5.h"
-#include "base64_encode.h"
-#include "base64_decode.h"
 
 namespace clogs
 {
@@ -46,44 +43,6 @@ namespace detail
 {
 
 Parameter::~Parameter() {}
-
-std::string TypedSerializer<std::string>::operator()(const std::string &x) const
-{
-    return base64encode(x);
-}
-
-std::string TypedDeserializer<std::string>::operator()(const std::string &s) const
-{
-    try
-    {
-        return base64decode(s);
-    }
-    catch (Base64DecodeError &e)
-    {
-        throw CacheError(e.what());
-    }
-}
-
-std::string TypedSerializer<std::vector<unsigned char> >::operator()(
-    const std::vector<unsigned char> &x) const
-{
-    std::string s(x.begin(), x.end());
-    return base64encode(s);
-}
-
-std::vector<unsigned char> TypedDeserializer<std::vector<unsigned char> >::operator()(
-    const std::string &s) const
-{
-    try
-    {
-        std::string x = base64decode(s);
-        return std::vector<unsigned char>(x.begin(), x.end());
-    }
-    catch (Base64DecodeError &e)
-    {
-        throw CacheError(e.what());
-    }
-}
 
 ParameterSet::ParameterSet()
 {
@@ -121,92 +80,6 @@ ParameterSet::~ParameterSet()
 {
     for (iterator i = begin(); i != end(); ++i)
         delete i->second;
-}
-
-std::string ParameterSet::hash(const std::string &plain)
-{
-    static const char hex[] = "0123456789abcdef";
-    md5_byte_t digest[16];
-    md5_state_t pms;
-    md5_init(&pms);
-    md5_append(&pms, reinterpret_cast<const md5_byte_t *>(plain.data()), plain.size());
-    md5_finish(&pms, digest);
-    std::string ans(32, ' ');
-    for (int i = 0; i < 16; i++)
-    {
-        ans[2 * i] = hex[digest[i] >> 4];
-        ans[2 * i + 1] = hex[digest[i] & 0xf];
-    }
-    return ans;
-}
-
-std::string ParameterSet::hash() const
-{
-    std::ostringstream plain;
-    plain.imbue(std::locale::classic());
-    plain << *this;
-    return hash(plain.str());
-}
-
-bool ParameterSet::operator==(const ParameterSet &other) const
-{
-    const_iterator a = begin(), b = other.begin();
-    while (a != end() && b != other.end())
-    {
-        if (a->first != b->first)
-            return false;
-        if (a->second->serialize() != b->second->serialize())
-            return false;
-        ++a;
-        ++b;
-    }
-    return a == end() && b == other.end();
-}
-
-bool ParameterSet::operator<(const ParameterSet &other) const
-{
-    const_iterator a = begin(), b = other.begin();
-    while (a != end() && b != other.end())
-    {
-        if (a->first != b->first)
-            return a->first < b->first;
-        const std::string av = a->second->serialize();
-        const std::string bv = b->second->serialize();
-        if (av != bv)
-            return av < bv;
-        ++a;
-        ++b;
-    }
-    return b != other.end();
-}
-
-bool ParameterSet::operator!=(const ParameterSet &other) const
-{
-    return !(*this == other);
-}
-
-bool ParameterSet::operator>(const ParameterSet &other) const
-{
-    return other < *this;
-}
-
-bool ParameterSet::operator<=(const ParameterSet &other) const
-{
-    return !(other < *this);
-}
-
-bool ParameterSet::operator>=(const ParameterSet &other) const
-{
-    return !(*this < other);
-}
-
-std::ostream &operator<<(std::ostream &o, const ParameterSet &params)
-{
-    for (ParameterSet::const_iterator i = params.begin(); i != params.end(); ++i)
-    {
-        o << i->first << '=' << i->second->serialize() << '\n';
-    }
-    return o;
 }
 
 } // namespace detail

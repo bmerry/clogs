@@ -44,17 +44,9 @@ class TestIntParameter : public CppUnit::TestFixture
 {
     CPPUNIT_TEST_SUITE(TestIntParameter);
     CPPUNIT_TEST(testGetSet);
-    CPPUNIT_TEST(testSerialize);
-    CPPUNIT_TEST(testDeserialize);
-    CPPUNIT_TEST(testDeserializeBad);
-    CPPUNIT_TEST(testDeserializeRange);
     CPPUNIT_TEST_SUITE_END();
 public:
     void testGetSet();
-    void testSerialize();          ///< Test @c serialize
-    void testDeserialize();        ///< Input of a normal value
-    void testDeserializeBad();     ///< Input from a bogus string
-    void testDeserializeRange();   ///< Input of an out-of-range value
 };
 CPPUNIT_TEST_SUITE_REGISTRATION(TestIntParameter);
 
@@ -66,34 +58,6 @@ void TestIntParameter::testGetSet()
     CPPUNIT_ASSERT_EQUAL(5, p.get());
 }
 
-void TestIntParameter::testSerialize()
-{
-    std::auto_ptr<Parameter> p(new TypedParameter<int>(12345));
-    CPPUNIT_ASSERT_EQUAL(std::string("12345"), p->serialize());
-}
-
-void TestIntParameter::testDeserialize()
-{
-    TypedParameter<int> p;
-    p.deserialize("12345");
-    CPPUNIT_ASSERT_EQUAL(12345, p.get());
-}
-
-void TestIntParameter::testDeserializeBad()
-{
-    TypedParameter<int> p;
-    CPPUNIT_ASSERT_THROW(p.deserialize("abcde"), clogs::CacheError);
-    CPPUNIT_ASSERT_THROW(p.deserialize(""), clogs::CacheError);
-    CPPUNIT_ASSERT_THROW(p.deserialize("123abcde"), clogs::CacheError);
-    CPPUNIT_ASSERT_THROW(p.deserialize("123 456"), clogs::CacheError);
-}
-
-void TestIntParameter::testDeserializeRange()
-{
-    TypedParameter<int> p;
-    CPPUNIT_ASSERT_THROW(p.deserialize("1000000000000"), clogs::CacheError);
-}
-
 /**
  * Tests for @ref TypedParameter<std::string>.
  */
@@ -101,17 +65,9 @@ class TestStringParameter : public CppUnit::TestFixture
 {
     CPPUNIT_TEST_SUITE(TestStringParameter);
     CPPUNIT_TEST(testGetSet);
-    CPPUNIT_TEST(testSerialize);
-    CPPUNIT_TEST(testDeserialize);
-    CPPUNIT_TEST(testDeserializeEmpty);
-    CPPUNIT_TEST(testDeserializeBad);
     CPPUNIT_TEST_SUITE_END();
 public:
     void testGetSet();
-    void testSerialize();
-    void testDeserialize();
-    void testDeserializeEmpty();
-    void testDeserializeBad();
 };
 CPPUNIT_TEST_SUITE_REGISTRATION(TestStringParameter);
 
@@ -123,55 +79,17 @@ void TestStringParameter::testGetSet()
     CPPUNIT_ASSERT_EQUAL(std::string("world"), p.get());
 }
 
-void TestStringParameter::testSerialize()
-{
-    std::auto_ptr<TypedParameter<std::string> > p(new TypedParameter<std::string>("foo"));
-    CPPUNIT_ASSERT_EQUAL(std::string("Zm9v"), p->serialize());
-}
-
-void TestStringParameter::testDeserialize()
-{
-    TypedParameter<std::string> p;
-    p.deserialize("Zm9v");
-    CPPUNIT_ASSERT_EQUAL(std::string("foo"), p.get());
-}
-
-void TestStringParameter::testDeserializeBad()
-{
-    TypedParameter<std::string> p;
-    CPPUNIT_ASSERT_THROW(p.deserialize("hello"), clogs::CacheError);
-    CPPUNIT_ASSERT_THROW(p.deserialize("Zm9v Zm9v"), clogs::CacheError);
-    CPPUNIT_ASSERT_THROW(p.deserialize("===="), clogs::CacheError);
-}
-
-void TestStringParameter::testDeserializeEmpty()
-{
-    TypedParameter<std::string> p("dummy");
-    p.deserialize("");
-    CPPUNIT_ASSERT_EQUAL(std::string(), p.get());
-}
-
 /**
- * 
+ *
  */
 class TestParameterSet : public CppUnit::TestFixture
 {
     CPPUNIT_TEST_SUITE(TestParameterSet);
     CPPUNIT_TEST(testAssign);
-    CPPUNIT_TEST(testHash);
-    CPPUNIT_TEST(testCompareSame);
-    CPPUNIT_TEST(testCompareKey);
-    CPPUNIT_TEST(testCompareValue);
-    CPPUNIT_TEST(testComparePrefix);
     CPPUNIT_TEST_SUITE_END();
 
 public:
     void testAssign();         ///< Test assignment operator
-    void testHash();           ///< Test computation of the MD5 sum, using RFC 1321 test suite
-    void testCompareSame();    ///< Test comparison functions when identical
-    void testCompareKey();     ///< Test comparison functions when keys differ
-    void testCompareValue();   ///< Test comparison functions when only values differ
-    void testComparePrefix();  ///< Test comparison functions when one is a prefix
 };
 CPPUNIT_TEST_SUITE_REGISTRATION(TestParameterSet);
 
@@ -190,97 +108,5 @@ void TestParameterSet::testAssign()
     b["dummy"] = new TypedParameter<std::size_t>(5);
 
     b = a;
-    std::ostringstream astr, bstr;
-    astr.imbue(std::locale::classic());
-    bstr.imbue(std::locale::classic());
-    astr << a;
-    bstr << b;
-    CPPUNIT_ASSERT_EQUAL(astr.str(), bstr.str());
-}
-
-void TestParameterSet::testHash()
-{
-    CPPUNIT_ASSERT_EQUAL(std::string("d41d8cd98f00b204e9800998ecf8427e"),
-                         ParameterSet::hash(""));
-    CPPUNIT_ASSERT_EQUAL(std::string("0cc175b9c0f1b6a831c399e269772661"),
-                         ParameterSet::hash("a"));
-    CPPUNIT_ASSERT_EQUAL(std::string("900150983cd24fb0d6963f7d28e17f72"),
-                         ParameterSet::hash("abc"));
-    CPPUNIT_ASSERT_EQUAL(std::string("f96b697d7cb7938d525a2f31aaf161d0"),
-                         ParameterSet::hash("message digest"));
-    CPPUNIT_ASSERT_EQUAL(std::string("c3fcd3d76192e4007dfb496cca67e13b"),
-                         ParameterSet::hash("abcdefghijklmnopqrstuvwxyz"));
-    CPPUNIT_ASSERT_EQUAL(std::string("d174ab98d277d9f5a5611c2c9f419d9f"),
-                         ParameterSet::hash("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"));
-    CPPUNIT_ASSERT_EQUAL(std::string("57edf4a22be3c955ac49da2e2107b67a"),
-                         ParameterSet::hash("12345678901234567890123456789012345678901234567890123456789012345678901234567890"));
-}
-
-void TestParameterSet::testCompareSame()
-{
-    ParameterSet a, b;
-    a["foo"] = new TypedParameter<int>(5);
-    a["bar"] = new TypedParameter<std::string>("hello");
-
-    b["bar"] = new TypedParameter<std::string>("hello");
-    b["foo"] = new TypedParameter<int>(5);
-
-    CPPUNIT_ASSERT(a == b);
-    CPPUNIT_ASSERT(!(a != b));
-    CPPUNIT_ASSERT(!(a < b));
-    CPPUNIT_ASSERT(!(a > b));
-    CPPUNIT_ASSERT(a <= b);
-    CPPUNIT_ASSERT(a >= b);
-}
-
-template<typename T>
-static void assertLess(const T &a, const T &b)
-{
-    CPPUNIT_ASSERT(!(a == b));
-    CPPUNIT_ASSERT(a != b);
-    CPPUNIT_ASSERT(a < b);
-    CPPUNIT_ASSERT(!(b < a));
-    CPPUNIT_ASSERT(a <= b);
-    CPPUNIT_ASSERT(!(b <= a));
-    CPPUNIT_ASSERT(b > a);
-    CPPUNIT_ASSERT(!(a > b));
-    CPPUNIT_ASSERT(b >= a);
-    CPPUNIT_ASSERT(!(a >= b));
-}
-
-void TestParameterSet::testCompareKey()
-{
-    ParameterSet a, b;
-    a["foo"] = new TypedParameter<int>(5);
-    a["bar"] = new TypedParameter<std::string>("hello");
-
-    b["foobar"] = new TypedParameter<int>(5);
-    b["bar"] = new TypedParameter<std::string>("hello");
-
-    assertLess(a, b);
-}
-
-void TestParameterSet::testCompareValue()
-{
-    ParameterSet a, b;
-    a["foo"] = new TypedParameter<int>(5);
-    a["bar"] = new TypedParameter<std::string>("hello");
-
-    b["foo"] = new TypedParameter<int>(5);
-    b["bar"] = new TypedParameter<std::string>("hello world");
-
-    assertLess(a, b);
-}
-
-void TestParameterSet::testComparePrefix()
-{
-    ParameterSet a, b;
-    a["foo"] = new TypedParameter<int>(5);
-    a["bar"] = new TypedParameter<std::string>("hello");
-
-    b["foo"] = new TypedParameter<int>(5);
-    b["bar"] = new TypedParameter<std::string>("hello");
-    b["zzz"] = new TypedParameter<int>(2);
-
-    assertLess(a, b);
+    // TODO: fix up this test
 }

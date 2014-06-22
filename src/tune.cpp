@@ -114,6 +114,8 @@ static const wchar_t dirSep = L'\\';
  * reported.
  *
  * @todo Need to document the algorithm in the user manual
+ *
+ * @todo Store cache directory in UTF-8
  */
 static path_string getCacheDirStatic();
 
@@ -134,11 +136,6 @@ static path_string getCacheDirStatic()
     }
     else
         return envCacheDir;
-}
-
-static path_string toPathString(const std::string &s)
-{
-    return s;
 }
 
 static std::string fromPathString(const path_string &s)
@@ -174,16 +171,6 @@ static path_string getCacheDirStatic()
         return envCacheDir;
 }
 
-static path_string toPathString(const std::string &s)
-{
-    int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, NULL, 0);
-    path_char *out = new path_char[len];
-    MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, out, len);
-    path_string ret(out);
-    delete[] out;
-    return ret;
-}
-
 static std::string fromPathString(const path_string &s)
 {
     int len = WideCharToMultiByte(CP_UTF8, 0, s.c_str(), -1, NULL, 0, NULL, NULL);
@@ -204,16 +191,6 @@ static path_string getCacheDir()
 {
     static const path_string ans = getCacheDirStatic();
     return ans;
-}
-
-/**
- * Returns the filename where parameters for an algorithm are stored.
- */
-static path_string getCacheFile(const ParameterSet &key)
-{
-    const std::string hash = key.hash();
-    const path_string path = getCacheDir() + dirSep + toPathString(hash);
-    return path;
 }
 
 /**
@@ -402,22 +379,6 @@ static void saveParameters(const ParameterSet &key, const ParameterSet &values)
     status = sqlite3_finalize(stmt);
     if (status != SQLITE_OK)
         throw CacheError(sqlite3_errstr(status));
-
-    const std::string hash = key.hash();
-    const path_string path = getCacheFile(key);
-    std::ofstream out(path.c_str());
-    if (!out)
-        throw SaveParametersError(fromPathString(path), errno);
-    out.imbue(std::locale::classic());
-    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
-        out << "# " << i->first << "=" << i->second->serialize() << '\n';
-    out << values;
-    out.close();
-    if (!out)
-    {
-        // TODO: erase the file?
-        throw SaveParametersError(fromPathString(path), errno);
-    }
 }
 
 } // anonymous namespace
@@ -477,7 +438,6 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
             {
                 std::cout << "Tuning scan for " << type.getName() << " elements on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
-                const std::string hash = key.hash();
                 try
                 {
                     ParameterSet params = Scan::tune(*this, device, problem);
@@ -539,7 +499,6 @@ void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
                             << "Tuning radixsort for " << keyType.getName() << " keys and "
                             << valueType.getSize() << " byte values on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
-                        const std::string hash = key.hash();
                         try
                         {
                             ParameterSet params = Radixsort::tune(*this, device, problem);
