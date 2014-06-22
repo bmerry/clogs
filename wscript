@@ -292,7 +292,7 @@ def build(bld):
             name = 'CLOGS-SH',
             use = 'OPENCL OS',
             vnum = VERSION)
-    if bld.env['HAVE_CPPUNIT_TEST_H']:
+    if 'HAVE_CPPUNIT_TEST_H=1' in bld.env['DEFINES']:
         bld.program(
                 source = bld.path.ant_glob('test/*.cpp') + ['tools/options.cpp', 'tools/timer.cpp'],
                 defines = ['CLOGS_DLL_DO_STATIC'],
