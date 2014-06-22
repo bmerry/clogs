@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2014 University of Cape Town
+ * Copyright (c) 2014, Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,6 +48,20 @@ namespace detail
 {
 
 class Tuner;
+class Scan;
+
+/**
+ * Internal implementations of @ref clogs::ScanProblem.
+ */
+class CLOGS_LOCAL ScanProblem
+{
+private:
+    friend class Scan;
+    Type type;
+
+public:
+    void setType(const Type &type);
+};
 
 /**
  * Internal implementation of @ref clogs::Scan.
@@ -97,40 +112,40 @@ private:
      * Second construction phase. This is called either by the normal constructor
      * or during autotuning.
      *
-     * @param context, device, type    Constructor arguments
+     * @param context, device, problem Constructor arguments
      * @param[in,out] params           Autotuned parameters (augmented with program if not already present)
      * @param tuning                   If true, build the program if not already present
      */
     void initialize(
-        const cl::Context &context, const cl::Device &device, const Type &type,
+        const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
         ParameterSet &params, bool tuning);
 
     /**
      * Constructor for autotuning
      */
-    Scan(const cl::Context &context, const cl::Device &device, const Type &type,
+    Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
          ParameterSet &params);
 
     static std::pair<double, double> tuneReduceCallback(
         const cl::Context &context, const cl::Device &device,
         std::size_t elements, ParameterSet &parameters,
-        const Type &type);
+        const ScanProblem &problem);
 
     static std::pair<double, double> tuneScanCallback(
         const cl::Context &context, const cl::Device &device,
         std::size_t elements, ParameterSet &parameters,
-        const Type &type);
+        const ScanProblem &problem);
 
     static std::pair<double, double> tuneBlocksCallback(
         const cl::Context &context, const cl::Device &device,
         std::size_t elements, ParameterSet &parameters,
-        const Type &type);
+        const ScanProblem &problem);
 public:
     /**
      * Constructor.
      * @see @ref clogs::Scan::Scan
      */
-    Scan(const cl::Context &context, const cl::Device &device, const Type &type);
+    Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem);
 
     /**
      * Set a callback to be notified of enqueued commands.
@@ -171,20 +186,20 @@ public:
     /**
      * Returns key for looking up autotuning parameters.
      *
-     * @param device, type  Constructor parameters.
+     * @param device, problem  Constructor parameters.
      */
-    static ParameterSet makeKey(const cl::Device &device, const Type &type);
+    static ParameterSet makeKey(const cl::Device &device, const ScanProblem &problem);
 
     /**
      * Perform autotuning.
      *
      * @param tuner       Tuner for reporting results
      * @param device      Device to tune for
-     * @param type        Type to scan
+     * @param problem     Scan parameters
      */
     static ParameterSet tune(
         Tuner &tuner,
-        const cl::Device &device, const Type &type);
+        const cl::Device &device, const ScanProblem &problem);
 
     /**
      * Return whether a type is supported for scanning on a device.

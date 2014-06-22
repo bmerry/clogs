@@ -1,4 +1,5 @@
 /* Copyright (c) 2012 University of Cape Town
+ * Copyright (c) 2014, Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -261,7 +262,12 @@ void TestRadixsort::setUp()
 {
     clogs::Test::TestFixture::setUp();
     if (g_sort == NULL)
-        g_sort.reset(new clogs::detail::Radixsort(context, device, clogs::TYPE_UINT, clogs::TYPE_UINT));
+    {
+        clogs::detail::RadixsortProblem problem;
+        problem.setKeyType(clogs::TYPE_UINT);
+        problem.setValueType(clogs::TYPE_UINT);
+        g_sort.reset(new clogs::detail::Radixsort(context, device, problem));
+    }
     sort = g_sort.get();
 }
 
@@ -377,8 +383,9 @@ void TestRadixsort::testDownsweepMulti(unsigned int sumsSize)
 template<typename KeyTag>
 void TestRadixsort::testReduce(const size_t size)
 {
-    clogs::Type keyType = KeyTag::makeType();
-    clogs::detail::Radixsort sort(context, device, keyType);
+    clogs::detail::RadixsortProblem problem;
+    problem.setKeyType(KeyTag::makeType());
+    clogs::detail::Radixsort sort(context, device, problem);
     mt19937 engine;
 
     const size_t tileSize = sort.scatterWorkGroupSize * sort.scatterWorkScale;
@@ -474,10 +481,10 @@ template<typename KeyTag, typename ValueTag>
 void TestRadixsort::testScatter(size_t size)
 {
     typedef typename KeyTag::type Key;
-    clogs::Type keyType = KeyTag::makeType();
-    clogs::Type valueType = ValueTag::makeType();
-
-    clogs::detail::Radixsort sort(context, device, keyType, valueType);
+    clogs::detail::RadixsortProblem problem;
+    problem.setKeyType(KeyTag::makeType());
+    problem.setValueType(ValueTag::makeType());
+    clogs::detail::Radixsort sort(context, device, problem);
     mt19937 engine;
 
     const size_t tileSize = sort.scatterWorkGroupSize * sort.scatterWorkScale;

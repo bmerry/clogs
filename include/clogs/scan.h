@@ -1,4 +1,5 @@
 /* Copyright (c) 2012, 2014 University of Cape Town
+ * Copyright (c) 2014, Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,7 +42,25 @@ namespace clogs
 namespace detail
 {
     class Scan;
+    class ScanProblem;
 } // namespace detail
+
+class Scan;
+
+class CLOGS_API ScanProblem
+{
+private:
+    friend class Scan;
+    detail::ScanProblem *detail_;
+
+public:
+    ScanProblem();
+    ~ScanProblem();
+    ScanProblem(const ScanProblem &);
+    ScanProblem &operator=(const ScanProblem &);
+
+    void setType(const Type &type);
+};
 
 /**
  * Exclusive scan (prefix sum) primitive.
@@ -78,6 +97,18 @@ public:
      * @throw clogs::InternalError if there was a problem with initialization.
      */
     Scan(const cl::Context &context, const cl::Device &device, const Type &type);
+
+    /**
+     * Constructor.
+     *
+     * @param context              OpenCL context to use
+     * @param device               OpenCL device to use.
+     * @param problem              Description of the specific scan problem.
+     *
+     * @throw std::invalid_argument if @a problem is not supported on the device or is not initialized.
+     * @throw clogs::InternalError if there was a problem with initialization.
+     */
+    Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem);
 
     ~Scan(); ///< Destructor
 

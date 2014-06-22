@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2014 University of Cape Town
+ * Copyright (c) 2014, Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -304,7 +305,9 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
         const Type &type = types[i];
         if (Scan::typeSupported(device, type))
         {
-            ParameterSet key = Scan::makeKey(device, type);
+            ScanProblem problem;
+            problem.setType(type);
+            ParameterSet key = Scan::makeKey(device, problem);
             bool doit = true;
             if (!seen.insert(key).second)
                 doit = false; // already done in this round of tuning
@@ -318,7 +321,7 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
                  */
                 try
                 {
-                    Scan scan(context, device, type);
+                    Scan scan(context, device, problem);
                     doit = false;
                 }
                 catch (cl::Error &e)
@@ -335,7 +338,7 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
                 const std::string hash = key.hash();
                 try
                 {
-                    ParameterSet params = Scan::tune(*this, device, type);
+                    ParameterSet params = Scan::tune(*this, device, problem);
                     saveParameters(key, params);
                 }
                 catch (TuneError &e)
@@ -366,7 +369,10 @@ void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
                 const Type &valueType = types[j];
                 if (Radixsort::valueTypeSupported(device, valueType))
                 {
-                    ParameterSet key = Radixsort::makeKey(device, keyType, valueType);
+                    RadixsortProblem problem;
+                    problem.setKeyType(keyType);
+                    problem.setValueType(valueType);
+                    ParameterSet key = Radixsort::makeKey(device, problem);
                     bool doit = true;
                     if (!seen.insert(key).second)
                         doit = false; // already done in this round of tuning
@@ -375,7 +381,7 @@ void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
                         // See comments in tuneScan
                         try
                         {
-                            Radixsort sort(context, device, keyType, valueType);
+                            Radixsort sort(context, device, problem);
                             doit = false;
                         }
                         catch (cl::Error &e)
@@ -394,7 +400,7 @@ void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
                         const std::string hash = key.hash();
                         try
                         {
-                            ParameterSet params = Radixsort::tune(*this, device, keyType, valueType);
+                            ParameterSet params = Radixsort::tune(*this, device, problem);
                             saveParameters(key, params);
                         }
                         catch (TuneError &e)

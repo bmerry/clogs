@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2014 University of Cape Town
+ * Copyright (c) 2014, Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,6 +46,20 @@ namespace detail
 {
 
 class Tuner;
+class Radixsort;
+
+class CLOGS_LOCAL RadixsortProblem
+{
+private:
+    friend class Radixsort;
+
+    Type keyType;
+    Type valueType;
+
+public:
+    void setKeyType(const Type &keyType);
+    void setValueType(const Type &valueType);
+};
 
 /**
  * Radix-sort implementation.
@@ -142,42 +157,42 @@ private:
      * Second construction phase. This is called either by the normal constructor
      * or during autotuning.
      *
-     * @param context, device, keyType, valueType    Constructor arguments
-     * @param[in,out] params                         Autotuned parameters (updated with binary if @a autotuning)
-     * @param tuning                                 Whether this construction is for autotuning
+     * @param context, device, problem  Constructor arguments
+     * @param[in,out] params            Autotuned parameters (updated with binary if @a autotuning)
+     * @param tuning                    Whether this construction is for autotuning
      */
     void initialize(
         const cl::Context &context, const cl::Device &device,
-        const Type &keyType, const Type &valueType,
+        const RadixsortProblem &problem,
         ParameterSet &params, bool tuning);
 
     /**
      * Constructor for autotuning
      */
     Radixsort(const cl::Context &context, const cl::Device &device,
-              const Type &keyType, const Type &valueType,
+              const RadixsortProblem &problem,
               ParameterSet &params);
 
     static std::pair<double, double> tuneReduceCallback(
         const cl::Context &context, const cl::Device &device,
         std::size_t elements, ParameterSet &params,
-        const Type &keyType, const Type &valueType);
+        const RadixsortProblem &problem);
 
     static std::pair<double, double> tuneScatterCallback(
         const cl::Context &context, const cl::Device &device,
         std::size_t elements, ParameterSet &params,
-        const Type &keyType, const Type &valueType);
+        const RadixsortProblem &problem);
 
     static std::pair<double, double> tuneBlocksCallback(
         const cl::Context &context, const cl::Device &device,
         std::size_t elements, ParameterSet &params,
-        const Type &keyType, const Type &valueType);
+        const RadixsortProblem &problem);
 public:
     /**
      * Constructor.
      * @see @ref clogs::Radixsort::Radixsort.
      */
-    Radixsort(const cl::Context &context, const cl::Device &device, const Type &keyType, const Type &valueType = Type());
+    Radixsort(const cl::Context &context, const cl::Device &device, const RadixsortProblem &problem);
 
     /**
      * Set a callback to be notified of enqueued commands.
@@ -211,19 +226,18 @@ public:
      *
      * @param device, keyType, valueType  Constructor parameters.
      */
-    static ParameterSet makeKey(const cl::Device &device, const Type &keyType, const Type &valueType);
+    static ParameterSet makeKey(const cl::Device &device, const RadixsortProblem &problem);
 
     /**
      * Perform autotuning.
      *
      * @param tuner       Tuner for reporting progress
-     * @param device, keyType, valueType Constructor parameters
+     * @param device, problem Constructor parameters
      */
     static ParameterSet tune(
         Tuner &tuner,
         const cl::Device &device,
-        const Type &keyType,
-        const Type &valueType);
+        const RadixsortProblem &problem);
 
     /**
      * Return whether a type is supported as a key type on a device.

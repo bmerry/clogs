@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2014 University of Cape Town
+ * Copyright (c) 2014, Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -55,6 +56,21 @@ namespace clogs
 {
 namespace detail
 {
+
+void RadixsortProblem::setKeyType(const Type &keyType)
+{
+    if (!(keyType.isIntegral()
+          && !keyType.isSigned()
+          && keyType.getLength() == 1))
+        throw std::invalid_argument("keyType is not valid");
+    this->keyType = keyType;
+}
+
+void RadixsortProblem::setValueType(const Type &valueType)
+{
+    this->valueType = valueType;
+}
+
 
 ::size_t Radixsort::getTileSize() const
 {
@@ -261,7 +277,7 @@ void Radixsort::setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &va
 
 void Radixsort::initialize(
     const cl::Context &context, const cl::Device &device,
-    const Type &keyType, const Type &valueType,
+    const RadixsortProblem &problem,
     ParameterSet &params, bool tuning)
 {
     reduceWorkGroupSize = params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
@@ -269,8 +285,8 @@ void Radixsort::initialize(
     scatterWorkGroupSize = params.getTyped< ::size_t>("SCATTER_WORK_GROUP_SIZE")->get();
     scatterWorkScale = params.getTyped< ::size_t>("SCATTER_WORK_SCALE")->get();
     scanBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
-    keySize = keyType.getSize();
-    valueSize = valueType.getSize();
+    keySize = problem.keyType.getSize();
+    valueSize = problem.valueType.getSize();
     radixBits = params.getTyped<unsigned int>("RADIX_BITS")->get();
     radix = 1U << radixBits;
     const ::size_t warpSizeMem = params.getTyped< ::size_t>("WARP_SIZE_MEM")->get();
@@ -289,15 +305,15 @@ void Radixsort::initialize(
     defines["SCATTER_SLICE"] = scatterSlice;
     defines["SCAN_BLOCKS"] = scanBlocks;
     defines["RADIX_BITS"] = radixBits;
-    stringDefines["KEY_T"] = keyType.getName();
-    if (valueType.getBaseType() != TYPE_VOID)
+    stringDefines["KEY_T"] = problem.keyType.getName();
+    if (problem.valueType.getBaseType() != TYPE_VOID)
     {
         /* There are cases (at least on NVIDIA) where value types have
          * different performance even when they are the same size e.g. uchar3
          * vs uint. Avoid this by canonicalising the value type. This has the
          * extra benefit that there are fewer possible kernels.
          */
-        Type kernelValueType = valueType;
+        Type kernelValueType = problem.valueType;
         switch (valueSize)
         {
         case 1: kernelValueType = TYPE_UCHAR; break;
@@ -400,27 +416,27 @@ void Radixsort::initialize(
 
 Radixsort::Radixsort(
     const cl::Context &context, const cl::Device &device,
-    const Type &keyType, const Type &valueType,
+    const RadixsortProblem &problem,
     ParameterSet &params)
     : eventCallback(NULL), eventCallbackUserData(NULL)
 {
-    initialize(context, device, keyType, valueType, params, true);
+    initialize(context, device, problem, params, true);
 }
 
 Radixsort::Radixsort(
     const cl::Context &context, const cl::Device &device,
-    const Type &keyType, const Type &valueType)
+    const RadixsortProblem &problem)
     : eventCallback(NULL), eventCallbackUserData(NULL)
 {
-    if (!keyTypeSupported(device, keyType))
+    if (!keyTypeSupported(device, problem.keyType))
         throw std::invalid_argument("keyType is not valid");
-    if (!valueTypeSupported(device, valueType))
+    if (!valueTypeSupported(device, problem.valueType))
         throw std::invalid_argument("valueType is not valid");
 
-    ParameterSet key = makeKey(device, keyType, valueType);
+    ParameterSet key = makeKey(device, problem);
     ParameterSet params = parameters();
     getParameters(key, params);
-    initialize(context, device, keyType, valueType, params, false);
+    initialize(context, device, problem, params, false);
 }
 
 ParameterSet Radixsort::parameters()
@@ -440,14 +456,13 @@ ParameterSet Radixsort::parameters()
 
 ParameterSet Radixsort::makeKey(
     const cl::Device &device,
-    const Type &keyType,
-    const Type &valueType)
+    const RadixsortProblem &problem)
 {
     ParameterSet key = deviceKey(device);
     key["algorithm"] = new TypedParameter<std::string>("radixsort");
     key["version"] = new TypedParameter<int>(4);
-    key["keyType"] = new TypedParameter<std::string>(keyType.getName());
-    key["valueSize"] = new TypedParameter<std::size_t>(valueType.getSize());
+    key["keyType"] = new TypedParameter<std::string>(problem.keyType.getName());
+    key["valueSize"] = new TypedParameter<std::size_t>(problem.valueType.getSize());
     return key;
 }
 
@@ -487,13 +502,13 @@ static cl::Buffer makeRandomBuffer(const cl::CommandQueue &queue, ::size_t size)
 std::pair<double, double> Radixsort::tuneReduceCallback(
     const cl::Context &context, const cl::Device &device,
     std::size_t elements, ParameterSet &params,
-    const Type &keyType, const Type &valueType)
+    const RadixsortProblem &problem)
 {
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
-    const ::size_t keyBufferSize = elements * keyType.getSize();
+    const ::size_t keyBufferSize = elements * problem.keyType.getSize();
     const cl::Buffer keyBuffer = makeRandomBuffer(queue, keyBufferSize);
 
-    Radixsort sort(context, device, keyType, valueType, params);
+    Radixsort sort(context, device, problem, params);
     const ::size_t blockSize = sort.getBlockSize(elements);
     // Warmup
     sort.enqueueReduce(queue, sort.histogram, keyBuffer, blockSize, elements, 0, NULL, NULL);
@@ -514,21 +529,21 @@ std::pair<double, double> Radixsort::tuneReduceCallback(
 std::pair<double, double> Radixsort::tuneScatterCallback(
     const cl::Context &context, const cl::Device &device,
     std::size_t elements, ParameterSet &params,
-    const Type &keyType, const Type &valueType)
+    const RadixsortProblem &problem)
 {
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
-    const ::size_t keyBufferSize = elements * keyType.getSize();
-    const ::size_t valueBufferSize = elements * valueType.getSize();
+    const ::size_t keyBufferSize = elements * problem.keyType.getSize();
+    const ::size_t valueBufferSize = elements * problem.valueType.getSize();
     const cl::Buffer keyBuffer = makeRandomBuffer(queue, keyBufferSize);
     const cl::Buffer outKeyBuffer(context, CL_MEM_READ_WRITE, keyBufferSize);
     cl::Buffer valueBuffer, outValueBuffer;
-    if (valueType.getBaseType() != TYPE_VOID)
+    if (problem.valueType.getBaseType() != TYPE_VOID)
     {
         valueBuffer = makeRandomBuffer(queue, valueBufferSize);
         outValueBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, valueBufferSize);
     }
 
-    Radixsort sort(context, device, keyType, valueType, params);
+    Radixsort sort(context, device, problem, params);
     const ::size_t blockSize = sort.getBlockSize(elements);
     const ::size_t blocks = sort.getBlocks(elements, blockSize);
 
@@ -562,21 +577,21 @@ std::pair<double, double> Radixsort::tuneScatterCallback(
 std::pair<double, double> Radixsort::tuneBlocksCallback(
     const cl::Context &context, const cl::Device &device,
     std::size_t elements, ParameterSet &params,
-    const Type &keyType, const Type &valueType)
+    const RadixsortProblem &problem)
 {
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
-    const ::size_t keyBufferSize = elements * keyType.getSize();
-    const ::size_t valueBufferSize = elements * valueType.getSize();
+    const ::size_t keyBufferSize = elements * problem.keyType.getSize();
+    const ::size_t valueBufferSize = elements * problem.valueType.getSize();
     const cl::Buffer keyBuffer = makeRandomBuffer(queue, keyBufferSize);
     const cl::Buffer outKeyBuffer(context, CL_MEM_READ_WRITE, keyBufferSize);
     cl::Buffer valueBuffer, outValueBuffer;
-    if (valueType.getBaseType() != TYPE_VOID)
+    if (problem.valueType.getBaseType() != TYPE_VOID)
     {
         valueBuffer = makeRandomBuffer(queue, valueBufferSize);
         outValueBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, valueBufferSize);
     }
 
-    Radixsort sort(context, device, keyType, valueType, params);
+    Radixsort sort(context, device, problem, params);
     const ::size_t blockSize = sort.getBlockSize(elements);
     const ::size_t blocks = sort.getBlocks(elements, blockSize);
 
@@ -619,8 +634,7 @@ static void clearBinary(ParameterSet &params)
 ParameterSet Radixsort::tune(
     Tuner &tuner,
     const cl::Device &device,
-    const Type &keyType,
-    const Type &valueType)
+    const RadixsortProblem &problem)
 {
     /* Limit memory usage, otherwise devices with lots of RAM will take a long
      * time to tune. For GPUs we need a large problem size to get accurate
@@ -629,7 +643,7 @@ ParameterSet Radixsort::tune(
     bool isCPU = device.getInfo<CL_DEVICE_TYPE>() & CL_DEVICE_TYPE_CPU;
     const ::size_t maxDataSize = isCPU ? 32 * 1024 * 1024 : 256 * 1024 * 1024;
     const ::size_t dataSize = std::min(maxDataSize, device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / 8);
-    const ::size_t elements = dataSize / (keyType.getSize() + valueType.getSize());
+    const ::size_t elements = dataSize / (problem.keyType.getSize() + problem.valueType.getSize());
 
     std::vector<std::size_t> problemSizes;
     if (elements > 1024 * 1024)
@@ -679,7 +693,7 @@ ParameterSet Radixsort::tune(
             using namespace FUNCTIONAL_NAMESPACE::placeholders;
             cand = tuner.tuneOne(
                 device, sets, problemSizes,
-                FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneReduceCallback, _1, _2, _3, _4, keyType, valueType));
+                FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneReduceCallback, _1, _2, _3, _4, problem));
             clearBinary(cand);
         }
 
@@ -702,7 +716,7 @@ ParameterSet Radixsort::tune(
             using namespace FUNCTIONAL_NAMESPACE::placeholders;
             cand = tuner.tuneOne(
                 device, sets, problemSizes,
-                FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneScatterCallback, _1, _2, _3, _4, keyType, valueType));
+                FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneScatterCallback, _1, _2, _3, _4, problem));
             clearBinary(cand);
         }
 
@@ -744,7 +758,7 @@ ParameterSet Radixsort::tune(
             using namespace FUNCTIONAL_NAMESPACE::placeholders;
             cand = tuner.tuneOne(
                 device, sets, problemSizes,
-                FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneBlocksCallback, _1, _2, _3, _4, keyType, valueType));
+                FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneBlocksCallback, _1, _2, _3, _4, problem));
             clearBinary(cand);
         }
 
@@ -753,18 +767,65 @@ ParameterSet Radixsort::tune(
     }
 
     /* Generate the binary */
-    Radixsort(contextForDevice(device), device, keyType, valueType, out);
+    Radixsort(contextForDevice(device), device, problem, out);
     tuner.logResult(out);
     return out;
 }
 
 } // namespace detail
 
+RadixsortProblem::RadixsortProblem() : detail_(new detail::RadixsortProblem())
+{
+}
+
+RadixsortProblem::~RadixsortProblem()
+{
+    delete detail_;
+}
+
+RadixsortProblem::RadixsortProblem(const RadixsortProblem &other)
+    : detail_(new detail::RadixsortProblem(*other.detail_))
+{
+}
+
+RadixsortProblem &RadixsortProblem::operator=(const RadixsortProblem &other)
+{
+    if (detail_ != other.detail_)
+    {
+        detail::RadixsortProblem *tmp = new detail::RadixsortProblem(*other.detail_);
+        delete detail_;
+        detail_ = tmp;
+    }
+    return *this;
+}
+
+void RadixsortProblem::setKeyType(const Type &keyType)
+{
+    assert(detail_ != NULL);
+    detail_->setKeyType(keyType);
+}
+
+void RadixsortProblem::setValueType(const Type &valueType)
+{
+    assert(detail_ != NULL);
+    detail_->setValueType(valueType);
+}
+
 Radixsort::Radixsort(
     const cl::Context &context, const cl::Device &device,
     const Type &keyType, const Type &valueType)
 {
-    detail_ = new detail::Radixsort(context, device, keyType, valueType);
+    detail::RadixsortProblem problem;
+    problem.setKeyType(keyType);
+    problem.setValueType(valueType);
+    detail_ = new detail::Radixsort(context, device, problem);
+}
+
+Radixsort::Radixsort(
+    const cl::Context &context, const cl::Device &device,
+    const RadixsortProblem &problem)
+{
+    detail_ = new detail::Radixsort(context, device, *problem.detail_);
 }
 
 void Radixsort::setEventCallback(

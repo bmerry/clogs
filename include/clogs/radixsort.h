@@ -1,4 +1,5 @@
 /* Copyright (c) 2012 University of Cape Town
+ * Copyright (c) 2014, Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,7 +42,26 @@ namespace clogs
 namespace detail
 {
     class Radixsort;
+    class RadixsortProblem;
 } // namespace detail
+
+class Radixsort;
+
+class CLOGS_API RadixsortProblem
+{
+private:
+    friend class Radixsort;
+    detail::RadixsortProblem *detail_;
+
+public:
+    RadixsortProblem();
+    ~RadixsortProblem();
+    RadixsortProblem(const RadixsortProblem &);
+    RadixsortProblem &operator=(const RadixsortProblem &);
+
+    void setKeyType(const Type &keyType);
+    void setValueType(const Type &valueType);
+};
 
 /**
  * Radix-sort interface.
@@ -81,7 +101,22 @@ public:
      * @throw std::invalid_argument if @a valueType is not a storable type for @a device.
      * @throw clogs::InternalError if there was a problem with initialization
      */
-    Radixsort(const cl::Context &context, const cl::Device &device, const Type &keyType, const Type &valueType = Type());
+    Radixsort(const cl::Context &context, const cl::Device &device,
+              const Type &keyType, const Type &valueType = Type());
+
+    /**
+     * Constructor.
+     *
+     * @param context              OpenCL context to use
+     * @param device               OpenCL device to use.
+     * @param problem              Problem parameters.
+     *
+     * @throw std::invalid_argument if @a problem.keyType is not an unsigned integral scalar type.
+     * @throw std::invalid_argument if @a problem.valueType is not a storable type for @a device.
+     * @throw clogs::InternalError if there was a problem with initialization
+     */
+    Radixsort(const cl::Context &context, const cl::Device &device,
+              const RadixsortProblem &problem);
 
     ~Radixsort(); ///< Destructor
 

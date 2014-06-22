@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2014 University of Cape Town
+ * Copyright (c) 2014, Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,6 +57,13 @@ namespace clogs
 namespace detail
 {
 
+void ScanProblem::setType(const Type &type)
+{
+    if (!type.isIntegral())
+        throw std::invalid_argument("type is not a supported integral format");
+    this->type = type;
+}
+
 ParameterSet Scan::parameters()
 {
     ParameterSet ans;
@@ -70,10 +78,10 @@ ParameterSet Scan::parameters()
 }
 
 void Scan::initialize(
-    const cl::Context &context, const cl::Device &device, const Type &type,
+    const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
     ParameterSet &params, bool tuning)
 {
-    const ::size_t elementSize = type.getSize();
+    const ::size_t elementSize = problem.type.getSize();
 
     this->elementSize = elementSize;
     ::size_t warpSizeMem = params.getTyped< ::size_t>("WARP_SIZE_MEM")->get();
@@ -92,10 +100,10 @@ void Scan::initialize(
     defines["SCAN_WORK_GROUP_SIZE"] = scanWorkGroupSize;
     defines["SCAN_WORK_SCALE"] = scanWorkScale;
     defines["SCAN_BLOCKS"] = maxBlocks;
-    stringDefines["SCAN_T"] = type.getName();
-    if (type.getLength() == 3)
+    stringDefines["SCAN_T"] = problem.type.getName();
+    if (problem.type.getLength() == 3)
     {
-        Type padded(type.getBaseType(), 4);
+        Type padded(problem.type.getBaseType(), 4);
         stringDefines["SCAN_PAD_T"] = padded.getName();
     }
 
@@ -126,11 +134,11 @@ void Scan::initialize(
 std::pair<double, double> Scan::tuneReduceCallback(
     const cl::Context &context, const cl::Device &device,
     std::size_t elements, ParameterSet &params,
-    const Type &type)
+    const ScanProblem &problem)
 {
     const ::size_t reduceWorkGroupSize = params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
     const ::size_t maxBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
-    const size_t elementSize = type.getSize();
+    const size_t elementSize = problem.type.getSize();
     const size_t allocSize = elements * elementSize;
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, allocSize);
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
@@ -140,7 +148,7 @@ std::pair<double, double> Scan::tuneReduceCallback(
     if (nBlocks <= 0)
         throw InternalError("No blocks to operate on");
 
-    Scan scan(context, device, type, params);
+    Scan scan(context, device, problem, params);
     scan.reduceKernel.setArg(1, buffer);
     scan.reduceKernel.setArg(2, (cl_uint) blockSize);
     cl::Event event;
@@ -173,9 +181,9 @@ std::pair<double, double> Scan::tuneReduceCallback(
 std::pair<double, double> Scan::tuneScanCallback(
     const cl::Context &context, const cl::Device &device,
     std::size_t elements, ParameterSet &params,
-    const Type &type)
+    const ScanProblem &problem)
 {
-    cl::Buffer buffer(context, CL_MEM_READ_WRITE, elements * type.getSize());
+    cl::Buffer buffer(context, CL_MEM_READ_WRITE, elements * problem.type.getSize());
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
 
     const ::size_t scanWorkGroupSize = params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
@@ -184,7 +192,7 @@ std::pair<double, double> Scan::tuneScanCallback(
     ::size_t tileSize = scanWorkGroupSize * scanWorkScale;
     ::size_t blockSize = roundUp(elements, tileSize * maxBlocks) / maxBlocks;
     ::size_t nBlocks = (elements + blockSize - 1) / blockSize;
-    Scan scan(context, device, type, params);
+    Scan scan(context, device, problem, params);
     cl::Event event;
     scan.scanKernel.setArg(0, buffer);
     scan.scanKernel.setArg(1, buffer);
@@ -218,12 +226,12 @@ std::pair<double, double> Scan::tuneScanCallback(
 std::pair<double, double> Scan::tuneBlocksCallback(
     const cl::Context &context, const cl::Device &device,
     std::size_t elements, ParameterSet &params,
-    const Type &type)
+    const ScanProblem &problem)
 {
-    cl::Buffer buffer(context, CL_MEM_READ_WRITE, elements * type.getSize());
+    cl::Buffer buffer(context, CL_MEM_READ_WRITE, elements * problem.type.getSize());
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
 
-    Scan scan(context, device, type, params);
+    Scan scan(context, device, problem, params);
     cl::Event event;
     // Warmup pass
     scan.enqueue(queue, buffer, buffer, elements, NULL, NULL, NULL);
@@ -245,9 +253,9 @@ std::pair<double, double> Scan::tuneBlocksCallback(
 }
 
 ParameterSet Scan::tune(
-    Tuner &tuner, const cl::Device &device, const Type &type)
+    Tuner &tuner, const cl::Device &device, const ScanProblem &problem)
 {
-    const size_t elementSize = type.getSize();
+    const size_t elementSize = problem.type.getSize();
     const size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
     const size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
     const size_t maxBlocks = std::min(2 * maxWorkGroupSize, localMemElements) & ~1;
@@ -286,7 +294,7 @@ ParameterSet Scan::tune(
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
         ParameterSet params = tuner.tuneOne(
             device, sets, problemSizes,
-            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneReduceCallback, _1, _2, _3, _4, type));
+            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneReduceCallback, _1, _2, _3, _4, problem));
         bestReduceWorkGroupSize = params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
     }
 
@@ -314,7 +322,7 @@ ParameterSet Scan::tune(
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
         ParameterSet params = tuner.tuneOne(
             device, sets, problemSizes,
-            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneScanCallback, _1, _2, _3, _4, type));
+            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneScanCallback, _1, _2, _3, _4, problem));
         bestScanWorkGroupSize = params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
         bestScanWorkScale = params.getTyped< ::size_t>("SCAN_WORK_SCALE")->get();
     }
@@ -337,7 +345,7 @@ ParameterSet Scan::tune(
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
         ParameterSet params = tuner.tuneOne(
             device, sets, problemSizes,
-            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneBlocksCallback, _1, _2, _3, _4, type));
+            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneBlocksCallback, _1, _2, _3, _4, problem));
         bestBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
     }
 
@@ -346,7 +354,7 @@ ParameterSet Scan::tune(
         || bestScanWorkGroupSize <= 0
         || bestScanWorkScale <= 0
         || bestBlocks <= 0)
-        throw std::runtime_error("Failed to tune " + type.getName());
+        throw std::runtime_error("Failed to tune " + problem.type.getName());
 
     ParameterSet params = parameters();
     params.getTyped< ::size_t>("WARP_SIZE_MEM")->set(warpSizeMem);
@@ -356,7 +364,7 @@ ParameterSet Scan::tune(
     params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(bestScanWorkScale);
     params.getTyped< ::size_t>("SCAN_BLOCKS")->set(bestBlocks);
     // Instantiate just to populate the program
-    Scan dummy(contextForDevice(device), device, type, params);
+    Scan dummy(contextForDevice(device), device, problem, params);
 
     tuner.logResult(params);
     return params;
@@ -367,47 +375,47 @@ bool Scan::typeSupported(const cl::Device &device, const Type &type)
     return type.isIntegral() && type.isComputable(device) && type.isStorable(device);
 }
 
-Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type)
+Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem)
     : eventCallback(NULL), eventCallbackUserData(NULL)
 {
-    if (!typeSupported(device, type))
+    if (!typeSupported(device, problem.type))
         throw std::invalid_argument("type is not a supported integral format on this device");
 
-    ParameterSet key = makeKey(device, type);
+    ParameterSet key = makeKey(device, problem);
     ParameterSet params = parameters();
     getParameters(key, params);
-    initialize(context, device, type, params, false);
+    initialize(context, device, problem, params, false);
 }
 
-Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type,
+Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
            ParameterSet &params)
     : eventCallback(NULL), eventCallbackUserData(NULL)
 {
-    initialize(context, device, type, params, true);
+    initialize(context, device, problem, params, true);
 }
 
-ParameterSet Scan::makeKey(const cl::Device &device, const Type &type)
+ParameterSet Scan::makeKey(const cl::Device &device, const ScanProblem &problem)
 {
     /* To reduce the amount of time for tuning, we assume that signed
      * and unsigned variants are equivalent, and canonicalise to signed.
      */
     Type canon;
-    switch (type.getBaseType())
+    switch (problem.type.getBaseType())
     {
     case TYPE_UCHAR:
-        canon = Type(TYPE_CHAR, type.getLength());
+        canon = Type(TYPE_CHAR, problem.type.getLength());
         break;
     case TYPE_USHORT:
-        canon = Type(TYPE_SHORT, type.getLength());
+        canon = Type(TYPE_SHORT, problem.type.getLength());
         break;
     case TYPE_UINT:
-        canon = Type(TYPE_INT, type.getLength());
+        canon = Type(TYPE_INT, problem.type.getLength());
         break;
     case TYPE_ULONG:
-        canon = Type(TYPE_LONG, type.getLength());
+        canon = Type(TYPE_LONG, problem.type.getLength());
         break;
     default:
-        canon = type;
+        canon = problem.type;
     }
 
     ParameterSet key = deviceKey(device);
@@ -561,9 +569,47 @@ void Scan::enqueue(const cl::CommandQueue &commandQueue,
 
 } // namespace detail
 
+ScanProblem::ScanProblem() : detail_(new detail::ScanProblem())
+{
+}
+
+ScanProblem::~ScanProblem()
+{
+    delete detail_;
+}
+
+ScanProblem::ScanProblem(const ScanProblem &other)
+    : detail_(new detail::ScanProblem(*other.detail_))
+{
+}
+
+ScanProblem &ScanProblem::operator=(const ScanProblem &other)
+{
+    if (detail_ != other.detail_)
+    {
+        detail::ScanProblem *tmp = new detail::ScanProblem(*other.detail_);
+        delete detail_;
+        detail_ = tmp;
+    }
+    return *this;
+}
+
+void ScanProblem::setType(const Type &type)
+{
+    assert(detail_ != NULL);
+    detail_->setType(type);
+}
+
 Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type)
 {
-    detail_ = new detail::Scan(context, device, type);
+    detail::ScanProblem problem;
+    problem.setType(type);
+    detail_ = new detail::Scan(context, device, problem);
+}
+
+Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem)
+{
+    detail_ = new detail::Scan(context, device, *problem.detail_);
 }
 
 Scan::~Scan()
