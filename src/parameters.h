@@ -36,9 +36,11 @@
 #include <map>
 #include <cstddef>
 #include <locale>
+#include <cassert>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
+#include "sqlite3.h"
 
 namespace clogs
 {
@@ -53,6 +55,10 @@ public:
 
     virtual std::string serialize() const = 0;
     virtual void deserialize(const std::string &serial) = 0;
+
+    virtual std::string sql_type() const = 0;
+    virtual int sql_bind(sqlite3_stmt *stmt, int pos) const = 0;
+    virtual void sql_get(sqlite3_stmt *stmt, int column) = 0;
 };
 
 template<typename T>
@@ -121,6 +127,90 @@ public:
 };
 
 template<typename T>
+class CLOGS_LOCAL SqlTraits;
+
+template<>
+class CLOGS_LOCAL SqlTraits<int>
+{
+public:
+    static std::string sql_type() { return "INT"; }
+    static int sql_bind(sqlite3_stmt *stmt, int pos, int value)
+    {
+        return sqlite3_bind_int(stmt, pos, value);
+    }
+    static int sql_get(sqlite3_stmt *stmt, int column)
+    {
+        assert(column >= 0 && column < sqlite3_column_count(stmt));
+        assert(sqlite3_column_type(stmt, column) == SQLITE_INTEGER);
+        return sqlite3_column_int(stmt, column);
+    }
+};
+
+template<>
+class CLOGS_LOCAL SqlTraits<unsigned int> : public SqlTraits<int>
+{
+};
+
+template<>
+class CLOGS_LOCAL SqlTraits< ::size_t>
+{
+public:
+    static std::string sql_type() { return "INT"; }
+    static int sql_bind(sqlite3_stmt *stmt, int pos, ::size_t value)
+    {
+        return sqlite3_bind_int64(stmt, pos, value);
+    }
+    static ::size_t sql_get(sqlite3_stmt *stmt, int column)
+    {
+        assert(column >= 0 && column < sqlite3_column_count(stmt));
+        assert(sqlite3_column_type(stmt, column) == SQLITE_INTEGER);
+        return sqlite3_column_int64(stmt, column);
+    }
+};
+
+template<>
+class CLOGS_LOCAL SqlTraits<std::string>
+{
+public:
+    static std::string sql_type() { return "TEXT"; }
+    static int sql_bind(sqlite3_stmt *stmt, int pos, const std::string &value)
+    {
+        return sqlite3_bind_text(stmt, pos, value.data(), value.size(), SQLITE_TRANSIENT);
+    }
+    static std::string sql_get(sqlite3_stmt *stmt, int column)
+    {
+        assert(column >= 0 && column < sqlite3_column_count(stmt));
+        assert(sqlite3_column_type(stmt, column) == SQLITE_TEXT);
+        const char *data = (const char *) sqlite3_column_text(stmt, column);
+        ::size_t size = sqlite3_column_bytes(stmt, column);
+        return std::string(data, size);
+    }
+};
+
+template<>
+class CLOGS_LOCAL SqlTraits<std::vector<unsigned char> >
+{
+public:
+    static std::string sql_type() { return "BLOB"; }
+    static int sql_bind(sqlite3_stmt *stmt, int pos, const std::vector<unsigned char> &value)
+    {
+        const unsigned char dummy = 0;
+        return sqlite3_bind_blob(
+            stmt, pos,
+            static_cast<const void *>(value.empty() ? &dummy : &value[0]),
+            value.size(), SQLITE_TRANSIENT);
+    }
+    static std::vector<unsigned char> sql_get(sqlite3_stmt *stmt, int column)
+    {
+        assert(column >= 0 && column < sqlite3_column_count(stmt));
+        assert(sqlite3_column_type(stmt, column) == SQLITE_BLOB);
+        const unsigned char *data = (const unsigned char *) sqlite3_column_blob(stmt, column);
+        ::size_t size = sqlite3_column_bytes(stmt, column);
+        return std::vector<unsigned char>(data, data + size);
+    }
+};
+
+template<typename T>
 class CLOGS_LOCAL TypedParameter : public Parameter
 {
 private:
@@ -140,6 +230,21 @@ public:
     virtual void deserialize(const std::string &s)
     {
         value = TypedDeserializer<T>()(s);
+    }
+
+    virtual std::string sql_type() const
+    {
+        return SqlTraits<T>::sql_type();
+    }
+
+    virtual int sql_bind(sqlite3_stmt *stmt, int pos) const
+    {
+        return SqlTraits<T>::sql_bind(stmt, pos, value);
+    }
+
+    virtual void sql_get(sqlite3_stmt *stmt, int column)
+    {
+        value = SqlTraits<T>::sql_get(stmt, column);
     }
 };
 

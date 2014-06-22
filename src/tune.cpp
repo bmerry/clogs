@@ -60,6 +60,7 @@
 #include "scan.h"
 #include "radixsort.h"
 #include "utils.h"
+#include "sqlite3.h"
 
 namespace clogs
 {
@@ -216,6 +217,110 @@ static path_string getCacheFile(const ParameterSet &key)
 }
 
 /**
+ * Class for connection to the database. There is only ever one instance of
+ * this class, which handles initialization and shutdown.
+ */
+class DB
+{
+private:
+    // prevent copying
+    DB(const DB &);
+    DB &operator=(const DB &);
+public:
+    sqlite3 *con;
+
+    explicit DB(const std::string &basename);
+    ~DB();
+};
+
+DB::DB(const std::string &basename)
+{
+    con = NULL;
+    const path_string path = fromPathString(getCacheDir() + dirSep) + basename;
+    int status = sqlite3_open_v2(path.c_str(), &con,
+                                 SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+                                 NULL);
+    if (status != SQLITE_OK)
+    {
+        CacheError error(sqlite3_errstr(status));
+        if (con != NULL)
+            sqlite3_close(con);
+        throw error;
+    }
+}
+
+DB::~DB()
+{
+    if (con != NULL)
+    {
+        int status = sqlite3_close(con);
+        con = NULL;
+        if (status != SQLITE_OK)
+        {
+            std::cerr << sqlite3_errstr(status) << '\n';
+        }
+    }
+}
+
+static DB &getDB()
+{
+    static DB db("cache.sqlite");
+    return db;
+}
+
+static std::string tableName(const ParameterSet &key)
+{
+    std::string algorithm = key.getTyped<std::string>("algorithm")->get();
+    int version = key.getTyped<int>("version")->get();
+    std::ostringstream out;
+    out.imbue(std::locale::classic());
+    out << algorithm << "_v" << version;
+    return out.str();
+}
+
+static void createTable(const ParameterSet &key, const ParameterSet &values)
+{
+    std::ostringstream statement;
+    statement.imbue(std::locale::classic());
+    statement << "CREATE TABLE IF NOT EXISTS " << tableName(key) << " (";
+    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
+    {
+        if (i->first == "algorithm" || i->first == "version")
+            continue; // these are encoded into the table name
+        statement << i->first << ' ' << i->second->sql_type() << ", ";
+    }
+    for (ParameterSet::const_iterator i = values.begin(); i != values.end(); ++i)
+    {
+        statement << i->first << ' ' << i->second->sql_type() << ", ";
+    }
+
+    statement << "PRIMARY KEY(";
+    bool first = true;
+    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
+    {
+        if (i->first == "algorithm" || i->first == "version")
+            continue; // these are encoded into the table name
+        if (!first)
+            statement << ", ";
+        first = false;
+        statement << i->first;
+    }
+
+    statement << "))";
+
+    std::string s = statement.str();
+    DB &db = getDB();
+    char *err = NULL;
+    int status = sqlite3_exec(db.con, s.c_str(), NULL, NULL, &err);
+    if (status != SQLITE_OK || err != NULL)
+    {
+        CacheError error(s + ": " + err);
+        sqlite3_free(err);
+        throw error;
+    }
+}
+
+/**
  * Write computed parameters to file.
  *
  * @param key            Algorithm key
@@ -225,6 +330,79 @@ static path_string getCacheFile(const ParameterSet &key)
  */
 static void saveParameters(const ParameterSet &key, const ParameterSet &values)
 {
+    createTable(key, values);
+
+    std::ostringstream statement;
+    statement.imbue(std::locale::classic());
+    statement << "INSERT OR REPLACE INTO " << tableName(key) << "(";
+    bool first = true;
+    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
+    {
+        if (i->first == "algorithm" || i->first == "version")
+            continue; // these are encoded into the table name
+        if (!first)
+            statement << ", ";
+        first = false;
+        statement << i->first;
+    }
+    for (ParameterSet::const_iterator i = values.begin(); i != values.end(); ++i)
+    {
+        if (!first)
+            statement << ", ";
+        first = false;
+        statement << i->first;
+    }
+
+    statement << ") VALUES (";
+    first = true;
+    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
+    {
+        if (i->first == "algorithm" || i->first == "version")
+            continue; // these are encoded into the table name
+        if (!first)
+            statement << ", ";
+        first = false;
+        statement << '?';
+    }
+    for (ParameterSet::const_iterator i = values.begin(); i != values.end(); ++i)
+    {
+        if (!first)
+            statement << ", ";
+        first = false;
+        statement << '?';
+    }
+    statement << ')';
+
+    DB &db = getDB();
+    sqlite3_stmt *stmt = NULL;
+    int status = sqlite3_prepare_v2(db.con, statement.str().c_str(), -1, &stmt, NULL);
+    if (status != SQLITE_OK)
+        throw CacheError(sqlite3_errstr(status));
+
+    int pos = 1;
+    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
+    {
+        if (i->first == "algorithm" || i->first == "version")
+            continue; // these are encoded into the table name
+        i->second->sql_bind(stmt, pos);
+        pos++;
+    }
+    for (ParameterSet::const_iterator i = values.begin(); i != values.end(); ++i)
+    {
+        i->second->sql_bind(stmt, pos);
+        pos++;
+    }
+    status = sqlite3_step(stmt);
+    if (status != SQLITE_DONE)
+    {
+        sqlite3_finalize(stmt);
+        throw CacheError(sqlite3_errstr(status));
+    }
+
+    status = sqlite3_finalize(stmt);
+    if (status != SQLITE_OK)
+        throw CacheError(sqlite3_errstr(status));
+
     const std::string hash = key.hash();
     const path_string path = getCacheFile(key);
     std::ofstream out(path.c_str());
@@ -240,42 +418,6 @@ static void saveParameters(const ParameterSet &key, const ParameterSet &values)
         // TODO: erase the file?
         throw SaveParametersError(fromPathString(path), errno);
     }
-}
-
-/**
- * Extract parameters from a file. This is the internal implementation of
- * @ref getParameters, split into a separate function for testability.
- *
- * @param in               Input file (already open)
- * @param[in,out] params   Tuning parameters, pre-populated with desired keys.
- *
- * @throw CacheError if there was an error reading the file
- */
-static void parseParameters(std::istream &in, ParameterSet &params)
-{
-    std::string line;
-    std::set<std::string> seen;
-    while (getline(in, line))
-    {
-        if (line.empty() || line[0] == '#')
-            continue;
-        std::string::size_type p = line.find('=');
-        if (p == std::string::npos)
-        {
-            throw CacheError("line does not contain equals sign");
-        }
-        const std::string key = line.substr(0, p);
-        if (!params.count(key))
-            throw CacheError("unknown key `" + key + "'");
-        if (seen.count(key))
-            throw CacheError("duplicate key `" + key + "'");
-        seen.insert(key);
-        params[key]->deserialize(line.substr(p + 1));
-    }
-    if (seen.size() < params.size())
-        throw CacheError("missing key");
-    if (in.bad())
-        throw CacheError(strerror(errno));
 }
 
 } // anonymous namespace
@@ -545,20 +687,66 @@ ParameterSet Tuner::tuneOne(
 
 CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params)
 {
-    path_string filename = getCacheFile(key);
-    try
+    DB &db = getDB();
+    createTable(key, params);
+
+    std::ostringstream query;
+    query.imbue(std::locale::classic());
+    query << "SELECT ";
+    bool first = true;
+    for (ParameterSet::const_iterator i = params.begin(); i != params.end(); ++i)
     {
-        std::ifstream in(filename.c_str());
-        if (!in)
-        {
-            throw CacheError(strerror(errno));
-        }
-        in.imbue(std::locale::classic());
-        parseParameters(in, params);
+        if (!first)
+            query << ", ";
+        first = false;
+        query << i->first;
     }
-    catch (std::runtime_error &e)
+
+    query << " FROM " << tableName(key) << " WHERE ";
+    first = true;
+    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
     {
-        throw CacheError("Failed to read cache file " + fromPathString(filename) + ": " + e.what());
+        if (i->first == "algorithm" || i->first == "version")
+            continue; // these are encoded into the table name
+        if (!first)
+            query << " AND ";
+        first = false;
+        query << i->first << "=?";
+    }
+
+    sqlite3_stmt *stmt = NULL;
+    int status = sqlite3_prepare_v2(db.con, query.str().c_str(), -1, &stmt, NULL);
+    if (status != SQLITE_OK)
+        throw CacheError(sqlite3_errstr(status));
+    int pos = 1;
+    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
+    {
+        if (i->first == "algorithm" || i->first == "version")
+            continue; // these are encoded into the table name
+        i->second->sql_bind(stmt, pos);
+        pos++;
+    }
+
+    status = sqlite3_step(stmt);
+    if (status == SQLITE_DONE)
+    {
+        sqlite3_finalize(stmt);
+        throw CacheError("No cache entry found");
+    }
+    else if (status != SQLITE_ROW)
+    {
+        sqlite3_finalize(stmt);
+        throw CacheError(sqlite3_errstr(status));
+    }
+    else
+    {
+        int column = 0;
+        for (ParameterSet::iterator i = params.begin(); i != params.end(); ++i)
+        {
+            i->second->sql_get(stmt, column);
+            column++;
+        }
+        sqlite3_finalize(stmt);
     }
 }
 

@@ -267,6 +267,8 @@ def build(bld):
         # the build is complete, because we don't yet know which
         # files to produce.
         bld.add_post_fun(post)
+    bld.define('SQLITE_THREADSAFE', '1', quote = False)
+    bld.define('SQLITE_OMIT_LOAD_EXTENSION', '1', quote = False)
     lib_sources = bld.path.ant_glob('src/*.cpp') + bld.path.ant_glob('src/*.c') + ['src/kernels.cpp']
     clogs_stlib = bld.stlib(
             source = lib_sources,
