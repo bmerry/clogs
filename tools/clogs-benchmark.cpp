@@ -411,7 +411,10 @@ static void runSort(const cl::CommandQueue &queue, const po::variables_map &vm)
         tmpValueBuffer2 = cl::Buffer(context, CL_MEM_READ_WRITE, valueBufferSize);
     }
 
-    clogs::Radixsort sort(context, device, keyType, valueType);
+    clogs::RadixsortProblem problem;
+    problem.setKeyType(keyType);
+    problem.setValueType(valueType);
+    clogs::Radixsort sort(context, device, problem);
     sort.setTemporaryBuffers(tmpKeyBuffer2, tmpValueBuffer2);
 
     double elapsed = 0.0;
@@ -465,7 +468,9 @@ static void runScan(const cl::CommandQueue &queue, const po::variables_map &vm)
 
     RANDOM_NAMESPACE::mt19937 engine;
     cl::Buffer buffer = randomBuffer<cl_uchar>(queue, engine, elements * valueType.getSize(), 1);
-    clogs::Scan scan(context, device, valueType);
+    clogs::ScanProblem problem;
+    problem.setType(valueType);
+    clogs::Scan scan(context, device, problem);
 
     double elapsed = 0.0;
     // pass 0 is a warm-up pass
