@@ -1,4 +1,5 @@
 # Copyright (c) 2012, 2013 University of Cape Town
+# Copyright (c) 2014 Bruce Merry
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -91,8 +92,10 @@ def configure_variant(conf):
 
 def configure_variant_gcc(conf):
     ccflags = ['-Wall', '-Wextra']
+    cxxflags = []
     if conf.env['CC_VERSION'][0] >= 4:
-        ccflags.extend(['-fvisibility=hidden', '-fvisibility-inlines-hidden'])
+        ccflags.extend(['-fvisibility=hidden'])
+        cxxflags.extend(['-fvisibility-inlines-hidden'])
     if conf.env['optimize']:
         ccflags.append('-O2')
     if conf.env['debuginfo']:
@@ -101,11 +104,12 @@ def configure_variant_gcc(conf):
         conf.env.append_value('LINKFLAGS', '-s')
     conf.env.append_value('CFLAGS', ccflags)
     conf.env.append_value('CXXFLAGS', ccflags)
+    conf.env.append_value('CXXFLAGS', cxxflags)
     conf.env['LIB_PROGRAM_OPTIONS'] = ['boost_program_options']
 
 def configure_platform_unix(conf):
     conf.define('CLOGS_FS_UNIX', 1, quote = False)
-    conf.env['LIB_OS'] = []
+    conf.env['LIB_OS'] = ['pthread']  # For sqlite
 
 def configure_platform_windows(conf):
     conf.define('CLOGS_FS_WINDOWS', 1, quote = False)
@@ -129,6 +133,7 @@ def configure_variant_msvc(conf):
 
 def configure(conf):
     conf.load('gnu_dirs')
+    conf.load('compiler_c')
     conf.load('compiler_cxx')
 
     if conf.options.with_doxygen is not False:
@@ -193,6 +198,7 @@ def options(opt):
     opt.add_option('--without-xsltproc', dest = 'with_xsltproc', action = 'store_false', help = 'Do not build user manual')
     opt.add_option('--cl-headers', action = 'store', default = None, help = 'Include path for OpenCL')
     opt.add_option('--split-debug', action = 'store_true', default = False, help = 'Put debug information into separate file (GCC only)')
+    opt.load('compiler_c')
     opt.load('compiler_cxx')
     opt.load('gnu_dirs')
 
