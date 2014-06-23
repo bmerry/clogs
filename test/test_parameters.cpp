@@ -97,7 +97,7 @@ CPPUNIT_TEST_SUITE_REGISTRATION(TestParameters);
 void TestParameters::testReadFields()
 {
     int status = sqlite3_prepare_v2(
-        db, "SELECT i, i2, str2, size, str, blb FROM test", -1, &stmt, NULL);
+        db, "SELECT 1, 2, '3', 4, '5', X'06'", -1, &stmt, NULL);
     CPPUNIT_ASSERT_EQUAL(SQLITE_OK, status);
 
     status = sqlite3_step(stmt);
@@ -118,7 +118,7 @@ void TestParameters::testReadFields()
 void TestParameters::testReadFieldsEmpty()
 {
     int status = sqlite3_prepare_v2(
-        db, "SELECT 0, 0, '', 0, '', X'' FROM test", -1, &stmt, NULL);
+        db, "SELECT 0, 0, '', 0, '', X''", -1, &stmt, NULL);
     CPPUNIT_ASSERT_EQUAL(SQLITE_OK, status);
 
     status = sqlite3_step(stmt);
@@ -215,21 +215,6 @@ void TestParameters::testCompare()
 void TestParameters::setUp()
 {
     int status = sqlite3_open_v2(":memory:", &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
-    CPPUNIT_ASSERT_EQUAL(SQLITE_OK, status);
-
-    status = sqlite3_exec(
-        db,
-        "CREATE TABLE test (i INT, i2 INT, str2 TEXT, size INT, str TEXT, blb BLOB)",
-        NULL,
-        NULL,
-        NULL);
-    CPPUNIT_ASSERT_EQUAL(SQLITE_OK, status);
-    status = sqlite3_exec(
-        db,
-        "INSERT INTO test VALUES (1, 2, '3', 4, '5', X'06')",
-        NULL,
-        NULL,
-        NULL);
     CPPUNIT_ASSERT_EQUAL(SQLITE_OK, status);
 }
 
