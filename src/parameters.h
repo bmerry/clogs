@@ -50,8 +50,22 @@ namespace clogs
 namespace detail
 {
 
+CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, sqlite3_int64 value);
+CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, const std::string &value);
+CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, const std::vector<unsigned char> &value);
+
 CLOGS_LOCAL int readFields(sqlite3_stmt *stmt, int pos, std::string &value);
 CLOGS_LOCAL int readFields(sqlite3_stmt *stmt, int pos, std::vector<unsigned char> &value);
+
+template<typename T>
+typename boost::enable_if<boost::is_integral<T>, int>::type
+static inline readFields(sqlite3_stmt *stmt, int pos, T &value)
+{
+    assert(pos >= 0 && pos < sqlite3_column_count(stmt));
+    assert(sqlite3_column_type(stmt, pos) == SQLITE_INTEGER);
+    value = sqlite3_column_int64(stmt, pos);
+    return pos + 1;
+}
 
 template<typename T>
 static inline void fieldNames(const T *, const char *root, std::vector<const char *> &out)
@@ -123,20 +137,6 @@ static inline void fieldTypes(const std::vector<unsigned char> *, std::vector<co
         BOOST_PP_SEQ_FOR_EACH(CLOGS_FIELD_COMPARE, name, fields)        \
         return false;                                                   \
     }
-
-CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, sqlite3_int64 value);
-CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, const std::string &value);
-CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, const std::vector<unsigned char> &value);
-
-template<typename T>
-typename boost::enable_if<boost::is_integral<T>, int>::type
-static inline readFields(sqlite3_stmt *stmt, int pos, T &value)
-{
-    assert(pos >= 0 && pos < sqlite3_column_count(stmt));
-    assert(sqlite3_column_type(stmt, pos) == SQLITE_INTEGER);
-    value = sqlite3_column_int64(stmt, pos);
-    return pos + 1;
-}
 
 struct CLOGS_LOCAL DeviceKey
 {
