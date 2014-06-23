@@ -33,6 +33,7 @@
 #include <CL/cl.hpp>
 #include <cstddef>
 #include <utility>
+#include <boost/any.hpp>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -47,6 +48,35 @@ namespace detail
 
 class Tuner;
 class Radixsort;
+
+class CLOGS_LOCAL RadixsortParameters
+{
+public:
+    struct Key
+    {
+        DeviceKey device;
+        std::string keyType;
+        ::size_t valueSize;
+    };
+
+    struct Value
+    {
+        ::size_t warpSizeMem;
+        ::size_t warpSizeSchedule;
+        ::size_t reduceWorkGroupSize;
+        ::size_t scanWorkGroupSize;
+        ::size_t scatterWorkGroupSize;
+        ::size_t scatterWorkScale;
+        ::size_t scanBlocks;
+        unsigned int radixBits;
+        std::vector<unsigned char> programBinary;
+    };
+
+    static const char *tableName() { return "radixsort_v5"; }
+};
+
+CLOGS_STRUCT_FORWARD(RadixsortParameters::Key)
+CLOGS_STRUCT_FORWARD(RadixsortParameters::Value)
 
 class CLOGS_LOCAL RadixsortProblem
 {
@@ -164,28 +194,28 @@ private:
     void initialize(
         const cl::Context &context, const cl::Device &device,
         const RadixsortProblem &problem,
-        ParameterSet &params, bool tuning);
+        RadixsortParameters::Value &params, bool tuning);
 
     /**
      * Constructor for autotuning
      */
     Radixsort(const cl::Context &context, const cl::Device &device,
               const RadixsortProblem &problem,
-              ParameterSet &params);
+              RadixsortParameters::Value &params);
 
     static std::pair<double, double> tuneReduceCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, ParameterSet &params,
+        std::size_t elements, boost::any &params,
         const RadixsortProblem &problem);
 
     static std::pair<double, double> tuneScatterCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, ParameterSet &params,
+        std::size_t elements, boost::any &params,
         const RadixsortProblem &problem);
 
     static std::pair<double, double> tuneBlocksCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, ParameterSet &params,
+        std::size_t elements, boost::any &params,
         const RadixsortProblem &problem);
 public:
     /**
@@ -217,16 +247,11 @@ public:
     void setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &values);
 
     /**
-     * Create the keys for autotuning. The values are undefined.
-     */
-    static ParameterSet parameters();
-
-    /**
      * Returns key for looking up autotuning parameters.
      *
      * @param device, keyType, valueType  Constructor parameters.
      */
-    static ParameterSet makeKey(const cl::Device &device, const RadixsortProblem &problem);
+    static RadixsortParameters::Key makeKey(const cl::Device &device, const RadixsortProblem &problem);
 
     /**
      * Perform autotuning.
@@ -234,7 +259,7 @@ public:
      * @param tuner       Tuner for reporting progress
      * @param device, problem Constructor parameters
      */
-    static ParameterSet tune(
+    static RadixsortParameters::Value tune(
         Tuner &tuner,
         const cl::Device &device,
         const RadixsortProblem &problem);

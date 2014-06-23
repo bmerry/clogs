@@ -37,6 +37,9 @@
 #include <cstddef>
 #include <locale>
 #include <cassert>
+#include <boost/preprocessor.hpp>
+#include <boost/type_traits/is_integral.hpp>
+#include <boost/utility/enable_if.hpp>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -47,165 +50,103 @@ namespace clogs
 namespace detail
 {
 
-class CLOGS_LOCAL Parameter
-{
-public:
-    virtual ~Parameter();
-    virtual Parameter *clone() const = 0;
-
-    virtual std::string sql_type() const = 0;
-    virtual int sql_bind(sqlite3_stmt *stmt, int pos) const = 0;
-    virtual void sql_get(sqlite3_stmt *stmt, int column) = 0;
-};
+CLOGS_LOCAL int readFields(sqlite3_stmt *stmt, int pos, std::string &value);
+CLOGS_LOCAL int readFields(sqlite3_stmt *stmt, int pos, std::vector<unsigned char> &value);
 
 template<typename T>
-class CLOGS_LOCAL SqlTraits;
-
-// TODO: document these, move to .cpp file, and remove sql_ prefix
-
-template<>
-class CLOGS_LOCAL SqlTraits<int>
+static inline void fieldNames(const T *, const char *root, std::vector<const char *> &out)
 {
-public:
-    static std::string sql_type() { return "INT"; }
-    static int sql_bind(sqlite3_stmt *stmt, int pos, int value)
-    {
-        return sqlite3_bind_int(stmt, pos, value);
-    }
-    static int sql_get(sqlite3_stmt *stmt, int column)
-    {
-        assert(column >= 0 && column < sqlite3_column_count(stmt));
-        assert(sqlite3_column_type(stmt, column) == SQLITE_INTEGER);
-        return sqlite3_column_int(stmt, column);
-    }
-};
-
-template<>
-class CLOGS_LOCAL SqlTraits<unsigned int> : public SqlTraits<int>
-{
-};
-
-template<>
-class CLOGS_LOCAL SqlTraits< ::size_t>
-{
-public:
-    static std::string sql_type() { return "INT"; }
-    static int sql_bind(sqlite3_stmt *stmt, int pos, ::size_t value)
-    {
-        return sqlite3_bind_int64(stmt, pos, value);
-    }
-    static ::size_t sql_get(sqlite3_stmt *stmt, int column)
-    {
-        assert(column >= 0 && column < sqlite3_column_count(stmt));
-        assert(sqlite3_column_type(stmt, column) == SQLITE_INTEGER);
-        return sqlite3_column_int64(stmt, column);
-    }
-};
-
-template<>
-class CLOGS_LOCAL SqlTraits<std::string>
-{
-public:
-    static std::string sql_type() { return "TEXT"; }
-    static int sql_bind(sqlite3_stmt *stmt, int pos, const std::string &value)
-    {
-        return sqlite3_bind_text(stmt, pos, value.data(), value.size(), SQLITE_TRANSIENT);
-    }
-    static std::string sql_get(sqlite3_stmt *stmt, int column)
-    {
-        assert(column >= 0 && column < sqlite3_column_count(stmt));
-        assert(sqlite3_column_type(stmt, column) == SQLITE_TEXT);
-        const char *data = (const char *) sqlite3_column_text(stmt, column);
-        ::size_t size = sqlite3_column_bytes(stmt, column);
-        return std::string(data, size);
-    }
-};
-
-template<>
-class CLOGS_LOCAL SqlTraits<std::vector<unsigned char> >
-{
-public:
-    static std::string sql_type() { return "BLOB"; }
-    static int sql_bind(sqlite3_stmt *stmt, int pos, const std::vector<unsigned char> &value)
-    {
-        const unsigned char dummy = 0;
-        return sqlite3_bind_blob(
-            stmt, pos,
-            static_cast<const void *>(value.empty() ? &dummy : &value[0]),
-            value.size(), SQLITE_TRANSIENT);
-    }
-    static std::vector<unsigned char> sql_get(sqlite3_stmt *stmt, int column)
-    {
-        assert(column >= 0 && column < sqlite3_column_count(stmt));
-        assert(sqlite3_column_type(stmt, column) == SQLITE_BLOB);
-        const unsigned char *data = (const unsigned char *) sqlite3_column_blob(stmt, column);
-        ::size_t size = sqlite3_column_bytes(stmt, column);
-        return std::vector<unsigned char>(data, data + size);
-    }
-};
+    out.push_back(root);
+}
 
 template<typename T>
-class CLOGS_LOCAL TypedParameter : public Parameter
+static inline typename boost::enable_if<boost::is_integral<T> >::type
+fieldTypes(const T *, std::vector<const char *> &out)
 {
-private:
-    T value;
+    out.push_back("INT");
+}
 
-public:
-    explicit TypedParameter(const T &value = T()) : value(value) {}
-    T get() const { return value; }
-    T &get() { return value; }
-    void set(const T &value) { this->value = value; }
-    virtual Parameter *clone() const { return new TypedParameter<T>(*this); }
+static inline void fieldTypes(const std::string *, std::vector<const char *> &out)
+{
+    out.push_back("TEXT");
+}
 
-    virtual std::string sql_type() const
-    {
-        return SqlTraits<T>::sql_type();
+static inline void fieldTypes(const std::vector<unsigned char> *, std::vector<const char *> &out)
+{
+    out.push_back("BLOB");
+}
+
+#define CLOGS_BIND_FIELD(r, s, field)                                   \
+    pos = bindFields(stmt, pos, (s).field);
+
+#define CLOGS_READ_FIELD(r, s, field)                                   \
+    pos = readFields(stmt, pos, (s).field);
+
+#define CLOGS_FIELD_NAME(r, s, field)                                   \
+    fieldNames(&dummy->field, BOOST_PP_STRINGIZE(field), out);
+
+#define CLOGS_FIELD_TYPE(r, name, field)                                \
+    fieldTypes(&dummy->field, out);
+
+#define CLOGS_FIELD_COMPARE(r, s, field)                                \
+    if (a.field < b.field) return true;                                 \
+    if (b.field < a.field) return false;
+
+#define CLOGS_STRUCT_FORWARD(name)                                      \
+    int bindFields(sqlite3_stmt *stmt, int pos, const name &s);         \
+    int readFields(sqlite3_stmt *stmt, int pos, name &s);               \
+    void fieldNames(const name *, const char *root, std::vector<const char *> &out); \
+    void fieldTypes(const name *, std::vector<const char *> &out);      \
+    bool operator<(const name &a, const name &b);
+
+#define CLOGS_STRUCT(name, fields)                                      \
+    int bindFields(sqlite3_stmt *stmt, int pos, const name &s)          \
+    {                                                                   \
+        BOOST_PP_SEQ_FOR_EACH(CLOGS_BIND_FIELD, s, fields);             \
+        return pos;                                                     \
+    }                                                                   \
+    int readFields(sqlite3_stmt *stmt, int pos, name &s)                \
+    {                                                                   \
+        BOOST_PP_SEQ_FOR_EACH(CLOGS_READ_FIELD, s, fields)              \
+        return pos;                                                     \
+    }                                                                   \
+    void fieldNames(const name *dummy, const char *, std::vector<const char *> &out) \
+    {                                                                   \
+        BOOST_PP_SEQ_FOR_EACH(CLOGS_FIELD_NAME, name, fields)           \
+    }                                                                   \
+    void fieldTypes(const name *dummy, std::vector<const char *> &out)  \
+    {                                                                   \
+        BOOST_PP_SEQ_FOR_EACH(CLOGS_FIELD_TYPE, name, fields)           \
+    }                                                                   \
+    bool operator<(const name &a, const name &b)                        \
+    {                                                                   \
+        BOOST_PP_SEQ_FOR_EACH(CLOGS_FIELD_COMPARE, name, fields)        \
+        return false;                                                   \
     }
 
-    virtual int sql_bind(sqlite3_stmt *stmt, int pos) const
-    {
-        return SqlTraits<T>::sql_bind(stmt, pos, value);
-    }
+CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, sqlite3_int64 value);
+CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, const std::string &value);
+CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, const std::vector<unsigned char> &value);
 
-    virtual void sql_get(sqlite3_stmt *stmt, int column)
-    {
-        value = SqlTraits<T>::sql_get(stmt, column);
-    }
+template<typename T>
+typename boost::enable_if<boost::is_integral<T>, int>::type
+static inline readFields(sqlite3_stmt *stmt, int pos, T &value)
+{
+    assert(pos >= 0 && pos < sqlite3_column_count(stmt));
+    assert(sqlite3_column_type(stmt, pos) == SQLITE_INTEGER);
+    value = sqlite3_column_int64(stmt, pos);
+    return pos + 1;
+}
+
+struct CLOGS_LOCAL DeviceKey
+{
+    std::string platformName;
+    std::string deviceName;
+    cl_uint deviceVendorId;
+    std::string driverVersion;
 };
 
-/**
- * A key/value collection of parameters that can be serialized. The keys are
- * strings while the values are of arbitrary type.
- */
-class CLOGS_LOCAL ParameterSet : public std::map<std::string, Parameter *>
-{
-public:
-    /// Default constructor
-    ParameterSet();
-    /// Copy constructor
-    ParameterSet(const ParameterSet &params);
-    /// Assignment operator
-    ParameterSet &operator=(const ParameterSet &params);
-    ~ParameterSet();
-
-    template<typename T> const TypedParameter<T> *getTyped(const std::string &name) const
-    {
-        const_iterator pos = find(name);
-        if (pos != end())
-            return dynamic_cast<const TypedParameter<T> *>(pos->second);
-        else
-            return NULL;
-    }
-
-    template<typename T> TypedParameter<T> *getTyped(const std::string &name)
-    {
-        iterator pos = find(name);
-        if (pos != end())
-            return dynamic_cast<TypedParameter<T> *>(pos->second);
-        else
-            return NULL;
-    }
-};
+CLOGS_STRUCT_FORWARD(DeviceKey)
 
 } // namespace detail
 } // namespace clogs

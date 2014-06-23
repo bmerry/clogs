@@ -33,10 +33,13 @@
 #include <stdexcept>
 #include <vector>
 #include <set>
+#include <boost/any.hpp>
 #include "tr1_functional.h"
 #include <clogs/visibility_pop.h>
 
 #include "parameters.h"
+#include "scan.h"
+#include "radixsort.h"
 
 namespace cl
 {
@@ -78,17 +81,19 @@ public:
 /**
  * Create a key with fields uniquely describing @a device.
  */
-CLOGS_LOCAL ParameterSet deviceKey(const cl::Device &device);
+CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device);
 
 /**
  * Look up tuning parameters for a specific algorithm.
  *
+ * @param table           Database table to search
  * @param key             Lookup key, including algorithm and device-specific fields
- * @param[in,out] params  On input, uninitialized parameters. Initialized on output
+ * @param[out] params     Found parameters
  *
  * @throw CacheError if the cache did not exist or could not be read
  */
-CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params);
+template<typename K, typename V>
+CLOGS_LOCAL void getParameters(const char *table, const K &key, V &values);
 
 /**
  * Generate the tuning parameters for all algorithms.
@@ -103,7 +108,8 @@ CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force, bool 
 class CLOGS_LOCAL Tuner
 {
 private:
-    std::set<ParameterSet> seen;
+    std::set<ScanParameters::Key> seenScan;
+    std::set<RadixsortParameters::Key> seenRadixsort;
     bool force;
     bool keepGoing;
 
@@ -145,16 +151,16 @@ public:
      * Each call will be made with a fresh context. It is advisable for the
      * callback function to execute a warmup pass to obtain reliable results.
      */
-    ParameterSet tuneOne(
+    boost::any tuneOne(
         const cl::Device &device,
-        const std::vector<ParameterSet> &parameterSets,
+        const std::vector<boost::any> &parameterSets,
         const std::vector<std::size_t> &problemSizes,
         FUNCTIONAL_NAMESPACE::function<
         std::pair<double, double>(
             const cl::Context &,
             const cl::Device &,
             std::size_t,
-            ParameterSet &)> callback,
+            boost::any &)> callback,
         double ratio = 0.5);
 
     /**
@@ -167,18 +173,17 @@ public:
     /// Called at the end of a related set of tuning tests
     void logEndGroup();
     /// Called at the start of a single tuning test
-    void logStartTest(const ParameterSet &params);
+    void logStartTest();
     /**
      * Called at the end of a single tuning test.
-     * @param params     The tested parameters
      * @param success    Whether the test succeeded i.e. did not throw an exception
      * @param rate       Rate at which operations occurred (arbitrary scale)
      */
-    void logEndTest(const ParameterSet &params, bool success, double rate);
+    void logEndTest(bool success, double rate);
     /**
      * Logs final result of autotuning.
      */
-    void logResult(const ParameterSet &params);
+    void logResult();
 
     /**
      * @}

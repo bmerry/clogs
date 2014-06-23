@@ -83,14 +83,14 @@ int SaveParametersError::getError() const
     return err;
 }
 
-CLOGS_LOCAL ParameterSet deviceKey(const cl::Device &device)
+CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device)
 {
-    ParameterSet key;
+    DeviceKey key;
     cl::Platform platform(device.getInfo<CL_DEVICE_PLATFORM>());
-    key["CL_PLATFORM_NAME"] = new TypedParameter<std::string>(platform.getInfo<CL_PLATFORM_NAME>());
-    key["CL_DEVICE_NAME"] = new TypedParameter<std::string>(device.getInfo<CL_DEVICE_NAME>());
-    key["CL_DEVICE_VENDOR_ID"] = new TypedParameter<cl_uint>(device.getInfo<CL_DEVICE_VENDOR_ID>());
-    key["CL_DRIVER_VERSION"] = new TypedParameter<std::string>(device.getInfo<CL_DRIVER_VERSION>());
+    key.platformName = platform.getInfo<CL_PLATFORM_NAME>();
+    key.deviceName = device.getInfo<CL_DEVICE_NAME>();
+    key.deviceVendorId = device.getInfo<CL_DEVICE_VENDOR_ID>();
+    key.driverVersion = device.getInfo<CL_DRIVER_VERSION>();
     return key;
 }
 
@@ -245,44 +245,41 @@ static DB &getDB()
     return db;
 }
 
-static std::string tableName(const ParameterSet &key)
+template<typename T>
+static void writeFieldDefinitions(std::ostream &statement)
 {
-    std::string algorithm = key.getTyped<std::string>("algorithm")->get();
-    int version = key.getTyped<int>("version")->get();
-    std::ostringstream out;
-    out.imbue(std::locale::classic());
-    out << algorithm << "_v" << version;
-    return out.str();
+    std::vector<const char *> names, types;
+    fieldNames((T *) NULL, NULL, names);
+    fieldTypes((T *) NULL, types);
+    assert(names.size() == types.size());
+    for (std::size_t i = 0; i < names.size(); i++)
+        statement << names[i] << ' ' << types[i] << ", ";
 }
 
-static void createTable(const ParameterSet &key, const ParameterSet &values)
+template<typename T>
+static void writeFieldNames(std::ostream &statement, const char *sep = ", ", const char *suffix = "")
+{
+    std::vector<const char *> names;
+    fieldNames((T *) NULL, NULL, names);
+    for (std::size_t i = 0; i < names.size(); i++)
+    {
+        if (i > 0)
+            statement << sep;
+        statement << names[i] << suffix;
+    }
+}
+
+template<typename K, typename V>
+static void createTable(const char *table)
 {
     std::ostringstream statement;
     statement.imbue(std::locale::classic());
-    statement << "CREATE TABLE IF NOT EXISTS " << tableName(key) << " (";
-    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
-    {
-        if (i->first == "algorithm" || i->first == "version")
-            continue; // these are encoded into the table name
-        statement << i->first << ' ' << i->second->sql_type() << ", ";
-    }
-    for (ParameterSet::const_iterator i = values.begin(); i != values.end(); ++i)
-    {
-        statement << i->first << ' ' << i->second->sql_type() << ", ";
-    }
+    statement << "CREATE TABLE IF NOT EXISTS " << table << " (";
+    writeFieldDefinitions<K>(statement);
+    writeFieldDefinitions<V>(statement);
 
     statement << "PRIMARY KEY(";
-    bool first = true;
-    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
-    {
-        if (i->first == "algorithm" || i->first == "version")
-            continue; // these are encoded into the table name
-        if (!first)
-            statement << ", ";
-        first = false;
-        statement << i->first;
-    }
-
+    writeFieldNames<K>(statement);
     statement << "))";
 
     std::string s = statement.str();
@@ -300,52 +297,32 @@ static void createTable(const ParameterSet &key, const ParameterSet &values)
 /**
  * Write computed parameters to file.
  *
+ * @param table          Name of the table
  * @param key            Algorithm key
- * @param params         Autotuned parameters.
+ * @param values         Autotuned parameters.
  *
  * @throw SaveParametersError if the file could not be written
  */
-static void saveParameters(const ParameterSet &key, const ParameterSet &values)
+template<typename K, typename V>
+static void saveParameters(const char *table, const K &key, const V &values)
 {
-    createTable(key, values);
+    createTable<K, V>(table);
 
     std::ostringstream statement;
     statement.imbue(std::locale::classic());
-    statement << "INSERT OR REPLACE INTO " << tableName(key) << "(";
-    bool first = true;
-    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
-    {
-        if (i->first == "algorithm" || i->first == "version")
-            continue; // these are encoded into the table name
-        if (!first)
-            statement << ", ";
-        first = false;
-        statement << i->first;
-    }
-    for (ParameterSet::const_iterator i = values.begin(); i != values.end(); ++i)
-    {
-        if (!first)
-            statement << ", ";
-        first = false;
-        statement << i->first;
-    }
+    statement << "INSERT OR REPLACE INTO " << table << "(";
+    writeFieldNames<K>(statement);
+    statement << ", ";
+    writeFieldNames<V>(statement);
 
     statement << ") VALUES (";
-    first = true;
-    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
+    std::vector<const char *> names;
+    fieldNames((K *) NULL, NULL, names);
+    fieldNames((V *) NULL, NULL, names);
+    for (std::size_t i = 0; i < names.size(); i++)
     {
-        if (i->first == "algorithm" || i->first == "version")
-            continue; // these are encoded into the table name
-        if (!first)
+        if (i > 0)
             statement << ", ";
-        first = false;
-        statement << '?';
-    }
-    for (ParameterSet::const_iterator i = values.begin(); i != values.end(); ++i)
-    {
-        if (!first)
-            statement << ", ";
-        first = false;
         statement << '?';
     }
     statement << ')';
@@ -357,18 +334,9 @@ static void saveParameters(const ParameterSet &key, const ParameterSet &values)
         throw CacheError(sqlite3_errstr(status));
 
     int pos = 1;
-    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
-    {
-        if (i->first == "algorithm" || i->first == "version")
-            continue; // these are encoded into the table name
-        i->second->sql_bind(stmt, pos);
-        pos++;
-    }
-    for (ParameterSet::const_iterator i = values.begin(); i != values.end(); ++i)
-    {
-        i->second->sql_bind(stmt, pos);
-        pos++;
-    }
+    pos = bindFields(stmt, pos, key);
+    pos = bindFields(stmt, pos, values);
+
     status = sqlite3_step(stmt);
     if (status != SQLITE_DONE)
     {
@@ -410,9 +378,9 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
         {
             ScanProblem problem;
             problem.setType(type);
-            ParameterSet key = Scan::makeKey(device, problem);
+            ScanParameters::Key key = Scan::makeKey(device, problem);
             bool doit = true;
-            if (!seen.insert(key).second)
+            if (!seenScan.insert(key).second)
                 doit = false; // already done in this round of tuning
             else if (!force)
             {
@@ -440,8 +408,8 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
 
                 try
                 {
-                    ParameterSet params = Scan::tune(*this, device, problem);
-                    saveParameters(key, params);
+                    ScanParameters::Value values = Scan::tune(*this, device, problem);
+                    saveParameters(ScanParameters::tableName(), key, values);
                 }
                 catch (TuneError &e)
                 {
@@ -474,9 +442,9 @@ void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
                     RadixsortProblem problem;
                     problem.setKeyType(keyType);
                     problem.setValueType(valueType);
-                    ParameterSet key = Radixsort::makeKey(device, problem);
+                    RadixsortParameters::Key key = Radixsort::makeKey(device, problem);
                     bool doit = true;
-                    if (!seen.insert(key).second)
+                    if (!seenRadixsort.insert(key).second)
                         doit = false; // already done in this round of tuning
                     else if (!force)
                     {
@@ -501,8 +469,8 @@ void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
 
                         try
                         {
-                            ParameterSet params = Radixsort::tune(*this, device, problem);
-                            saveParameters(key, params);
+                            RadixsortParameters::Value values = Radixsort::tune(*this, device, problem);
+                            saveParameters(RadixsortParameters::tableName(), key, values);
                         }
                         catch (TuneError &e)
                         {
@@ -550,49 +518,45 @@ void Tuner::logEndGroup()
     std::cout << std::endl;
 }
 
-void Tuner::logStartTest(const ParameterSet &params)
+void Tuner::logStartTest()
 {
-    (void) params;
 }
 
-void Tuner::logEndTest(const ParameterSet &params, bool success, double rate)
+void Tuner::logEndTest(bool success, double rate)
 {
-    (void) params;
     (void) rate;
     std::cout << "!."[success] << std::flush;
 }
 
-void Tuner::logResult(const ParameterSet &params)
+void Tuner::logResult()
 {
-    // std::cout << params << std::endl;
-    (void) params;
 }
 
-ParameterSet Tuner::tuneOne(
+boost::any Tuner::tuneOne(
     const cl::Device &device,
-    const std::vector<ParameterSet> &parameterSets,
+    const std::vector<boost::any> &parameterSets,
     const std::vector<std::size_t> &problemSizes,
     FUNCTIONAL_NAMESPACE::function<
     std::pair<double, double>(
         const cl::Context &,
         const cl::Device &,
         std::size_t,
-        ParameterSet &)> callback,
+        boost::any &)> callback,
     double ratio)
 {
-    std::vector<ParameterSet> retained = parameterSets;
+    std::vector<boost::any> retained = parameterSets;
     for (std::size_t pass = 0; pass < problemSizes.size(); pass++)
     {
         logStartGroup();
         const std::size_t problemSize = problemSizes[pass];
         std::vector<std::pair<double, double> > results;
         results.reserve(retained.size());
-        std::vector<ParameterSet> retained2;
+        std::vector<boost::any> retained2;
         double maxA = -HUGE_VAL;
         for (std::size_t i = 0; i < retained.size(); i++)
         {
-            ParameterSet &params = retained[i];
-            logStartTest(params);
+            boost::any &params = retained[i];
+            logStartTest();
             bool valid = false;
             try
             {
@@ -605,7 +569,7 @@ ParameterSet Tuner::tuneOne(
                     results.push_back(r);
                     if (r.first > maxA)
                         maxA = r.first;
-                    logEndTest(params, true, r.first);
+                    logEndTest(true, r.first);
                     valid = true;
                 }
             }
@@ -616,7 +580,7 @@ ParameterSet Tuner::tuneOne(
             {
             }
             if (!valid)
-                logEndTest(params, false, 0.0);
+                logEndTest(false, 0.0);
         }
         retained.swap(retained2);
         retained2.clear();
@@ -644,48 +608,26 @@ ParameterSet Tuner::tuneOne(
     abort(); // should never be reached due to A <= B
 }
 
-CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params)
+template<typename K, typename V>
+CLOGS_LOCAL void getParameters(const char *table, const K &key, V &values)
 {
     DB &db = getDB();
-    createTable(key, params);
+    createTable<K, V>(table);
 
     std::ostringstream query;
     query.imbue(std::locale::classic());
     query << "SELECT ";
-    bool first = true;
-    for (ParameterSet::const_iterator i = params.begin(); i != params.end(); ++i)
-    {
-        if (!first)
-            query << ", ";
-        first = false;
-        query << i->first;
-    }
+    writeFieldNames<V>(query);
 
-    query << " FROM " << tableName(key) << " WHERE ";
-    first = true;
-    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
-    {
-        if (i->first == "algorithm" || i->first == "version")
-            continue; // these are encoded into the table name
-        if (!first)
-            query << " AND ";
-        first = false;
-        query << i->first << "=?";
-    }
+    query << " FROM " << table << " WHERE ";
+    writeFieldNames<K>(query, " AND ", "=?");
 
     sqlite3_stmt *stmt = NULL;
     int status = sqlite3_prepare_v2(db.con, query.str().c_str(), -1, &stmt, NULL);
     if (status != SQLITE_OK)
         throw CacheError(sqlite3_errstr(status));
-    int pos = 1;
-    for (ParameterSet::const_iterator i = key.begin(); i != key.end(); ++i)
-    {
-        if (i->first == "algorithm" || i->first == "version")
-            continue; // these are encoded into the table name
-        i->second->sql_bind(stmt, pos);
-        pos++;
-    }
 
+    bindFields(stmt, 1, key);
     status = sqlite3_step(stmt);
     if (status == SQLITE_DONE)
     {
@@ -699,12 +641,7 @@ CLOGS_LOCAL void getParameters(const ParameterSet &key, ParameterSet &params)
     }
     else
     {
-        int column = 0;
-        for (ParameterSet::iterator i = params.begin(); i != params.end(); ++i)
-        {
-            i->second->sql_get(stmt, column);
-            column++;
-        }
+        readFields(stmt, 0, values);
         sqlite3_finalize(stmt);
     }
 }
@@ -716,6 +653,14 @@ CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force, bool 
     tuner.setKeepGoing(keepGoing);
     tuner.tuneAll(devices);
 }
+
+// Explicit instantiations
+template
+CLOGS_LOCAL void getParameters<ScanParameters::Key, ScanParameters::Value>(
+    const char *table, const ScanParameters::Key &key, ScanParameters::Value &values);
+template
+CLOGS_LOCAL void getParameters<RadixsortParameters::Key, RadixsortParameters::Value>(
+    const char *table, const RadixsortParameters::Key &key, RadixsortParameters::Value &values);
 
 } // namespace detail
 } // namespace clogs

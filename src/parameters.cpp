@@ -42,45 +42,59 @@ namespace clogs
 namespace detail
 {
 
-Parameter::~Parameter() {}
-
-ParameterSet::ParameterSet()
+CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, sqlite3_int64 value)
 {
+    int status = sqlite3_bind_int64(stmt, pos, value);
+    if (status != SQLITE_OK)
+        throw CacheError(sqlite3_errstr(status));
+    return pos + 1;
 }
 
-ParameterSet::ParameterSet(const ParameterSet &params) : std::map<std::string, Parameter *>()
+CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, const std::string &value)
 {
-    try
-    {
-        *this = params;
-    }
-    catch (...)
-    {
-        for (iterator i = begin(); i != end(); ++i)
-            delete i->second;
-        throw;
-    }
+    int status = sqlite3_bind_text(stmt, pos, value.data(), value.size(), SQLITE_TRANSIENT);
+    if (status != SQLITE_OK)
+        throw CacheError(sqlite3_errstr(status));
+    return pos + 1;
 }
 
-ParameterSet &ParameterSet::operator=(const ParameterSet &params)
+CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, const std::vector<unsigned char> &value)
 {
-    for (iterator i = begin(); i != end(); ++i)
-        delete i->second;
-    clear();
-    for (const_iterator i = params.begin(); i != params.end(); ++i)
-    {
-        std::auto_ptr<Parameter> clone(i->second->clone());
-        insert(std::make_pair(i->first, clone.get()));
-        clone.release();
-    }
-    return *this;
+    const unsigned char dummy = 0;
+    int status = sqlite3_bind_blob(
+        stmt, pos,
+        static_cast<const void *>(value.empty() ? &dummy : &value[0]),
+        value.size(), SQLITE_TRANSIENT);
+    if (status != SQLITE_OK)
+        throw CacheError(sqlite3_errstr(status));
+    return pos + 1;
 }
 
-ParameterSet::~ParameterSet()
+
+CLOGS_LOCAL int readFields(sqlite3_stmt *stmt, int pos, std::string &value)
 {
-    for (iterator i = begin(); i != end(); ++i)
-        delete i->second;
+    assert(pos >= 0 && pos < sqlite3_column_count(stmt));
+    assert(sqlite3_column_type(stmt, pos) == SQLITE_TEXT);
+    const char *data = (const char *) sqlite3_column_text(stmt, pos);
+    ::size_t size = sqlite3_column_bytes(stmt, pos);
+    value.assign(data, size);
+    return pos + 1;
 }
+
+CLOGS_LOCAL int readFields(sqlite3_stmt *stmt, int pos, std::vector<unsigned char> &value)
+{
+    assert(pos >= 0 && pos < sqlite3_column_count(stmt));
+    assert(sqlite3_column_type(stmt, pos) == SQLITE_BLOB);
+    const unsigned char *data = (const unsigned char *) sqlite3_column_blob(stmt, pos);
+    ::size_t size = sqlite3_column_bytes(stmt, pos);
+    value.assign(data, data + size);
+    return pos + 1;
+}
+
+CLOGS_STRUCT(
+    DeviceKey,
+    (platformName)(deviceName)(deviceVendorId)(driverVersion)
+)
 
 } // namespace detail
 } // namespace clogs

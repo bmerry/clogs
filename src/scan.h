@@ -35,8 +35,11 @@
 
 #include <clogs/visibility_push.h>
 #include <cstddef>
+#include <cassert>
 #include <vector>
+#include <string>
 #include <CL/cl.hpp>
+#include <boost/any.hpp>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -49,6 +52,32 @@ namespace detail
 
 class Tuner;
 class Scan;
+
+class CLOGS_LOCAL ScanParameters
+{
+public:
+    struct CLOGS_LOCAL Key
+    {
+        DeviceKey device;
+        std::string elementType;
+    };
+
+    struct CLOGS_LOCAL Value
+    {
+        ::size_t warpSizeMem;
+        ::size_t warpSizeSchedule;
+        ::size_t reduceWorkGroupSize;
+        ::size_t scanWorkGroupSize;
+        ::size_t scanWorkScale;
+        ::size_t scanBlocks;
+        std::vector<unsigned char> programBinary;
+    };
+
+    static const char *tableName() { return "scan_v6"; }
+};
+
+CLOGS_STRUCT_FORWARD(ScanParameters::Key)
+CLOGS_STRUCT_FORWARD(ScanParameters::Value)
 
 /**
  * Internal implementations of @ref clogs::ScanProblem.
@@ -118,27 +147,27 @@ private:
      */
     void initialize(
         const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
-        ParameterSet &params, bool tuning);
+        ScanParameters::Value &params, bool tuning);
 
     /**
      * Constructor for autotuning
      */
     Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
-         ParameterSet &params);
+         ScanParameters::Value &params);
 
     static std::pair<double, double> tuneReduceCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, ParameterSet &parameters,
+        std::size_t elements, boost::any &parameters,
         const ScanProblem &problem);
 
     static std::pair<double, double> tuneScanCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, ParameterSet &parameters,
+        std::size_t elements, boost::any &parameters,
         const ScanProblem &problem);
 
     static std::pair<double, double> tuneBlocksCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, ParameterSet &parameters,
+        std::size_t elements, boost::any &parameters,
         const ScanProblem &problem);
 public:
     /**
@@ -179,16 +208,11 @@ public:
                  cl::Event *event = NULL);
 
     /**
-     * Create the keys for autotuning. The values are undefined.
-     */
-    static ParameterSet parameters();
-
-    /**
      * Returns key for looking up autotuning parameters.
      *
      * @param device, problem  Constructor parameters.
      */
-    static ParameterSet makeKey(const cl::Device &device, const ScanProblem &problem);
+    static ScanParameters::Key makeKey(const cl::Device &device, const ScanProblem &problem);
 
     /**
      * Perform autotuning.
@@ -197,7 +221,7 @@ public:
      * @param device      Device to tune for
      * @param problem     Scan parameters
      */
-    static ParameterSet tune(
+    static ScanParameters::Value tune(
         Tuner &tuner,
         const cl::Device &device, const ScanProblem &problem);
 

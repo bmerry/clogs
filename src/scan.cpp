@@ -57,6 +57,22 @@ namespace clogs
 namespace detail
 {
 
+CLOGS_STRUCT(
+    ScanParameters::Key,
+    (device)
+    (elementType)
+)
+CLOGS_STRUCT(
+    ScanParameters::Value,
+    (warpSizeMem)
+    (warpSizeSchedule)
+    (reduceWorkGroupSize)
+    (scanWorkGroupSize)
+    (scanWorkScale)
+    (scanBlocks)
+    (programBinary)
+)
+
 void ScanProblem::setType(const Type &type)
 {
     if (!type.isIntegral())
@@ -64,42 +80,25 @@ void ScanProblem::setType(const Type &type)
     this->type = type;
 }
 
-ParameterSet Scan::parameters()
-{
-    ParameterSet ans;
-    ans["WARP_SIZE_MEM"] = new TypedParameter< ::size_t>();
-    ans["WARP_SIZE_SCHEDULE"] = new TypedParameter< ::size_t>();
-    ans["REDUCE_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
-    ans["SCAN_WORK_GROUP_SIZE"] = new TypedParameter< ::size_t>();
-    ans["SCAN_WORK_SCALE"] = new TypedParameter< ::size_t>();
-    ans["SCAN_BLOCKS"] = new TypedParameter< ::size_t>();
-    ans["PROGRAM_BINARY"] = new TypedParameter<std::vector<unsigned char> >();
-    return ans;
-}
-
 void Scan::initialize(
     const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
-    ParameterSet &params, bool tuning)
+    ScanParameters::Value &params, bool tuning)
 {
     const ::size_t elementSize = problem.type.getSize();
-
+    this->reduceWorkGroupSize = params.reduceWorkGroupSize;
+    this->scanWorkGroupSize = params.scanWorkGroupSize;
+    this->scanWorkScale = params.scanWorkScale;
+    this->maxBlocks = params.scanBlocks;
     this->elementSize = elementSize;
-    ::size_t warpSizeMem = params.getTyped< ::size_t>("WARP_SIZE_MEM")->get();
-    ::size_t warpSizeSchedule = params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->get();
-    reduceWorkGroupSize = params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
-    scanWorkGroupSize = params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
-    scanWorkScale = params.getTyped< ::size_t>("SCAN_WORK_SCALE")->get();
-    maxBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
-    std::vector<unsigned char> &binary = params.getTyped<std::vector<unsigned char> >("PROGRAM_BINARY")->get();
 
     std::map<std::string, int> defines;
     std::map<std::string, std::string> stringDefines;
-    defines["WARP_SIZE_MEM"] = warpSizeMem;
-    defines["WARP_SIZE_SCHEDULE"] = warpSizeSchedule;
-    defines["REDUCE_WORK_GROUP_SIZE"] = reduceWorkGroupSize;
-    defines["SCAN_WORK_GROUP_SIZE"] = scanWorkGroupSize;
-    defines["SCAN_WORK_SCALE"] = scanWorkScale;
-    defines["SCAN_BLOCKS"] = maxBlocks;
+    defines["WARP_SIZE_MEM"] = params.warpSizeMem;
+    defines["WARP_SIZE_SCHEDULE"] = params.warpSizeSchedule;
+    defines["REDUCE_WORK_GROUP_SIZE"] = params.reduceWorkGroupSize;
+    defines["SCAN_WORK_GROUP_SIZE"] = params.scanWorkGroupSize;
+    defines["SCAN_WORK_SCALE"] = params.scanWorkScale;
+    defines["SCAN_BLOCKS"] = params.scanBlocks;
     stringDefines["SCAN_T"] = problem.type.getName();
     if (problem.type.getLength() == 3)
     {
@@ -109,9 +108,10 @@ void Scan::initialize(
 
     try
     {
-        sums = cl::Buffer(context, CL_MEM_READ_WRITE, maxBlocks * elementSize);
+        sums = cl::Buffer(context, CL_MEM_READ_WRITE, params.scanBlocks * elementSize);
 
-        program = build(context, device, "scan.cl", defines, stringDefines, "", &binary, tuning);
+        program = build(context, device, "scan.cl", defines, stringDefines, "",
+                        &params.programBinary, tuning);
 
         reduceKernel = cl::Kernel(program, "reduce");
         reduceKernel.setArg(0, sums);
@@ -133,11 +133,12 @@ void Scan::initialize(
 
 std::pair<double, double> Scan::tuneReduceCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, ParameterSet &params,
+    std::size_t elements, boost::any &paramsAny,
     const ScanProblem &problem)
 {
-    const ::size_t reduceWorkGroupSize = params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
-    const ::size_t maxBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
+    ScanParameters::Value &params = boost::any_cast<ScanParameters::Value &>(paramsAny);
+    const ::size_t reduceWorkGroupSize = params.reduceWorkGroupSize;
+    const ::size_t maxBlocks = params.scanBlocks;
     const size_t elementSize = problem.type.getSize();
     const size_t allocSize = elements * elementSize;
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, allocSize);
@@ -180,15 +181,16 @@ std::pair<double, double> Scan::tuneReduceCallback(
 
 std::pair<double, double> Scan::tuneScanCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, ParameterSet &params,
+    std::size_t elements, boost::any &paramsAny,
     const ScanProblem &problem)
 {
+    ScanParameters::Value &params = boost::any_cast<ScanParameters::Value &>(paramsAny);
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, elements * problem.type.getSize());
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
 
-    const ::size_t scanWorkGroupSize = params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
-    const ::size_t scanWorkScale = params.getTyped< ::size_t>("SCAN_WORK_SCALE")->get();
-    const ::size_t maxBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
+    const ::size_t scanWorkGroupSize = params.scanWorkGroupSize;
+    const ::size_t scanWorkScale = params.scanWorkScale;
+    const ::size_t maxBlocks = params.scanBlocks;
     ::size_t tileSize = scanWorkGroupSize * scanWorkScale;
     ::size_t blockSize = roundUp(elements, tileSize * maxBlocks) / maxBlocks;
     ::size_t nBlocks = (elements + blockSize - 1) / blockSize;
@@ -225,9 +227,10 @@ std::pair<double, double> Scan::tuneScanCallback(
 
 std::pair<double, double> Scan::tuneBlocksCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, ParameterSet &params,
+    std::size_t elements, boost::any &paramsAny,
     const ScanProblem &problem)
 {
+    ScanParameters::Value &params = boost::any_cast<ScanParameters::Value &>(paramsAny);
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, elements * problem.type.getSize());
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
 
@@ -252,7 +255,7 @@ std::pair<double, double> Scan::tuneBlocksCallback(
     return std::make_pair(rate, rate * 1.05);
 }
 
-ParameterSet Scan::tune(
+ScanParameters::Value Scan::tune(
     Tuner &tuner, const cl::Device &device, const ScanProblem &problem)
 {
     const size_t elementSize = problem.type.getSize();
@@ -278,75 +281,75 @@ ParameterSet Scan::tune(
 
     {
         // Tune reduce kernel
-        std::vector<ParameterSet> sets;
+        std::vector<boost::any> sets;
         for (::size_t reduceWorkGroupSize = 1; reduceWorkGroupSize <= maxWorkGroupSize; reduceWorkGroupSize *= 2)
         {
-            ParameterSet params = parameters();
-            params.getTyped< ::size_t>("WARP_SIZE_MEM")->set(warpSizeMem);
-            params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->set(warpSizeSchedule);
-            params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(reduceWorkGroupSize);
-            params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(1);
-            params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(1);
-            params.getTyped< ::size_t>("SCAN_BLOCKS")->set(startBlocks);
+            ScanParameters::Value params;
+            params.warpSizeMem = warpSizeMem;
+            params.warpSizeSchedule = warpSizeSchedule;
+            params.reduceWorkGroupSize = reduceWorkGroupSize;
+            params.scanWorkGroupSize = 1;
+            params.scanWorkScale = 1;
+            params.scanBlocks = startBlocks;
             sets.push_back(params);
         }
 
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
-        ParameterSet params = tuner.tuneOne(
+        ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuner.tuneOne(
             device, sets, problemSizes,
-            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneReduceCallback, _1, _2, _3, _4, problem));
-        bestReduceWorkGroupSize = params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->get();
+            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneReduceCallback, _1, _2, _3, _4, problem)));
+        bestReduceWorkGroupSize = params.reduceWorkGroupSize;
     }
 
     {
         /* Tune scan kernel. The work group size and the work scale interact in
          * affecting register allocations, so they need to be tuned jointly.
          */
-        std::vector<ParameterSet> sets;
+        std::vector<boost::any> sets;
         for (size_t scanWorkGroupSize = 1; scanWorkGroupSize <= maxWorkGroupSize; scanWorkGroupSize *= 2)
         {
             const size_t maxWorkScale = std::min(localMemElements / scanWorkGroupSize, std::size_t(16));
             for (size_t scanWorkScale = 1; scanWorkScale <= maxWorkScale; scanWorkScale *= 2)
             {
-                ParameterSet params = parameters();
-                params.getTyped< ::size_t>("WARP_SIZE_MEM")->set(warpSizeMem);
-                params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->set(warpSizeSchedule);
-                params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(bestReduceWorkGroupSize);
-                params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(scanWorkGroupSize);
-                params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(scanWorkScale);
-                params.getTyped< ::size_t>("SCAN_BLOCKS")->set(startBlocks);
+                ScanParameters::Value params;
+                params.warpSizeMem = warpSizeMem;
+                params.warpSizeSchedule = warpSizeSchedule;
+                params.reduceWorkGroupSize = bestReduceWorkGroupSize;
+                params.scanWorkGroupSize = scanWorkGroupSize;
+                params.scanWorkScale = scanWorkScale;
+                params.scanBlocks = startBlocks;
                 sets.push_back(params);
             }
         }
 
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
-        ParameterSet params = tuner.tuneOne(
+        ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuner.tuneOne(
             device, sets, problemSizes,
-            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneScanCallback, _1, _2, _3, _4, problem));
-        bestScanWorkGroupSize = params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->get();
-        bestScanWorkScale = params.getTyped< ::size_t>("SCAN_WORK_SCALE")->get();
+            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneScanCallback, _1, _2, _3, _4, problem)));
+        bestScanWorkGroupSize = params.scanWorkGroupSize;
+        bestScanWorkScale = params.scanWorkScale;
     }
 
     {
         /* Tune number of blocks.
          */
-        std::vector<ParameterSet> sets;
+        std::vector<boost::any> sets;
         for (size_t blocks = 2; blocks <= maxBlocks; blocks *= 2)
         {
-            ParameterSet params = parameters();
-            params.getTyped< ::size_t>("WARP_SIZE_MEM")->set(warpSizeMem);
-            params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->set(warpSizeSchedule);
-            params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(bestReduceWorkGroupSize);
-            params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(bestScanWorkGroupSize);
-            params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(bestScanWorkScale);
-            params.getTyped< ::size_t>("SCAN_BLOCKS")->set(blocks);
+            ScanParameters::Value params;
+            params.warpSizeMem = warpSizeMem;
+            params.warpSizeSchedule = warpSizeSchedule;
+            params.reduceWorkGroupSize = bestReduceWorkGroupSize;
+            params.scanWorkGroupSize = bestScanWorkGroupSize;
+            params.scanWorkScale = bestScanWorkScale;
+            params.scanBlocks = blocks;
             sets.push_back(params);
         }
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
-        ParameterSet params = tuner.tuneOne(
+        ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuner.tuneOne(
             device, sets, problemSizes,
-            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneBlocksCallback, _1, _2, _3, _4, problem));
-        bestBlocks = params.getTyped< ::size_t>("SCAN_BLOCKS")->get();
+            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneBlocksCallback, _1, _2, _3, _4, problem)));
+        bestBlocks = params.scanBlocks;
     }
 
     // TODO: use a new exception type
@@ -356,17 +359,17 @@ ParameterSet Scan::tune(
         || bestBlocks <= 0)
         throw std::runtime_error("Failed to tune " + problem.type.getName());
 
-    ParameterSet params = parameters();
-    params.getTyped< ::size_t>("WARP_SIZE_MEM")->set(warpSizeMem);
-    params.getTyped< ::size_t>("WARP_SIZE_SCHEDULE")->set(warpSizeSchedule);
-    params.getTyped< ::size_t>("REDUCE_WORK_GROUP_SIZE")->set(bestReduceWorkGroupSize);
-    params.getTyped< ::size_t>("SCAN_WORK_GROUP_SIZE")->set(bestScanWorkGroupSize);
-    params.getTyped< ::size_t>("SCAN_WORK_SCALE")->set(bestScanWorkScale);
-    params.getTyped< ::size_t>("SCAN_BLOCKS")->set(bestBlocks);
+    ScanParameters::Value params;
+    params.warpSizeMem = warpSizeMem;
+    params.warpSizeSchedule = warpSizeSchedule;
+    params.reduceWorkGroupSize = bestReduceWorkGroupSize;
+    params.scanWorkGroupSize = bestScanWorkGroupSize;
+    params.scanWorkScale = bestScanWorkScale;
+    params.scanBlocks = bestBlocks;
     // Instantiate just to populate the program
     Scan dummy(contextForDevice(device), device, problem, params);
 
-    tuner.logResult(params);
+    tuner.logResult();
     return params;
 }
 
@@ -381,20 +384,20 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProbl
     if (!typeSupported(device, problem.type))
         throw std::invalid_argument("type is not a supported integral format on this device");
 
-    ParameterSet key = makeKey(device, problem);
-    ParameterSet params = parameters();
-    getParameters(key, params);
+    ScanParameters::Key key = makeKey(device, problem);
+    ScanParameters::Value params;
+    getParameters(ScanParameters::tableName(), key, params);
     initialize(context, device, problem, params, false);
 }
 
 Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
-           ParameterSet &params)
+           ScanParameters::Value &params)
     : eventCallback(NULL), eventCallbackUserData(NULL)
 {
     initialize(context, device, problem, params, true);
 }
 
-ParameterSet Scan::makeKey(const cl::Device &device, const ScanProblem &problem)
+ScanParameters::Key Scan::makeKey(const cl::Device &device, const ScanProblem &problem)
 {
     /* To reduce the amount of time for tuning, we assume that signed
      * and unsigned variants are equivalent, and canonicalise to signed.
@@ -418,10 +421,9 @@ ParameterSet Scan::makeKey(const cl::Device &device, const ScanProblem &problem)
         canon = problem.type;
     }
 
-    ParameterSet key = deviceKey(device);
-    key["algorithm"] = new TypedParameter<std::string>("scan");
-    key["version"] = new TypedParameter<int>(5);
-    key["elementType"] = new TypedParameter<std::string>(canon.getName());
+    ScanParameters::Key key;
+    key.device = deviceKey(device);
+    key.elementType = canon.getName();
     return key;
 }
 
