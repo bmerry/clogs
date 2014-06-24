@@ -221,10 +221,12 @@
                 <option>--force</option> to <command>clogs-tune</command>.
             </para>
             <para>
-                On POSIX systems, the results of autotuning are stored in
-                <filename><envar>$HOME</envar>/.clogs/cache</filename>. On
-                Windows, they are stored in the local application data
-                directory.
+                On UNIX-like systems, the results of autotuning are stored in
+                <filename><envar>$HOME</envar>/.cache/clogs/cache.sqlite</filename>
+                by default. On Windows, they are stored in the local
+                application data directory. You can override the setting by
+                setting <envar>CLOGS_CACHE_DIR</envar>, or on UNIX-like systems
+                by setting <envar>XDG_CACHE_HOME</envar>.
             </para>
         </section>
     </chapter>
@@ -256,11 +258,16 @@
             <programlisting language="c++">
 #include &lt;clogs/clogs.h&gt;
 ...
-clogs::Scan scanner(context, device, clogs::TYPE_UINT);
+clogs::ScanProblem problem;
+problem.setType(clogs::TYPE_UINT);
+clogs::Scan scanner(context, device, problem);
 ...
 scanner.enqueue(queue, inBuffer, outBuffer, numElements);</programlisting>
             <para>
-                The above code first allocates an object that can be used to
+                The above code starts by specifying the variation of the
+                algorithm: in this case, the type of elements to scan will be
+                <type>cl_uint</type>. It then creates an object (<varname>scanner</varname>)
+                that can be used to
                 perform scans. The constructor handles loading of the
                 internal kernels and allocation of internal storage. These
                 objects are quite slow to create and should be reused where
@@ -297,7 +304,10 @@ scanner.enqueue(queue, inBuffer, outBuffer, numElements);</programlisting>
             <programlisting language="c++">
 #include &lt;clogs/clogs.h&gt;
 ...
-clogs::Radixsort sorter(context, device, clogs::TYPE_UINT, clogs::Type(clogs::TYPE_FLOAT, 4));
+clogs::RadixsortProblem problem;
+problem.setKeyType(clogs::TYPE_UINT);
+problem.setValueType(clogs::Type(clogs::TYPE_FLOAT, 4));
+clogs::Radixsort sorter(context, device, problem);
 sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
 </programlisting>
             <para>
@@ -442,7 +452,8 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
     <chapter id="license">
         <title>License</title>
         <para>
-            Copyright (c) 2012-2013 University of Cape Town
+            Copyright (c) 2012-2014 University of Cape Town
+            Copyright (c) 2014 Bruce Merry
         </para>
         <para>
             Permission is hereby granted, free of charge, to any person obtaining a copy

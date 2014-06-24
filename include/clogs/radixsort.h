@@ -47,6 +47,11 @@ namespace detail
 
 class Radixsort;
 
+/**
+ * Encapsulates the specifics of a radixsort problem. After construction, you
+ * need to call @ref setKeyType and possibly @ref setValueType to configure the
+ * sort.
+ */
 class CLOGS_API RadixsortProblem
 {
 private:
@@ -59,7 +64,18 @@ public:
     RadixsortProblem(const RadixsortProblem &);
     RadixsortProblem &operator=(const RadixsortProblem &);
 
+    /**
+     * Set the key type for sorting.
+     *
+     * @param keyType      The key type
+     * @throw std::invalid_argument if @a keyType is not an unsigned integral scalar type
+     */
     void setKeyType(const Type &keyType);
+
+    /**
+     * Set the value type for sorting. This can be <code>Type()</code> to indicate
+     * that no values will be sorted.
+     */
     void setValueType(const Type &valueType);
 };
 
@@ -100,6 +116,9 @@ public:
      * @throw std::invalid_argument if @a keyType is not an unsigned integral scalar type.
      * @throw std::invalid_argument if @a valueType is not a storable type for @a device.
      * @throw clogs::InternalError if there was a problem with initialization
+     *
+     * @deprecated This constructor is deprecated, because it does not scale to
+     * future features. Use the constructor taking a @ref clogs::RadixsortProblem instead.
      */
     Radixsort(const cl::Context &context, const cl::Device &device,
               const Type &keyType, const Type &valueType = Type());

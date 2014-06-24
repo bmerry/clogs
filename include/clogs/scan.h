@@ -47,6 +47,10 @@ namespace detail
 
 class Scan;
 
+/**
+ * Encapsulates the specifics of a scan problem. After construction, use
+ * methods (particularly @ref setType) to configure the scan.
+ */
 class CLOGS_API ScanProblem
 {
 private:
@@ -59,6 +63,12 @@ public:
     ScanProblem(const ScanProblem &);
     ScanProblem &operator=(const ScanProblem &);
 
+    /**
+     * Set the element type for the scan.
+     *
+     * @param type      The element type
+     * @throw std::invalid_argument if @a type is not an integral scalar or vector type
+     */
     void setType(const Type &type);
 };
 
@@ -95,6 +105,9 @@ public:
      *
      * @throw std::invalid_argument if @a type is not an integral type supported on the device.
      * @throw clogs::InternalError if there was a problem with initialization.
+     *
+     * @deprecated This interface is deprecated as it does not scale with future feature
+     * additions. Use the constructor taking a @ref clogs::ScanProblem instead.
      */
     Scan(const cl::Context &context, const cl::Device &device, const Type &type);
 
