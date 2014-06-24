@@ -52,6 +52,7 @@
 # include <winnls.h>
 # include <shlwapi.h>
 #endif
+#include <boost/noncopyable.hpp>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -186,57 +187,75 @@ static std::string getCacheFile()
     return ans;
 }
 
-/**
- * Class for connection to the database. There is only ever one instance of
- * this class, which handles initialization and shutdown.
- */
-class DB
+/// RAII wrapper around sqlite3*.
+class sqlite3_ptr : public boost::noncopyable
 {
 private:
-    // prevent copying
-    DB(const DB &);
-    DB &operator=(const DB &);
-public:
-    sqlite3 *con;
+    sqlite3 *ptr;
 
-    DB();
-    ~DB();
+public:
+    explicit sqlite3_ptr(sqlite3 *p = NULL) : ptr(p) {}
+    ~sqlite3_ptr() { reset(); }
+
+    void reset(sqlite3 *p = NULL)
+    {
+        if (ptr != NULL && ptr != p)
+        {
+            int status = sqlite3_close(ptr);
+            if (status != SQLITE_OK)
+            {
+                std::cerr << sqlite3_errstr(status) << '\n';
+            }
+        }
+        ptr = p;
+    }
+
+    sqlite3 *get() const { return ptr; }
 };
 
-DB::DB()
+/// RAII wrapper around sqlite3_stmt*.
+class sqlite3_stmt_ptr : public boost::noncopyable
 {
-    con = NULL;
-    const std::string filename = getCacheFile();
-    int status = sqlite3_open_v2(filename.c_str(), &con,
-                                 SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
-                                 NULL);
-    if (status != SQLITE_OK)
-    {
-        CacheError error(sqlite3_errstr(status));
-        if (con != NULL)
-            sqlite3_close(con);
-        throw error;
-    }
-}
+private:
+    sqlite3_stmt *ptr;
 
-DB::~DB()
-{
-    if (con != NULL)
+public:
+    explicit sqlite3_stmt_ptr(sqlite3_stmt *p = NULL) : ptr(p) {}
+    ~sqlite3_stmt_ptr() { reset(); }
+
+    void reset(sqlite3_stmt *p = NULL)
     {
-        int status = sqlite3_close(con);
-        con = NULL;
-        if (status != SQLITE_OK)
+        if (ptr != NULL && ptr != p)
         {
-            std::cerr << sqlite3_errstr(status) << '\n';
+            int status = sqlite3_finalize(ptr);
+            if (status != SQLITE_OK)
+            {
+                std::cerr << sqlite3_errstr(status) << '\n';
+            }
         }
+        ptr = p;
     }
-}
 
-static DB &getDB()
+    sqlite3_stmt *get() const { return ptr; }
+};
+
+template<typename K, typename V>
+class Table
 {
-    static DB db;
-    return db;
-}
+private:
+    sqlite3 *con;
+    sqlite3_stmt_ptr addStmt, queryStmt;
+
+    void createTable(const char *name);
+    void prepareAdd(const char *name);
+    void prepareQuery(const char *name);
+
+public:
+    Table(sqlite3 *con, const char *table);
+
+    void add(const K &key, const V &value);
+    void lookup(const K &key, V &value);
+};
 
 template<typename T>
 static void writeFieldDefinitions(std::ostream &statement)
@@ -263,11 +282,11 @@ static void writeFieldNames(std::ostream &statement, const char *sep = ", ", con
 }
 
 template<typename K, typename V>
-static void createTable(const char *table)
+void Table<K, V>::createTable(const char *name)
 {
     std::ostringstream statement;
     statement.imbue(std::locale::classic());
-    statement << "CREATE TABLE IF NOT EXISTS " << table << " (";
+    statement << "CREATE TABLE IF NOT EXISTS " << name << " (";
     writeFieldDefinitions<K>(statement);
     writeFieldDefinitions<V>(statement);
 
@@ -275,10 +294,9 @@ static void createTable(const char *table)
     writeFieldNames<K>(statement);
     statement << "))";
 
-    std::string s = statement.str();
-    DB &db = getDB();
+    const std::string s = statement.str();
     char *err = NULL;
-    int status = sqlite3_exec(db.con, s.c_str(), NULL, NULL, &err);
+    int status = sqlite3_exec(con, s.c_str(), NULL, NULL, &err);
     if (status != SQLITE_OK || err != NULL)
     {
         CacheError error(s + ": " + err);
@@ -287,23 +305,12 @@ static void createTable(const char *table)
     }
 }
 
-/**
- * Write computed parameters to file.
- *
- * @param table          Name of the table
- * @param key            Algorithm key
- * @param values         Autotuned parameters.
- *
- * @throw SaveParametersError if the file could not be written
- */
 template<typename K, typename V>
-static void saveParameters(const char *table, const K &key, const V &values)
+void Table<K, V>::prepareAdd(const char *name)
 {
-    createTable<K, V>(table);
-
     std::ostringstream statement;
     statement.imbue(std::locale::classic());
-    statement << "INSERT OR REPLACE INTO " << table << "(";
+    statement << "INSERT OR REPLACE INTO " << name << "(";
     writeFieldNames<K>(statement);
     statement << ", ";
     writeFieldNames<V>(statement);
@@ -320,26 +327,113 @@ static void saveParameters(const char *table, const K &key, const V &values)
     }
     statement << ')';
 
-    DB &db = getDB();
     sqlite3_stmt *stmt = NULL;
-    int status = sqlite3_prepare_v2(db.con, statement.str().c_str(), -1, &stmt, NULL);
+    int status = sqlite3_prepare_v2(con, statement.str().c_str(), -1, &stmt, NULL);
+    addStmt.reset(stmt);
     if (status != SQLITE_OK)
         throw CacheError(sqlite3_errstr(status));
+}
+
+template<typename K, typename V>
+void Table<K, V>::prepareQuery(const char *name)
+{
+    std::ostringstream query;
+    query.imbue(std::locale::classic());
+    query << "SELECT ";
+    writeFieldNames<V>(query);
+
+    query << " FROM " << name << " WHERE ";
+    writeFieldNames<K>(query, " AND ", "=?");
+
+    sqlite3_stmt *stmt = NULL;
+    int status = sqlite3_prepare_v2(con, query.str().c_str(), -1, &stmt, NULL);
+    queryStmt.reset(stmt);
+    if (status != SQLITE_OK)
+        throw CacheError(sqlite3_errstr(status));
+}
+
+template<typename K, typename V>
+void Table<K, V>::add(const K &key, const V &value)
+{
+    sqlite3_reset(addStmt.get());
 
     int pos = 1;
-    pos = bindFields(stmt, pos, key);
-    pos = bindFields(stmt, pos, values);
+    pos = bindFields(addStmt.get(), pos, key);
+    pos = bindFields(addStmt.get(), pos, value);
 
-    status = sqlite3_step(stmt);
+    int status = sqlite3_step(addStmt.get());
     if (status != SQLITE_DONE)
+        throw CacheError(sqlite3_errstr(status));
+}
+
+template<typename K, typename V>
+void Table<K, V>::lookup(const K &key, V &value)
+{
+    sqlite3_reset(queryStmt.get());
+
+    bindFields(queryStmt.get(), 1, key);
+    int status = sqlite3_step(queryStmt.get());
+    if (status == SQLITE_DONE)
+        throw CacheError("No cache entry found");
+    else if (status != SQLITE_ROW)
+        throw CacheError(sqlite3_errstr(status));
+    else
+        readFields(queryStmt.get(), 0, value);
+}
+
+template<typename K, typename V>
+Table<K, V>::Table(sqlite3 *con, const char *name)
+    : con(con)
+{
+    createTable(name);
+    prepareAdd(name);
+    prepareQuery(name);
+}
+
+/**
+ * Class for connection to the database. There is only ever one instance of
+ * this class, which handles initialization and shutdown.
+ */
+class DB
+{
+private:
+    sqlite3_ptr con;
+    static sqlite3 *open();
+
+public:
+    Table<ScanParameters::Key, ScanParameters::Value> scan;
+    Table<RadixsortParameters::Key, RadixsortParameters::Value> radixsort;
+
+    DB();
+};
+
+sqlite3 *DB::open()
+{
+    sqlite3 *c = NULL;
+    const std::string filename = getCacheFile();
+    int status = sqlite3_open_v2(filename.c_str(), &c,
+                                 SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+                                 NULL);
+    if (status != SQLITE_OK)
     {
-        sqlite3_finalize(stmt);
+        if (c != NULL)
+            sqlite3_close(c);
         throw CacheError(sqlite3_errstr(status));
     }
+    return c;
+}
 
-    status = sqlite3_finalize(stmt);
-    if (status != SQLITE_OK)
-        throw CacheError(sqlite3_errstr(status));
+DB::DB() :
+    con(open()),
+    scan(con.get(), ScanParameters::tableName()),
+    radixsort(con.get(), RadixsortParameters::tableName())
+{
+}
+
+static DB &getDB()
+{
+    static DB db;
+    return db;
 }
 
 } // anonymous namespace
@@ -402,7 +496,7 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
                 try
                 {
                     ScanParameters::Value values = Scan::tune(*this, device, problem);
-                    saveParameters(ScanParameters::tableName(), key, values);
+                    getDB().scan.add(key, values);
                 }
                 catch (TuneError &e)
                 {
@@ -463,7 +557,7 @@ void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
                         try
                         {
                             RadixsortParameters::Value values = Radixsort::tune(*this, device, problem);
-                            saveParameters(RadixsortParameters::tableName(), key, values);
+                            getDB().radixsort.add(key, values);
                         }
                         catch (TuneError &e)
                         {
@@ -601,42 +695,14 @@ boost::any Tuner::tuneOne(
     abort(); // should never be reached due to A <= B
 }
 
-template<typename K, typename V>
-CLOGS_LOCAL void getParameters(const char *table, const K &key, V &values)
+CLOGS_LOCAL void getScanParameters(const ScanParameters::Key &key, ScanParameters::Value &values)
 {
-    DB &db = getDB();
-    createTable<K, V>(table);
+    getDB().scan.lookup(key, values);
+}
 
-    std::ostringstream query;
-    query.imbue(std::locale::classic());
-    query << "SELECT ";
-    writeFieldNames<V>(query);
-
-    query << " FROM " << table << " WHERE ";
-    writeFieldNames<K>(query, " AND ", "=?");
-
-    sqlite3_stmt *stmt = NULL;
-    int status = sqlite3_prepare_v2(db.con, query.str().c_str(), -1, &stmt, NULL);
-    if (status != SQLITE_OK)
-        throw CacheError(sqlite3_errstr(status));
-
-    bindFields(stmt, 1, key);
-    status = sqlite3_step(stmt);
-    if (status == SQLITE_DONE)
-    {
-        sqlite3_finalize(stmt);
-        throw CacheError("No cache entry found");
-    }
-    else if (status != SQLITE_ROW)
-    {
-        sqlite3_finalize(stmt);
-        throw CacheError(sqlite3_errstr(status));
-    }
-    else
-    {
-        readFields(stmt, 0, values);
-        sqlite3_finalize(stmt);
-    }
+CLOGS_LOCAL void getRadixsortParameters(const RadixsortParameters::Key &key, RadixsortParameters::Value &values)
+{
+    getDB().radixsort.lookup(key, values);
 }
 
 CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force, bool keepGoing)
@@ -646,14 +712,6 @@ CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force, bool 
     tuner.setKeepGoing(keepGoing);
     tuner.tuneAll(devices);
 }
-
-// Explicit instantiations
-template
-CLOGS_LOCAL void getParameters<ScanParameters::Key, ScanParameters::Value>(
-    const char *table, const ScanParameters::Key &key, ScanParameters::Value &values);
-template
-CLOGS_LOCAL void getParameters<RadixsortParameters::Key, RadixsortParameters::Value>(
-    const char *table, const RadixsortParameters::Key &key, RadixsortParameters::Value &values);
 
 } // namespace detail
 } // namespace clogs

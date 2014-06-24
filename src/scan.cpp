@@ -386,7 +386,7 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProbl
 
     ScanParameters::Key key = makeKey(device, problem);
     ScanParameters::Value params;
-    getParameters(ScanParameters::tableName(), key, params);
+    getScanParameters(key, params);
     initialize(context, device, problem, params, false);
 }
 

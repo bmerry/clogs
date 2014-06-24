@@ -452,7 +452,7 @@ Radixsort::Radixsort(
 
     RadixsortParameters::Key key = makeKey(device, problem);
     RadixsortParameters::Value params;
-    getParameters(RadixsortParameters::tableName(), key, params);
+    getRadixsortParameters(key, params);
     initialize(context, device, problem, params, false);
 }
 

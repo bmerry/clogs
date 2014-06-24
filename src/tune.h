@@ -84,16 +84,24 @@ public:
 CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device);
 
 /**
- * Look up tuning parameters for a specific algorithm.
+ * Look up tuning parameters for a scan
  *
- * @param table           Database table to search
- * @param key             Lookup key, including algorithm and device-specific fields
+ * @param key             Lookup key
  * @param[out] params     Found parameters
  *
- * @throw CacheError if the cache did not exist or could not be read
+ * @throw CacheError if the cache entry did not exist or could not be read
  */
-template<typename K, typename V>
-CLOGS_LOCAL void getParameters(const char *table, const K &key, V &values);
+CLOGS_LOCAL void getScanParameters(const ScanParameters::Key &key, ScanParameters::Value &values);
+
+/**
+ * Look up tuning parameters for a radixsort
+ *
+ * @param key             Lookup key
+ * @param[out] params     Found parameters
+ *
+ * @throw CacheError if the cache entry did not exist or could not be read
+ */
+CLOGS_LOCAL void getRadixsortParameters(const RadixsortParameters::Key &key, RadixsortParameters::Value &values);
 
 /**
  * Generate the tuning parameters for all algorithms.
