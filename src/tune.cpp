@@ -97,32 +97,21 @@ CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device)
 namespace
 {
 
-#if CLOGS_FS_UNIX
-typedef char path_char;
-typedef std::string path_string;
-static const char dirSep = '/';
-#endif
-#if CLOGS_FS_WINDOWS
-typedef wchar_t path_char;
-typedef std::wstring path_string;
-static const wchar_t dirSep = L'\\';
-#endif
-
 /**
- * Determines the cache directory, without caching the result. The
- * directory is created if it does not exist, but failure to create it is not
- * reported.
+ * Determines the cache file, without caching the result. The directory is
+ * created if it does not exist, but failure to create it is not reported.
  *
  * @todo Need to document the algorithm in the user manual
  *
- * @todo Store cache directory in UTF-8
+ * @todo Not XDG-compliant
  */
-static path_string getCacheDirStatic();
+static std::string getCacheFileStatic();
 
 #if CLOGS_FS_UNIX
-static path_string getCacheDirStatic()
+static std::string getCacheFileStatic()
 {
     const char *envCacheDir = getenv("CLOGS_CACHE_DIR");
+    std::string cacheFile;
     if (envCacheDir == NULL)
     {
         const char *home = getenv("HOME");
@@ -132,26 +121,25 @@ static path_string getCacheDirStatic()
         mkdir(clogsDir.c_str(), 0777);
         std::string cacheDir = clogsDir + "/cache";
         mkdir(cacheDir.c_str(), 0777);
-        return cacheDir;
+        cacheFile = cacheDir + "/cache.sqlite";
+        return cacheFile;
     }
     else
-        return envCacheDir;
-}
-
-static std::string fromPathString(const path_string &s)
-{
-    return s;
+    {
+        cacheFile = std::string(envCacheDir) + "/cache.sqlite";
+    }
+    return cacheFile;
 }
 #endif
 
 #if CLOGS_FS_WINDOWS
-static path_string getCacheDirStatic()
+static std::string getCacheFileStatic()
 {
     const wchar_t *envCacheDir = _wgetenv(L"CLOGS_CACHE_DIR");
+    wchar_t path[MAX_PATH + 30] = L"";
+    bool success = false;
     if (envCacheDir == NULL)
     {
-        bool success = false;
-        wchar_t path[MAX_PATH + 20];
         HRESULT status = SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE,
                                          NULL, SHGFP_TYPE_CURRENT, path);
         if (PathAppend(path, L"clogs"))
@@ -163,33 +151,38 @@ static path_string getCacheDirStatic()
                 success = true;
             }
         }
-        if (!success)
-            path[0] = L'\0';
-        return path;
     }
     else
-        return envCacheDir;
-}
+    {
+        success = true;
+        if (wcslen(envCacheDir) < sizeof(path) / sizeof(path[0]))
+        {
+            wcscpy(path, envCacheDir);
+            success = true;
+        }
+    }
+    if (success && !PathAppend(path, L"cache.sqlite"))
+        success = false;
+    if (!success)
+        path[0] = L'\0';
 
-static std::string fromPathString(const path_string &s)
-{
-    int len = WideCharToMultiByte(CP_UTF8, 0, s.c_str(), -1, NULL, 0, NULL, NULL);
-    char *out = new char[len];
-    WideCharToMultiByte(CP_UTF8, 0, s.c_str(), -1, out, len, NULL, NULL);
-    std::string ret(out);
-    delete[] out;
-    return ret;
+    int len = WideCharToMultiByte(CP_UTF8, 0, path, -1, NULL, 0, NULL, NULL);
+    if (len == 0) // indicates failure
+        return "";
+    std::vector<char> out(len);
+    WideCharToMultiByte(CP_UTF8, 0, path, -1, &out[0], len, NULL, NULL);
+    return std::string(&out[0]);
 }
 #endif
 
 /**
- * Returns the cache directory, caching the result after the first time.
+ * Returns the cache file, caching the result after the first time.
  *
- * @see getCacheDirStatic.
+ * @see getCacheFileStatic.
  */
-static path_string getCacheDir()
+static std::string getCacheFile()
 {
-    static const path_string ans = getCacheDirStatic();
+    static const std::string ans = getCacheFileStatic();
     return ans;
 }
 
@@ -206,15 +199,15 @@ private:
 public:
     sqlite3 *con;
 
-    explicit DB(const std::string &basename);
+    DB();
     ~DB();
 };
 
-DB::DB(const std::string &basename)
+DB::DB()
 {
     con = NULL;
-    const path_string path = fromPathString(getCacheDir() + dirSep) + basename;
-    int status = sqlite3_open_v2(path.c_str(), &con,
+    const std::string filename = getCacheFile();
+    int status = sqlite3_open_v2(filename.c_str(), &con,
                                  SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
                                  NULL);
     if (status != SQLITE_OK)
@@ -241,7 +234,7 @@ DB::~DB()
 
 static DB &getDB()
 {
-    static DB db("cache.sqlite");
+    static DB db;
     return db;
 }
 
