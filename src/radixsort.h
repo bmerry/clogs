@@ -220,7 +220,7 @@ private:
 public:
     /**
      * Constructor.
-     * @see @ref clogs::Radixsort::Radixsort.
+     * @see @ref clogs::Radixsort::Radixsort(const cl::Context &, const cl::Device &, const RadixsortProblem &).
      */
     Radixsort(const cl::Context &context, const cl::Device &device, const RadixsortProblem &problem);
 
@@ -242,14 +242,14 @@ public:
 
     /**
      * Set temporary buffers used during sorting.
-     * @see @ref clogs::RadixsorT::setTemporaryBuffers.
+     * @see #clogs::Radixsort::setTemporaryBuffers.
      */
     void setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &values);
 
     /**
      * Returns key for looking up autotuning parameters.
      *
-     * @param device, keyType, valueType  Constructor parameters.
+     * @param device, problem  Constructor parameters.
      */
     static RadixsortParameters::Key makeKey(const cl::Device &device, const RadixsortProblem &problem);
 

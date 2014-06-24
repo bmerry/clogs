@@ -172,7 +172,7 @@ private:
 public:
     /**
      * Constructor.
-     * @see @ref clogs::Scan::Scan
+     * @see @ref clogs::Scan::Scan(const cl::Context &, const cl::Device &, const ScanProblem &)
      */
     Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem);
 

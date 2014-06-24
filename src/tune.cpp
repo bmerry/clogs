@@ -109,6 +109,10 @@ namespace
 static std::string getCacheFileStatic();
 
 #if CLOGS_FS_UNIX
+/**
+ * Retrieve an environment variable as a C++ string. If the environment
+ * variable is missing, returns an empty string.
+ */
 static std::string getenvString(const char *name)
 {
     const char *env = getenv(name);
@@ -239,6 +243,14 @@ public:
     sqlite3_stmt *get() const { return ptr; }
 };
 
+/**
+ * Abstraction of a table supporting insertion of one row at a time, and
+ * lookup using the primary key. The key type @a K and value type @a V
+ * should be declared with #CLOGS_STRUCT.
+ *
+ * Column names are used without any quoting, so they must not use any SQL
+ * keywords.
+ */
 template<typename K, typename V>
 class Table
 {
@@ -246,14 +258,32 @@ private:
     sqlite3 *con;
     sqlite3_stmt_ptr addStmt, queryStmt;
 
+    /// Create the table if it does not exist
     void createTable(const char *name);
+    /// Create the prepared statement for insertions
     void prepareAdd(const char *name);
+    /// Create the prepared statement for queries
     void prepareQuery(const char *name);
 
 public:
+    /**
+     * Constructor. The provided @a con must not be closed before
+     * this object is destroyed.
+     *
+     * @param con      Connection to the database
+     * @param table    The name for the table
+     */
     Table(sqlite3 *con, const char *table);
 
+    /// Insert a record into the table, replacing any previous one with the same key
     void add(const K &key, const V &value);
+    /**
+     * Find a record in the table.
+     *
+     * @param key         Lookup key
+     * @param[out] value  Found value
+     * @throw clogs::CacheError if the key could not be found
+     */
     void lookup(const K &key, V &value);
 };
 
@@ -398,7 +428,7 @@ class DB
 {
 private:
     sqlite3_ptr con;
-    static sqlite3 *open();
+    static sqlite3 *open(); ///< Open the database connection (used by constructor).
 
 public:
     Table<ScanParameters::Key, ScanParameters::Value> scan;
@@ -411,9 +441,10 @@ sqlite3 *DB::open()
 {
     sqlite3 *c = NULL;
     const std::string filename = getCacheFile();
-    int status = sqlite3_open_v2(filename.c_str(), &c,
-                                 SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
-                                 NULL);
+    int status = sqlite3_open_v2(
+        filename.c_str(), &c,
+        SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+        NULL);
     if (status != SQLITE_OK)
     {
         if (c != NULL)
@@ -430,6 +461,7 @@ DB::DB() :
 {
 }
 
+/// Retrieve a singleton database instance
 static DB &getDB()
 {
     static DB db;

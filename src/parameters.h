@@ -47,16 +47,40 @@
 
 namespace clogs
 {
+
+/// Internal implementation details
 namespace detail
 {
 
+/**
+ * Bind values into a prepared statement.
+ * Each overload binds the elements of a single value or a structure to the
+ * components of a SQLite3 prepared statement.
+ * @param stmt    Prepared statement to bind
+ * @param pos     First slot to bind
+ * @param value   Value to bind
+ * @return One past the last slot bound
+ */
 CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, sqlite3_int64 value);
+/// @copydoc bindFields(sqlite3_stmt *, int, sqlite3_int64)
 CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, const std::string &value);
+/// @copydoc bindFields(sqlite3_stmt *, int, sqlite3_int64)
 CLOGS_LOCAL int bindFields(sqlite3_stmt *stmt, int pos, const std::vector<unsigned char> &value);
 
+/**
+ * Extract values from a query.
+ * Each overload extracts elements of a single value or structure from the
+ * current row of a query.
+ * @param stmt    Prepared statement to query
+ * @param pos     First column to read
+ * @param[out] value Value read from query
+ * @return One past the last column read
+ */
 CLOGS_LOCAL int readFields(sqlite3_stmt *stmt, int pos, std::string &value);
+/// @copydoc readFields(sqlite3_stmt *, int, std::string &)
 CLOGS_LOCAL int readFields(sqlite3_stmt *stmt, int pos, std::vector<unsigned char> &value);
 
+/// @copydoc readFields(sqlite3_stmt *, int, std::string &)
 template<typename T>
 typename boost::enable_if<boost::is_integral<T>, int>::type
 static inline readFields(sqlite3_stmt *stmt, int pos, T &value)
@@ -67,27 +91,48 @@ static inline readFields(sqlite3_stmt *stmt, int pos, T &value)
     return pos + 1;
 }
 
+/**
+ * Populate @a out with the names of the fields in this structure or value.
+ * This is the base case, but overloads are defined to handle compounds
+ * structures.
+ *
+ * The first parameter is a dummy, used only for overload resolution.
+ *
+ * @param root      The name of this element in the parent structure
+ * @param[out] out  The names for this structure are appended to @a out
+ */
 template<typename T>
 static inline void fieldNames(const T *, const char *root, std::vector<const char *> &out)
 {
     out.push_back(root);
 }
 
-template<typename T>
-static inline typename boost::enable_if<boost::is_integral<T> >::type
-fieldTypes(const T *, std::vector<const char *> &out)
-{
-    out.push_back("INT");
-}
-
+/**
+ * Populate @a out with the SQLite types of the fields in this structure or
+ * value.  This is the base case, but overloads are defined to handle compounds
+ * structures.
+ *
+ * The first parameter is a dummy, used only for overload resolution.
+ *
+ * @param[out] out  The types for this structure are appended to @a out
+ */
 static inline void fieldTypes(const std::string *, std::vector<const char *> &out)
 {
     out.push_back("TEXT");
 }
 
+/// @copydoc fieldTypes(const std::string *, std::vector<const char *> &)
 static inline void fieldTypes(const std::vector<unsigned char> *, std::vector<const char *> &out)
 {
     out.push_back("BLOB");
+}
+
+/// @copydoc fieldTypes(const std::string *, std::vector<const char *> &)
+template<typename T>
+static inline typename boost::enable_if<boost::is_integral<T> >::type
+fieldTypes(const T *, std::vector<const char *> &out)
+{
+    out.push_back("INT");
 }
 
 #define CLOGS_BIND_FIELD(r, s, field)                                   \
@@ -106,6 +151,7 @@ static inline void fieldTypes(const std::vector<unsigned char> *, std::vector<co
     if (a.field < b.field) return true;                                 \
     if (b.field < a.field) return false;
 
+/// Create forward declarations for the definitions created by @ref CLOGS_STRUCT
 #define CLOGS_STRUCT_FORWARD(name)                                      \
     int bindFields(sqlite3_stmt *stmt, int pos, const name &s);         \
     int readFields(sqlite3_stmt *stmt, int pos, name &s);               \
@@ -113,6 +159,17 @@ static inline void fieldTypes(const std::vector<unsigned char> *, std::vector<co
     void fieldTypes(const name *, std::vector<const char *> &out);      \
     bool operator<(const name &a, const name &b);
 
+/**
+ * Add reflection functions for the structure named @a name. This macro
+ * must be used in the @ref clogs::detail namespace. It automatically
+ * generates the functions @ref clogs::detail::bindFields, @ref
+ * clogs::detail::readFields, @ref clogs::detail::fieldNames, @ref
+ * clogs::detail::fieldTypes and <code>operator&lt;</code> for the named
+ * structure, operating recursively over the structure members.
+ *
+ * @param name      Name of the structure, in the @ref clogs::detail namespace
+ * @param fields    A sequence of field names, each surrounded in parentheses
+ */
 #define CLOGS_STRUCT(name, fields)                                      \
     int bindFields(sqlite3_stmt *stmt, int pos, const name &s)          \
     {                                                                   \
@@ -138,12 +195,13 @@ static inline void fieldTypes(const std::vector<unsigned char> *, std::vector<co
         return false;                                                   \
     }
 
+/// Lookup key for an OpenCL device, for tuning caching
 struct CLOGS_LOCAL DeviceKey
 {
-    std::string platformName;
-    std::string deviceName;
-    cl_uint deviceVendorId;
-    std::string driverVersion;
+    std::string platformName;   ///< @c CL_PLATFORM_NAME
+    std::string deviceName;     ///< @c CL_DEVICE_NAME
+    cl_uint deviceVendorId;     ///< @c CL_DEVICE_VENDOR_ID
+    std::string driverVersion;  ///< @c CL_DRIVER_VERSION
 };
 
 CLOGS_STRUCT_FORWARD(DeviceKey)

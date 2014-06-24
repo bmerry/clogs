@@ -87,7 +87,7 @@ CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device);
  * Look up tuning parameters for a scan
  *
  * @param key             Lookup key
- * @param[out] params     Found parameters
+ * @param[out] values     Found parameters
  *
  * @throw CacheError if the cache entry did not exist or could not be read
  */
@@ -97,15 +97,16 @@ CLOGS_LOCAL void getScanParameters(const ScanParameters::Key &key, ScanParameter
  * Look up tuning parameters for a radixsort
  *
  * @param key             Lookup key
- * @param[out] params     Found parameters
+ * @param[out] values     Found parameters
  *
  * @throw CacheError if the cache entry did not exist or could not be read
  */
 CLOGS_LOCAL void getRadixsortParameters(const RadixsortParameters::Key &key, RadixsortParameters::Value &values);
 
 /**
- * Generate the tuning parameters for all algorithms.
- * This is not thread-safe (or even multi-process safe).
+ * Generate the tuning parameters for all algorithms. This should not be called
+ * from concurrently: there are no race conditions, but it could skew the
+ * tuning results by creating extra load on the system.
  *
  * @param devices   Devices to tune on.
  * @param force     Whether to re-tune configurations that have already been tuned.
@@ -113,6 +114,9 @@ CLOGS_LOCAL void getRadixsortParameters(const RadixsortParameters::Key &key, Rad
  */
 CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force, bool keepGoing);
 
+/**
+ * Internals of the tuning, keeping state about already-tuned configurations
+ */
 class CLOGS_LOCAL Tuner
 {
 private:
@@ -121,9 +125,11 @@ private:
     bool force;
     bool keepGoing;
 
+    /// Tune scan for one device
     void tuneScan(const cl::Context &context, const cl::Device &device);
+    /// Tune radixsort for one device
     void tuneRadixsort(const cl::Context &context, const cl::Device &device);
-
+    /// Tune all algorithms for one device
     void tuneDevice(const cl::Device &context);
 
 public:
@@ -131,6 +137,8 @@ public:
 
     void setForce(bool force);
     void setKeepGoing(bool keepGoing);
+
+    /// Tune a list of devices
     void tuneAll(const std::vector<cl::Device> &devices);
 
     /**
@@ -154,7 +162,8 @@ public:
      * timeouts), before refining the selection on more representative problem sizes.
      *
      * It is legal for the callback function to throw @c cl::Error or @ref
-     * InternalError. In either case, the parameter set will be dropped from consideration.
+     * InternalError. In either case, the parameter set will be dropped from
+     * consideration.
      *
      * Each call will be made with a fresh context. It is advisable for the
      * callback function to execute a warmup pass to obtain reliable results.
