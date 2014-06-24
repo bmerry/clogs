@@ -109,27 +109,27 @@ namespace
 static std::string getCacheFileStatic();
 
 #if CLOGS_FS_UNIX
+static std::string getenvString(const char *name)
+{
+    const char *env = getenv(name);
+    if (env == NULL)
+        env = "";
+    return env;
+}
+
 static std::string getCacheFileStatic()
 {
-    const char *envCacheDir = getenv("CLOGS_CACHE_DIR");
-    std::string cacheFile;
-    if (envCacheDir == NULL)
+    std::string cacheDir = getenvString("CLOGS_CACHE_DIR");
+    if (cacheDir.empty())
     {
-        const char *home = getenv("HOME");
-        if (home == NULL)
-            home = "";
-        std::string clogsDir = std::string(home) + "/.clogs";
-        mkdir(clogsDir.c_str(), 0777);
-        std::string cacheDir = clogsDir + "/cache";
-        mkdir(cacheDir.c_str(), 0777);
-        cacheFile = cacheDir + "/cache.sqlite";
-        return cacheFile;
+        std::string cacheHome = getenvString("XDG_CACHE_HOME");
+        if (cacheHome.empty())
+            cacheHome = getenvString("HOME") + "/.cache";
+        mkdir(cacheHome.c_str(), 0700);
+        cacheDir = cacheHome + "/clogs";
     }
-    else
-    {
-        cacheFile = std::string(envCacheDir) + "/cache.sqlite";
-    }
-    return cacheFile;
+    mkdir(cacheDir.c_str(), 0700);
+    return cacheDir + "/cache.sqlite";
 }
 #endif
 
