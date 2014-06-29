@@ -172,7 +172,8 @@ public:
      * @param events               Events to wait for before starting.
      * @param event                Event that will be signaled on completion.
      *
-     * @throw cl::Error            If @a buffer is not read-write.
+     * @throw cl::Error            If @a inBuffer is not readable on the device.
+     * @throw cl::Error            If @a outBuffer is not writable on the device.
      * @throw cl::Error            If the element range overruns the buffer.
      * @throw cl::Error            If @a elements is zero.
      * @pre
@@ -226,7 +227,8 @@ public:
      * @param events               Events to wait for before starting.
      * @param event                Event that will be signaled on completion.
      *
-     * @throw cl::Error            If @a buffer is not read-write.
+     * @throw cl::Error            If @a inBuffer is not readable on the device.
+     * @throw cl::Error            If @a outBuffer is not writable on the device.
      * @throw cl::Error            If the element range overruns the buffer.
      * @throw cl::Error            If @a elements is zero.
      * @throw cl::Error            If @a offsetBuffer is not readable.
