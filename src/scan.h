@@ -182,7 +182,7 @@ public:
 
     /**
      * Enqueue a scan operation on a command queue, with an offset in a buffer.
-     * @see clogs::Scan::enqueue.
+     * @see @ref clogs::Scan::enqueue.
      */
     void enqueue(const cl::CommandQueue &commandQueue,
                  const cl::Buffer &inBuffer,
