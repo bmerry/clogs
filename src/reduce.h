@@ -1,0 +1,188 @@
+/* Copyright (c) 2014 Bruce Merry
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/**
+ * @file
+ *
+ * Reduce implementation.
+ */
+
+#ifndef REDUCE_H
+#define REDUCE_H
+
+#ifndef __CL_ENABLE_EXCEPTIONS
+# define __CL_ENABLE_EXCEPTIONS
+#endif
+
+#include <clogs/visibility_push.h>
+#include <cstddef>
+#include <cassert>
+#include <vector>
+#include <string>
+#include <CL/cl.hpp>
+#include <boost/any.hpp>
+#include <clogs/visibility_pop.h>
+
+#include <clogs/core.h>
+#include "parameters.h"
+#include "utils.h"
+
+namespace clogs
+{
+namespace detail
+{
+
+class Tuner;
+class Reduce;
+
+class CLOGS_LOCAL ReduceParameters
+{
+public:
+    struct CLOGS_LOCAL Key
+    {
+        DeviceKey device;
+        std::string elementType;
+    };
+
+    struct CLOGS_LOCAL Value
+    {
+        ::size_t reduceWorkGroupSize;
+        ::size_t reduceBlocks;
+        std::vector<unsigned char> programBinary;
+    };
+
+    static const char *tableName() { return "reduce_v1"; }
+};
+
+CLOGS_STRUCT_FORWARD(ReduceParameters::Key)
+CLOGS_STRUCT_FORWARD(ReduceParameters::Value)
+
+/**
+ * Internal implementation of @ref clogs::ReduceProblem.
+ */
+class CLOGS_LOCAL ReduceProblem
+{
+private:
+    friend class Reduce;
+    Type type;
+
+public:
+    void setType(const Type &type);
+};
+
+/**
+ * Internal implementation of @ref clogs::Reduce.
+ */
+class CLOGS_LOCAL Reduce : public Algorithm
+{
+private:
+    ::size_t reduceWorkGroupSize;
+    ::size_t reduceBlocks;
+    ::size_t elementSize;
+
+    cl::Program program;
+    cl::Kernel reduceKernel;
+
+    cl::Buffer sums;
+    cl::Buffer wgc;
+
+    /**
+     * Second construction phase. This is called either by the normal constructor
+     * or during autotuning.
+     *
+     * @param context, device, problem Constructor arguments
+     * @param[in,out] params           Autotuned parameters (augmented with program if not already present)
+     * @param tuning                   If true, build the program if not already present
+     */
+    void initialize(
+        const cl::Context &context, const cl::Device &device, const ReduceProblem &problem,
+        ReduceParameters::Value &params, bool tuning);
+
+    /**
+     * Constructor for autotuning
+     */
+    Reduce(const cl::Context &context, const cl::Device &device, const ReduceProblem &problem,
+           ReduceParameters::Value &params);
+
+    static std::pair<double, double> tuneReduceCallback(
+        const cl::Context &context, const cl::Device &device,
+        std::size_t elements, boost::any &parameters,
+        const ReduceProblem &problem);
+
+public:
+    /**
+     * Constructor.
+     * @see @ref clogs::Reduce::Reduce(const cl::Context &, const cl::Device &, const ReduceProblem &)
+     */
+    Reduce(const cl::Context &context, const cl::Device &device, const ReduceProblem &problem);
+
+    /**
+     * Enqueue a reduction on a command queue.
+     * @see @ref clogs::Reduce::enqueue.
+     */
+    void enqueue(const cl::CommandQueue &commandQueue,
+                 const cl::Buffer &inBuffer,
+                 const cl::Buffer &outBuffer,
+                 ::size_t first,
+                 ::size_t elements,
+                 ::size_t outPosition,
+                 const VECTOR_CLASS<cl::Event> *events = NULL,
+                 cl::Event *event = NULL);
+
+    /**
+     * Enqueue a reduction on a command queue and read the result back to the host.
+     * @see @ref clogs::Reduce::enqueue.
+     */
+    void enqueue(const cl::CommandQueue &commandQueue,
+                 bool blocking,
+                 const cl::Buffer &inBuffer,
+                 void *out,
+                 ::size_t first,
+                 ::size_t elements,
+                 const VECTOR_CLASS<cl::Event> *events = NULL,
+                 cl::Event *event = NULL);
+
+    /**
+     * Returns key for looking up autotuning parameters.
+     */
+    static ReduceParameters::Key makeKey(const cl::Device &device, const ReduceProblem &problem);
+
+    /**
+     * Perform autotuning.
+     *
+     * @param tuner       Tuner for reporting results
+     * @param device      Device to tune for
+     * @param problem     Problem parameters
+     */
+    static ReduceParameters::Value tune(
+        Tuner &tuner,
+        const cl::Device &device, const ReduceProblem &problem);
+
+    /**
+     * Return whether a type is supported on a device.
+     */
+    static bool typeSupported(const cl::Device &device, const Type &type);
+};
+
+} // namespace detail
+} // namespace clogs
+
+#endif /* REDUCE_H */

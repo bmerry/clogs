@@ -36,6 +36,7 @@
 
 #include <clogs/core.h>
 #include <clogs/scan.h>
+#include <clogs/reduce.h>
 #include <clogs/radixsort.h>
 
 /**
@@ -48,7 +49,7 @@
 /**
  * OpenCL primitives.
  *
- * The primary classes of interest are @ref Scan and @ref Radixsort, which
+ * The primary classes of interest are @ref Scan, @ref Reduce and @ref Radixsort, which
  * provide the algorithms. The other classes are utilities and helpers.
  */
 namespace clogs

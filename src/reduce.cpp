@@ -1,0 +1,403 @@
+/* Copyright (c) 2014 Bruce Merry
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/**
+ * @file
+ *
+ * Reduce implementation.
+ */
+
+/**
+ * @file
+ *
+ * Scan implementation.
+ */
+
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
+#ifndef __CL_ENABLE_EXCEPTIONS
+# define __CL_ENABLE_EXCEPTIONS
+#endif
+
+#include <clogs/visibility_push.h>
+#include "clhpp11.h"
+#include <cstddef>
+#include <map>
+#include <string>
+#include <cassert>
+#include <vector>
+#include <utility>
+#include <clogs/visibility_pop.h>
+
+#include <clogs/core.h>
+#include <clogs/reduce.h>
+#include "reduce.h"
+#include "utils.h"
+#include "parameters.h"
+#include "tune.h"
+
+namespace clogs
+{
+
+namespace detail
+{
+
+CLOGS_STRUCT(
+    ReduceParameters::Key,
+    (device)
+    (elementType)
+)
+CLOGS_STRUCT(
+    ReduceParameters::Value,
+    (reduceWorkGroupSize)
+    (reduceBlocks)
+)
+
+void ReduceProblem::setType(const Type &type)
+{
+    if (type.getBaseType() == TYPE_VOID)
+        throw std::invalid_argument("type must not be void");
+    this->type = type;
+}
+
+void Reduce::initialize(
+    const cl::Context &context, const cl::Device &device,
+    const ReduceProblem &problem,
+    ReduceParameters::Value &params, bool tuning)
+{
+    reduceWorkGroupSize = params.reduceWorkGroupSize;
+    reduceBlocks = params.reduceBlocks;
+    elementSize = problem.type.getSize();
+
+    std::map<std::string, int> defines;
+    std::map<std::string, std::string> stringDefines;
+    defines["REDUCE_WORK_GROUP_SIZE"] = reduceWorkGroupSize;
+    defines["REDUCE_BLOCKS"] = reduceBlocks;
+    stringDefines["REDUCE_T"] = problem.type.getName();
+
+    try
+    {
+        cl_uint wgcInit = reduceBlocks;
+        sums = cl::Buffer(context, CL_MEM_READ_WRITE, reduceBlocks * elementSize);
+        wgc = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(cl_uint), &wgcInit);
+
+        program = build(context, device, "reduce.cl", defines, stringDefines, "",
+                        &params.programBinary, tuning);
+
+        reduceKernel = cl::Kernel(program, "reduce");
+        reduceKernel.setArg(0, wgc);
+        reduceKernel.setArg(6, sums);
+    }
+    catch (cl::Error &e)
+    {
+        throw InternalError(std::string("Error preparing kernels for reduce: ") + e.what());
+    }
+}
+
+std::pair<double, double> Reduce::tuneReduceCallback(
+    const cl::Context &context, const cl::Device &device,
+    std::size_t elements, boost::any &paramsAny,
+    const ReduceProblem &problem)
+{
+    ReduceParameters::Value &params = boost::any_cast<ReduceParameters::Value &>(paramsAny);
+    const ::size_t reduceWorkGroupSize = params.reduceWorkGroupSize;
+    const ::size_t reduceBlocks = params.reduceBlocks;
+    const ::size_t elementSize = problem.type.getSize();
+    const ::size_t allocSize = elements * elementSize;
+    cl::Buffer buffer(context, CL_MEM_READ_ONLY, allocSize);
+    cl::Buffer output(context, CL_MEM_WRITE_ONLY, elementSize);
+    cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
+    cl::Event event;
+
+    ::size_t blockSize = roundUp(elements, reduceWorkGroupSize * reduceBlocks) / reduceBlocks;
+
+    Reduce reduce(context, device, problem, params);
+    // Warmup pass
+    reduce.enqueue(queue, buffer, output, 0, elements, 0);
+    queue.finish();
+    // Timing pass
+    reduce.enqueue(queue, buffer, output, 0, elements, 0, NULL, &event);
+    queue.finish();
+
+    event.wait();
+    cl_ulong start = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+    cl_ulong end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+    double elapsed = end - start;
+    double rate = reduceBlocks * blockSize / elapsed;
+    return std::make_pair(rate, rate * 1.05);
+}
+
+ReduceParameters::Value Reduce::tune(
+    Tuner &tuner, const cl::Device &device, const ReduceProblem &problem)
+{
+    const ::size_t elementSize = problem.type.getSize();
+    const ::size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
+    const ::size_t maxWorkGroupSize = std::min(device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>(), localMemElements);
+    const ::size_t startBlocks = device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
+    const ::size_t maxBlocks = 4 * startBlocks;
+
+    std::vector<std::size_t> problemSizes;
+    problemSizes.push_back(65536);
+    problemSizes.push_back(32 * 1024 * 1024 / elementSize);
+
+    ReduceParameters::Value cand;
+    cand.reduceBlocks = startBlocks;
+    {
+        // Tune work group size
+        std::vector<boost::any> sets;
+        for (::size_t reduceWorkGroupSize = 1; reduceWorkGroupSize <= maxWorkGroupSize; reduceWorkGroupSize *= 2)
+        {
+            ReduceParameters::Value params = cand;
+            params.reduceWorkGroupSize = reduceWorkGroupSize;
+            sets.push_back(params);
+        }
+
+        using namespace FUNCTIONAL_NAMESPACE::placeholders;
+        cand = boost::any_cast<ReduceParameters::Value>(tuner.tuneOne(
+                device, sets, problemSizes,
+                FUNCTIONAL_NAMESPACE::bind(&Reduce::tuneReduceCallback, _1, _2, _3, _4, problem)));
+        cand.programBinary.clear();
+    }
+
+    {
+        // Tune number of blocks
+        std::vector<boost::any> sets;
+        for (::size_t blocks = startBlocks; blocks <= maxBlocks; blocks += startBlocks)
+        {
+            ReduceParameters::Value params = cand;
+            params.reduceBlocks = blocks;
+            sets.push_back(params);
+        }
+
+        using namespace FUNCTIONAL_NAMESPACE::placeholders;
+        cand = boost::any_cast<ReduceParameters::Value>(tuner.tuneOne(
+                device, sets, problemSizes,
+                FUNCTIONAL_NAMESPACE::bind(&Reduce::tuneReduceCallback, _1, _2, _3, _4, problem)));
+    }
+
+    tuner.logResult();
+    return cand;
+}
+
+bool Reduce::typeSupported(const cl::Device &device, const Type &type)
+{
+    return type.isComputable(device) && type.isStorable(device);
+}
+
+Reduce::Reduce(const cl::Context &context, const cl::Device &device, const ReduceProblem &problem)
+{
+    if (!typeSupported(device, problem.type))
+        throw std::invalid_argument("type is not a supported format on this device");
+
+    ReduceParameters::Key key = makeKey(device, problem);
+    ReduceParameters::Value params;
+    getReduceParameters(key, params);
+    initialize(context, device, problem, params, false);
+}
+
+Reduce::Reduce(const cl::Context &context, const cl::Device &device, const ReduceProblem &problem,
+               ReduceParameters::Value &params)
+{
+    initialize(context, device, problem, params, true);
+}
+
+ReduceParameters::Key Reduce::makeKey(const cl::Device &device, const ReduceProblem &problem)
+{
+    /* To reduce the amount of time for tuning, we assume that signed
+     * and unsigned variants are equivalent, and canonicalise to signed.
+     */
+    Type canon;
+    switch (problem.type.getBaseType())
+    {
+    case TYPE_UCHAR:
+        canon = Type(TYPE_CHAR, problem.type.getLength());
+        break;
+    case TYPE_USHORT:
+        canon = Type(TYPE_SHORT, problem.type.getLength());
+        break;
+    case TYPE_UINT:
+        canon = Type(TYPE_INT, problem.type.getLength());
+        break;
+    case TYPE_ULONG:
+        canon = Type(TYPE_LONG, problem.type.getLength());
+        break;
+    default:
+        canon = problem.type;
+    }
+
+    ReduceParameters::Key key;
+    key.device = deviceKey(device);
+    key.elementType = canon.getName();
+    return key;
+}
+
+void Reduce::enqueue(
+    const cl::CommandQueue &commandQueue,
+    const cl::Buffer &inBuffer,
+    const cl::Buffer &outBuffer,
+    ::size_t first,
+    ::size_t elements,
+    ::size_t outPosition,
+    const VECTOR_CLASS<cl::Event> *events,
+    cl::Event *event)
+{
+    /* Validate parameters */
+    if (inBuffer.getInfo<CL_MEM_SIZE>() < (first + elements) * elementSize)
+        throw cl::Error(CL_INVALID_VALUE, "clogs::Reduce::enqueue: range out of input buffer bounds");
+    if (outBuffer.getInfo<CL_MEM_SIZE>() < (outPosition + 1) * elementSize)
+        throw cl::Error(CL_INVALID_VALUE, "clogs::Reduce::enqueue: output position out of buffer bounds");
+    if (!(inBuffer.getInfo<CL_MEM_FLAGS>() & (CL_MEM_READ_WRITE | CL_MEM_READ_ONLY)))
+    {
+        throw cl::Error(CL_INVALID_VALUE, "clogs::Reduce::enqueue: input buffer is not readable");
+    }
+    if (!(outBuffer.getInfo<CL_MEM_FLAGS>() & (CL_MEM_READ_WRITE | CL_MEM_WRITE_ONLY)))
+    {
+        throw cl::Error(CL_INVALID_VALUE, "clogs::Reduce::enqueue: output buffer is not writable");
+    }
+    if (elements == 0)
+        throw cl::Error(CL_INVALID_GLOBAL_WORK_SIZE, "clogs::Reduce::enqueue: elements is zero");
+
+    const ::size_t blockSize = roundUp(elements, reduceWorkGroupSize * reduceBlocks) / reduceBlocks;
+
+    reduceKernel.setArg(1, outBuffer);
+    reduceKernel.setArg(2, (cl_uint) outPosition);
+    reduceKernel.setArg(3, inBuffer);
+    reduceKernel.setArg(4, (cl_uint) first);
+    reduceKernel.setArg(5, (cl_uint) elements);
+    reduceKernel.setArg(7, (cl_uint) blockSize);
+
+    cl::Event reduceEvent;
+    commandQueue.enqueueNDRangeKernel(
+        reduceKernel,
+        cl::NullRange,
+        cl::NDRange(reduceWorkGroupSize * reduceBlocks),
+        cl::NDRange(reduceWorkGroupSize),
+        events, &reduceEvent);
+    doEventCallback(reduceEvent);
+
+    if (event != NULL)
+        *event = reduceEvent;
+}
+
+void Reduce::enqueue(
+    const cl::CommandQueue &commandQueue,
+    bool blocking,
+    const cl::Buffer &inBuffer,
+    void *out,
+    ::size_t first,
+    ::size_t elements,
+    const VECTOR_CLASS<cl::Event> *events,
+    cl::Event *event)
+{
+    VECTOR_CLASS<cl::Event> reduceEvent(1);
+    cl::Event readEvent;
+
+    if (out == NULL)
+        throw cl::Error(CL_INVALID_VALUE, "clogs::Reduce::enqueue: out is NULL");
+
+    enqueue(commandQueue, inBuffer, sums, first, elements, reduceBlocks, events, &reduceEvent[0]);
+    commandQueue.enqueueReadBuffer(
+        sums, blocking,
+        reduceBlocks * elementSize,
+        elementSize,
+        out,
+        &reduceEvent,
+        &readEvent);
+    doEventCallback(readEvent);
+    if (event != NULL)
+        *event = readEvent;
+}
+
+} // namespace detail
+
+ReduceProblem::ReduceProblem() : detail_(new detail::ReduceProblem())
+{
+}
+
+ReduceProblem::~ReduceProblem()
+{
+    delete detail_;
+}
+
+ReduceProblem::ReduceProblem(const ReduceProblem &other)
+    : detail_(new detail::ReduceProblem(*other.detail_))
+{
+}
+
+ReduceProblem &ReduceProblem::operator=(const ReduceProblem &other)
+{
+    if (detail_ != other.detail_)
+    {
+        detail::ReduceProblem *tmp = new detail::ReduceProblem(*other.detail_);
+        delete detail_;
+        detail_ = tmp;
+    }
+    return *this;
+}
+
+void ReduceProblem::setType(const Type &type)
+{
+    assert(detail_ != NULL);
+    detail_->setType(type);
+}
+
+Reduce::Reduce(const cl::Context &context, const cl::Device &device, const ReduceProblem &problem)
+{
+    detail_ = new detail::Reduce(context, device, *problem.detail_);
+}
+
+Reduce::~Reduce()
+{
+    delete detail_;
+}
+
+void Reduce::setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData)
+{
+    detail_->setEventCallback(callback, userData);
+}
+
+void Reduce::enqueue(const cl::CommandQueue &commandQueue,
+                     const cl::Buffer &inBuffer,
+                     const cl::Buffer &outBuffer,
+                     ::size_t first,
+                     ::size_t elements,
+                     ::size_t outPosition,
+                     const VECTOR_CLASS<cl::Event> *events,
+                     cl::Event *event)
+{
+    detail_->enqueue(commandQueue, inBuffer, outBuffer, first, elements, outPosition, events, event);
+}
+
+void Reduce::enqueue(const cl::CommandQueue &commandQueue,
+                     bool blocking,
+                     const cl::Buffer &inBuffer,
+                     void *out,
+                     ::size_t first,
+                     ::size_t elements,
+                     const VECTOR_CLASS<cl::Event> *events,
+                     cl::Event *event)
+{
+    detail_->enqueue(commandQueue, blocking, inBuffer, out, first, elements, events, event);
+}
+
+} // namespace clogs

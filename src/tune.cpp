@@ -59,6 +59,7 @@
 #include "tune.h"
 #include "parameters.h"
 #include "scan.h"
+#include "reduce.h"
 #include "radixsort.h"
 #include "utils.h"
 #include "sqlite3.h"
@@ -432,6 +433,7 @@ private:
 
 public:
     Table<ScanParameters::Key, ScanParameters::Value> scan;
+    Table<ReduceParameters::Key, ReduceParameters::Value> reduce;
     Table<RadixsortParameters::Key, RadixsortParameters::Value> radixsort;
 
     DB();
@@ -457,6 +459,7 @@ sqlite3 *DB::open()
 DB::DB() :
     con(open()),
     scan(con.get(), ScanParameters::tableName()),
+    reduce(con.get(), ReduceParameters::tableName()),
     radixsort(con.get(), RadixsortParameters::tableName())
 {
 }
@@ -529,6 +532,65 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
                 {
                     ScanParameters::Value values = Scan::tune(*this, device, problem);
                     getDB().scan.add(key, values);
+                }
+                catch (TuneError &e)
+                {
+                    if (keepGoing)
+                        std::cerr << "WARNING: " << e.what() << std::endl;
+                    else
+                        throw;
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Tune the reduction algorithm for a device.
+ */
+void Tuner::tuneReduce(const cl::Context &context, const cl::Device &device)
+{
+    const std::vector<Type> types = Type::allTypes();
+    for (std::size_t i = 0; i < types.size(); i++)
+    {
+        const Type &type = types[i];
+        if (Reduce::typeSupported(device, type))
+        {
+            ReduceProblem problem;
+            problem.setType(type);
+            ReduceParameters::Key key = Reduce::makeKey(device, problem);
+            bool doit = true;
+            if (!seenReduce.insert(key).second)
+                doit = false; // already done in this round of tuning
+            else if (!force)
+            {
+                /* Catches are all no-ops: doit = false will not be reached.
+                 * Note that we catch InternalError and not just CacheError, in
+                 * case some driver change now makes the generated kernel
+                 * invalid. We also catch cl::Error in case a kernel causes
+                 * CL_OUT_OF_RESOURCES for some reason (which does happen).
+                 */
+                try
+                {
+                    Reduce reduce(context, device, problem);
+                    doit = false;
+                }
+                catch (cl::Error &e)
+                {
+                }
+                catch (InternalError &e)
+                {
+                }
+            }
+
+            if (doit)
+            {
+                std::cout << "Tuning reduce for " << type.getName() << " elements on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
+
+                try
+                {
+                    ReduceParameters::Value values = Reduce::tune(*this, device, problem);
+                    getDB().reduce.add(key, values);
                 }
                 catch (TuneError &e)
                 {
@@ -617,6 +679,7 @@ void Tuner::tuneDevice(const cl::Device &device)
     cl::Context context(devices, props, NULL);
 
     tuneScan(context, device);
+    tuneReduce(context, device);
     tuneRadixsort(context, device);
 }
 
@@ -730,6 +793,11 @@ boost::any Tuner::tuneOne(
 CLOGS_LOCAL void getScanParameters(const ScanParameters::Key &key, ScanParameters::Value &values)
 {
     getDB().scan.lookup(key, values);
+}
+
+CLOGS_LOCAL void getReduceParameters(const ReduceParameters::Key &key, ReduceParameters::Value &values)
+{
+    getDB().reduce.lookup(key, values);
 }
 
 CLOGS_LOCAL void getRadixsortParameters(const RadixsortParameters::Key &key, RadixsortParameters::Value &values)

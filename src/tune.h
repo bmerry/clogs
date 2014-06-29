@@ -40,6 +40,7 @@
 
 #include "parameters.h"
 #include "scan.h"
+#include "reduce.h"
 #include "radixsort.h"
 
 namespace cl
@@ -95,6 +96,16 @@ CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device);
 CLOGS_LOCAL void getScanParameters(const ScanParameters::Key &key, ScanParameters::Value &values);
 
 /**
+ * Look up tuning parameters for a reduction
+ *
+ * @param key             Lookup key
+ * @param[out] values     Found parameters
+ *
+ * @throw CacheError if the cache entry did not exist or could not be read
+ */
+CLOGS_LOCAL void getReduceParameters(const ReduceParameters::Key &key, ReduceParameters::Value &values);
+
+/**
  * Look up tuning parameters for a radixsort
  *
  * @param key             Lookup key
@@ -122,12 +133,15 @@ class CLOGS_LOCAL Tuner
 {
 private:
     std::set<ScanParameters::Key> seenScan;
+    std::set<ReduceParameters::Key> seenReduce;
     std::set<RadixsortParameters::Key> seenRadixsort;
     bool force;
     bool keepGoing;
 
     /// Tune scan for one device
     void tuneScan(const cl::Context &context, const cl::Device &device);
+    /// Tune reduce for one device
+    void tuneReduce(const cl::Context &context, const cl::Device &device);
     /// Tune radixsort for one device
     void tuneRadixsort(const cl::Context &context, const cl::Device &device);
     /// Tune all algorithms for one device
