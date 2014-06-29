@@ -44,6 +44,7 @@
 
 #include <clogs/core.h>
 #include "parameters.h"
+#include "utils.h"
 
 namespace clogs
 {
@@ -95,7 +96,7 @@ public:
 /**
  * Internal implementation of @ref clogs::Scan.
  */
-class CLOGS_LOCAL Scan
+class CLOGS_LOCAL Scan : public Algorithm
 {
 private:
     ::size_t reduceWorkGroupSize;    ///< Work group size for the initial reduce phase
@@ -127,15 +128,6 @@ private:
         cl_uint offsetIndex,
         const VECTOR_CLASS<cl::Event> *events,
         cl::Event *event);
-
-    /**
-     * Call the event callback, if there is one.
-     */
-    void doEventCallback(const cl::Event &event);
-
-    /* Prevent copying */
-    Scan(const Scan &);
-    Scan &operator=(const Scan &);
 
     /**
      * Second construction phase. This is called either by the normal constructor
@@ -175,12 +167,6 @@ public:
      * @see @ref clogs::Scan::Scan(const cl::Context &, const cl::Device &, const ScanProblem &)
      */
     Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem);
-
-    /**
-     * Set a callback to be notified of enqueued commands.
-     * @see @ref clogs::Scan::setEventCallback
-     */
-    void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
 
     /**
      * Enqueue a scan operation on a command queue, with a CPU offset.

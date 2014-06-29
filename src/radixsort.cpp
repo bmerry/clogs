@@ -182,20 +182,6 @@ void Radixsort::enqueueScatter(
         *event = scatterEvent;
 }
 
-void Radixsort::doEventCallback(const cl::Event &event)
-{
-    if (eventCallback != NULL)
-        (*eventCallback)(event, eventCallbackUserData);
-}
-
-void Radixsort::setEventCallback(
-    void (CL_CALLBACK *callback)(const cl::Event &event, void *),
-    void *userData)
-{
-    eventCallback = callback;
-    eventCallbackUserData = userData;
-}
-
 void Radixsort::enqueue(
     const cl::CommandQueue &queue,
     const cl::Buffer &keys, const cl::Buffer &values,
@@ -435,7 +421,6 @@ Radixsort::Radixsort(
     const cl::Context &context, const cl::Device &device,
     const RadixsortProblem &problem,
     RadixsortParameters::Value &params)
-    : eventCallback(NULL), eventCallbackUserData(NULL)
 {
     initialize(context, device, problem, params, true);
 }
@@ -443,7 +428,6 @@ Radixsort::Radixsort(
 Radixsort::Radixsort(
     const cl::Context &context, const cl::Device &device,
     const RadixsortProblem &problem)
-    : eventCallback(NULL), eventCallbackUserData(NULL)
 {
     if (!keyTypeSupported(device, problem.keyType))
         throw std::invalid_argument("keyType is not valid");

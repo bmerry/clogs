@@ -35,12 +35,36 @@
 #include <sstream>
 #include <locale>
 #include <CL/cl.hpp>
+#include <boost/noncopyable.hpp>
 #include <clogs/visibility_pop.h>
 
 namespace clogs
 {
 namespace detail
 {
+
+/// Code shared by all the primitives
+class CLOGS_LOCAL Algorithm : public boost::noncopyable
+{
+private:
+    void (CL_CALLBACK *eventCallback)(const cl::Event &event, void *);
+    void *eventCallbackUserData;
+
+protected:
+    /**
+     * Call the event callback, if there is one.
+     */
+    void doEventCallback(const cl::Event &event);
+
+public:
+    /**
+     * Set a callback to be notified of enqueued commands.
+     * @see @ref clogs::Scan::setEventCallback
+     */
+    void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
+
+    Algorithm();
+};
 
 /**
  * Returns true if @a device supports @a extension.

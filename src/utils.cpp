@@ -1,4 +1,5 @@
 /* Copyright (c) 2012, 2014 University of Cape Town
+ * Copyright (c) 2014 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,6 +48,23 @@ namespace clogs
 {
 namespace detail
 {
+
+void Algorithm::doEventCallback(const cl::Event &event)
+{
+    if (eventCallback != NULL)
+        (*eventCallback)(event, eventCallbackUserData);
+}
+
+void Algorithm::setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData)
+{
+    eventCallback = callback;
+    eventCallbackUserData = userData;
+}
+
+Algorithm::Algorithm()
+    : eventCallback(NULL), eventCallbackUserData(NULL)
+{
+}
 
 bool deviceHasExtension(const cl::Device &device, const std::string &extension)
 {

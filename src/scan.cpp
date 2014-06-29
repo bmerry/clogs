@@ -379,7 +379,6 @@ bool Scan::typeSupported(const cl::Device &device, const Type &type)
 }
 
 Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem)
-    : eventCallback(NULL), eventCallbackUserData(NULL)
 {
     if (!typeSupported(device, problem.type))
         throw std::invalid_argument("type is not a supported integral format on this device");
@@ -392,7 +391,6 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProbl
 
 Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
            ScanParameters::Value &params)
-    : eventCallback(NULL), eventCallbackUserData(NULL)
 {
     initialize(context, device, problem, params, true);
 }
@@ -425,18 +423,6 @@ ScanParameters::Key Scan::makeKey(const cl::Device &device, const ScanProblem &p
     key.device = deviceKey(device);
     key.elementType = canon.getName();
     return key;
-}
-
-void Scan::doEventCallback(const cl::Event &event)
-{
-    if (eventCallback != NULL)
-        (*eventCallback)(event, eventCallbackUserData);
-}
-
-void Scan::setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData)
-{
-    eventCallback = callback;
-    eventCallbackUserData = userData;
 }
 
 void Scan::enqueueInternal(const cl::CommandQueue &commandQueue,

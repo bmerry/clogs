@@ -38,6 +38,7 @@
 
 #include <clogs/core.h>
 #include "parameters.h"
+#include "utils.h"
 
 class TestRadixsort;
 
@@ -95,7 +96,7 @@ public:
  * Radix-sort implementation.
  * @see clogs::Radixsort.
  */
-class CLOGS_LOCAL Radixsort
+class CLOGS_LOCAL Radixsort : public Algorithm
 {
     friend class ::TestRadixsort;
 private:
@@ -116,9 +117,6 @@ private:
     cl::Buffer histogram;            ///< Histogram of the blocks by radix
     cl::Buffer tmpKeys;              ///< User-provided buffer to hold temporary keys
     cl::Buffer tmpValues;            ///< User-provided buffer to hold temporary values
-
-    void (CL_CALLBACK *eventCallback)(const cl::Event &event, void *);
-    void *eventCallbackUserData;
 
     ::size_t getTileSize() const;
     ::size_t getBlockSize(::size_t elements) const;
@@ -175,15 +173,6 @@ private:
         const VECTOR_CLASS<cl::Event> *events, cl::Event *event);
 
     /**
-     * Call the event callback, if there is one.
-     */
-    void doEventCallback(const cl::Event &event);
-
-    /* Prevent copying */
-    Radixsort(const Radixsort &);
-    Radixsort &operator =(const Radixsort &);
-
-    /**
      * Second construction phase. This is called either by the normal constructor
      * or during autotuning.
      *
@@ -223,12 +212,6 @@ public:
      * @see @ref clogs::Radixsort::Radixsort(const cl::Context &, const cl::Device &, const RadixsortProblem &).
      */
     Radixsort(const cl::Context &context, const cl::Device &device, const RadixsortProblem &problem);
-
-    /**
-     * Set a callback to be notified of enqueued commands.
-     * @see @ref clogs::Radixsort::setEventCallback
-     */
-    void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
 
     /**
      * Enqueue a scan operation on a command queue.
