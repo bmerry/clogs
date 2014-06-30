@@ -84,12 +84,11 @@ void Scan::initialize(
     const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
     ScanParameters::Value &params, bool tuning)
 {
-    const ::size_t elementSize = problem.type.getSize();
-    this->reduceWorkGroupSize = params.reduceWorkGroupSize;
-    this->scanWorkGroupSize = params.scanWorkGroupSize;
-    this->scanWorkScale = params.scanWorkScale;
-    this->maxBlocks = params.scanBlocks;
-    this->elementSize = elementSize;
+    reduceWorkGroupSize = params.reduceWorkGroupSize;
+    scanWorkGroupSize = params.scanWorkGroupSize;
+    scanWorkScale = params.scanWorkScale;
+    maxBlocks = params.scanBlocks;
+    elementSize = problem.type.getSize();
 
     std::map<std::string, int> defines;
     std::map<std::string, std::string> stringDefines;
@@ -139,8 +138,8 @@ std::pair<double, double> Scan::tuneReduceCallback(
     ScanParameters::Value &params = boost::any_cast<ScanParameters::Value &>(paramsAny);
     const ::size_t reduceWorkGroupSize = params.reduceWorkGroupSize;
     const ::size_t maxBlocks = params.scanBlocks;
-    const size_t elementSize = problem.type.getSize();
-    const size_t allocSize = elements * elementSize;
+    const ::size_t elementSize = problem.type.getSize();
+    const ::size_t allocSize = elements * elementSize;
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, allocSize);
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
 

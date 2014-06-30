@@ -109,6 +109,7 @@ public:
     static T &access(T &x, unsigned int) { return x; }
     static const T &access(const T &x, unsigned int idx) { return x; }
     static bool equal(const T &x, const T &y) { return x == y; }
+    static T plus(const T &x, const T &y) { return x + y; }
     static std::ostream &format(std::ostream &o, const T &x) { return (o << x); }
 };
 
@@ -130,6 +131,13 @@ public:
             if (x.s[i] != y.s[i])
                 return false;
         return true;
+    }
+    static T plus(const T &x, const T &y)
+    {
+        T out;
+        for (unsigned int i = 0; i < length; i++)
+            out.s[i] = x.s[i] + y.s[i];
+        return out;
     }
     static std::ostream &format(std::ostream &o, const T &x)
     {
