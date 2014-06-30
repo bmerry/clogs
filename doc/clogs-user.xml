@@ -53,12 +53,13 @@
             synchronization using OpenCL events.
         </para>
         <para>
-            Currently only two operations are supported: radix sorting and
+            Currently only three operations are supported: radix sorting, reduction, and
             exclusive scan. Radix sort supports all the unsigned
             integral types as keys, and all the built-in scalar and vector
             types suitable for storage in buffers as values. Scan supports
             all the integral types. It also supports vector types, which
-            allows for limited multi-scan capabilities.
+            allows for limited multi-scan capabilities. Reduction supports all
+            the built-in types, but the floating-point types are not tested.
         </para>
     </chapter>
     <chapter id="installation">
@@ -74,7 +75,7 @@
             <para>
                 It has been tested on an NVIDIA GeForce 480 GTX, an AMD R9 270
                 and on a CPU using the AMD APP SDK. The Intel SDK for OpenCL
-                Applications 2013 is not supported as it has numerous bugs. Other
+                Applications is not supported as it has numerous bugs. Other
                 OpenCL implementations are expected to work, but they are
                 untested and unlikely to have optimal performance.
             </para>
@@ -103,7 +104,9 @@
                         use the CLOGS library, but the
                         <application>boost::program_options</application>
                         library is needed for the CLOGS test suite and
-                        benchmark application.
+                        benchmark application. Boost headers are only
+                        required when building the library, not when building
+                        code against it.
                 </para></listitem>
                 <listitem><para>
                         <application>Doxygen</application> is required to
@@ -343,7 +346,8 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
         <section id="using.reentrance">
             <title>Reentrance</title>
             <para>
-                The classes in this API (<type>clogs::Scan</type> and
+                The classes in this API (<type>clogs::Scan</type>,
+                <type>clogs::Reduce</type> and
                 <type>clogs::Radixsort</type>) store internal state that is
                 used by the enqueued work. There are two limitations on
                 reentrance:
@@ -404,7 +408,7 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
                 documentation for details).
             </para>
             <para>
-                The scanning and sorting objects are non-copyable, to avoid
+                The algorithm objects are non-copyable, to avoid
                 accidently triggering expensive copies of OpenCL objects. They
                 need to be passed by reference.
             </para>
@@ -417,7 +421,7 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
                 well with OpenCL event profiling functions to determine how much
                 time is spent on the GPU. For this purpose, one should call
                 <function>setEventCallback</function> on the
-                <type>clogs::Radixsort</type> or <type>clogs::Scan</type>
+                <type>clogs::Radixsort</type> or similar
                 object. The registered callback will be called once for each
                 CL command enqueued, passing the associated event. Note that
                 the callback is called during the <function>enqueue</function>
@@ -434,7 +438,7 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
             While the code is heavily optimized, CLOGS has had relatively
             little device-specific performance tuning. The radix sort
             has been tuned on NVIDIA Fermi and GCN architectures, and the scan
-            has only be tuned on Fermi. It is not yet as fast as some CUDA sorting
+            has only be tuned on Fermi. It is not yet as fast as some CUDA
             implementations. The graph below gives an indication of sorting
             rates. Note that the Y axis is the rate, not the
             time: it needs a <emphasis>lot</emphasis> of input to achieve maximum
