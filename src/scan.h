@@ -74,7 +74,7 @@ public:
         std::vector<unsigned char> programBinary;
     };
 
-    static const char *tableName() { return "scan_v6"; }
+    static const char *tableName() { return "scan_v7"; }
 };
 
 CLOGS_STRUCT_FORWARD(ScanParameters::Key)

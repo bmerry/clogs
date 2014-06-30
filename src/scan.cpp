@@ -262,10 +262,12 @@ ScanParameters::Value Scan::tune(
     const size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
     const size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
     const size_t maxBlocks = std::min(2 * maxWorkGroupSize, localMemElements) & ~1;
+    const size_t computeUnits = device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
     /* Some devices (e.g. G80) can't actually provide all the local memory they
      * claim they have, so start with a smaller block count and tune it later.
      */
-    const size_t startBlocks = std::max(size_t(2), maxBlocks / 2) & ~1;
+    const size_t startBlocks = std::min(16 * computeUnits, maxBlocks / 2) & ~1;
+    // const size_t startBlocks = std::max(size_t(2), maxBlocks / 2) & ~1;
 
     std::vector<std::size_t> problemSizes;
     problemSizes.push_back(65536);
@@ -334,7 +336,17 @@ ScanParameters::Value Scan::tune(
         /* Tune number of blocks.
          */
         std::vector<boost::any> sets;
+        vector<size_t> sizes;
         for (size_t blocks = 2; blocks <= maxBlocks; blocks *= 2)
+            sizes.push_back(blocks);
+
+        for (size_t blocks = (computeUnits & 1) ? 2 * computeUnits : computeUnits;
+             blocks <= maxBlocks; blocks *= 2)
+            sizes.push_back(blocks);
+        std::sort(sizes.begin(), sizes.end());
+        sizes.resize(std::unique(sizes.begin(), sizes.end()) - sizes.begin());
+
+        for (std::size_t i = 0; i < sizes.size(); i++)
         {
             ScanParameters::Value params;
             params.warpSizeMem = warpSizeMem;
@@ -342,7 +354,7 @@ ScanParameters::Value Scan::tune(
             params.reduceWorkGroupSize = bestReduceWorkGroupSize;
             params.scanWorkGroupSize = bestScanWorkGroupSize;
             params.scanWorkScale = bestScanWorkScale;
-            params.scanBlocks = blocks;
+            params.scanBlocks = sizes[i];
             sets.push_back(params);
         }
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
