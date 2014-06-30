@@ -72,11 +72,11 @@ static po::variables_map processOptions(int argc, const char **argv)
                                                       "Minimum random key")
         ("key-max",       po::value<cl_ulong>(),      "Maximum random key")
         ("value-type",    po::value<std::string>()->default_value("uint"),
-                                                      "Type of values to sort or scan")
+                                                      "Type of values to sort/scan/reduce")
         ("iterations",    po::value<unsigned int>()->default_value(10),
                                                       "Number of repetitions to run")
         ("algorithm",     po::value<std::string>()->default_value("sort"),
-                                                      "Algorithm to benchmark (sort | scan)");
+                                                      "Algorithm to benchmark (sort/scan/reduce)");
 
     po::options_description cl("OpenCL Options");
     addOptions(cl);
@@ -292,7 +292,7 @@ static cl::Buffer randomBuffer(
     case clogs::TYPE_HALF:
         {
             /* Special case: half is a 16-bit integral C type. Pick
-             * the random to avoid non-finite values and denorms.
+             * the range to avoid non-finite values and denorms.
              */
             return randomBuffer<cl_half>(queue, engine, elements, length, 0x0400, 0x7BFF);
         }
@@ -449,7 +449,7 @@ static void runScan(const cl::CommandQueue &queue, const po::variables_map &vm)
         || !valueType.isStorable(device)
         || !valueType.isComputable(device))
     {
-        std::cerr << valueTypeName << " cannot be used as a sort key (must be an integral type).\n";
+        std::cerr << valueTypeName << " cannot be used as a scan type (must be an integral type).\n";
         std::exit(1);
     }
 
@@ -487,6 +487,55 @@ static void runScan(const cl::CommandQueue &queue, const po::variables_map &vm)
     std::cout << "Rate: " << double(elements) * iterations / elapsed / 1e6 << "M/s\n";
 }
 
+static void runReduce(const cl::CommandQueue &queue, const po::variables_map &vm)
+{
+    const cl::Context &context = queue.getInfo<CL_QUEUE_CONTEXT>();
+    const cl::Device &device = queue.getInfo<CL_QUEUE_DEVICE>();
+
+    const std::string valueTypeName = vm["value-type"].as<std::string>();
+    clogs::Type valueType = matchType(valueTypeName);
+    if (!valueType.isStorable(device)
+        || !valueType.isComputable(device))
+    {
+        std::cerr << valueTypeName << " cannot be used as a reduce type (not supported by device).\n";
+        std::exit(1);
+    }
+
+    std::size_t elements = vm["items"].as<std::size_t>();
+    if (elements <= 0)
+    {
+        std::cerr << "Number of items must be positive.\n";
+        std::exit(1);
+    };
+
+    unsigned int iterations = vm["iterations"].as<unsigned int>();
+    if (iterations <= 0)
+    {
+        std::cerr << "Number of iterations must be positive.\n";
+        std::exit(1);
+    }
+
+    RANDOM_NAMESPACE::mt19937 engine;
+    cl::Buffer buffer = randomBuffer(queue, engine, elements, valueType);
+    cl::Buffer output(context, CL_MEM_READ_WRITE, valueType.getSize());
+    clogs::ReduceProblem problem;
+    problem.setType(valueType);
+    clogs::Reduce reduce(context, device, problem);
+
+    double elapsed = 0.0;
+    // pass 0 is a warm-up pass
+    for (unsigned int i = 0; i <= iterations; i++)
+    {
+        Timer timer;
+        reduce.enqueue(queue, buffer, output, 0, elements, 0);
+        queue.finish();
+        if (i != 0)
+            elapsed += timer.getElapsed();
+    }
+    std::cout << "Reduced " << elements << " items " << iterations << " times in " << elapsed << " seconds.\n";
+    std::cout << "Rate: " << double(elements) * iterations / elapsed / 1e6 << "M/s\n";
+}
+
 int main(int argc, const char **argv)
 {
     std::locale::global(std::locale(""));
@@ -512,6 +561,8 @@ int main(int argc, const char **argv)
             runSort(queue, vm);
         else if (algorithm == "scan")
             runScan(queue, vm);
+        else if (algorithm == "reduce")
+            runReduce(queue, vm);
         else
         {
             std::cerr << "No such algorithm `" << algorithm << "'\n";
