@@ -71,6 +71,7 @@ CLOGS_STRUCT(
     ReduceParameters::Value,
     (reduceWorkGroupSize)
     (reduceBlocks)
+    (programBinary)
 )
 
 void ReduceProblem::setType(const Type &type)
@@ -98,7 +99,8 @@ void Reduce::initialize(
     try
     {
         cl_uint wgcInit = reduceBlocks;
-        sums = cl::Buffer(context, CL_MEM_READ_WRITE, reduceBlocks * elementSize);
+        // The extra element is used for storing the final reduction to be read back
+        sums = cl::Buffer(context, CL_MEM_READ_WRITE, (reduceBlocks + 1) * elementSize);
         wgc = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(cl_uint), &wgcInit);
 
         program = build(context, device, "reduce.cl", defines, stringDefines, "",
@@ -262,9 +264,15 @@ void Reduce::enqueue(
     cl::Event *event)
 {
     /* Validate parameters */
-    if (inBuffer.getInfo<CL_MEM_SIZE>() < (first + elements) * elementSize)
+    if (first + elements < first)
+    {
+        // Only happens if first + elements overflows. size_t is unsigned so behaviour
+        // is well-defined.
         throw cl::Error(CL_INVALID_VALUE, "clogs::Reduce::enqueue: range out of input buffer bounds");
-    if (outBuffer.getInfo<CL_MEM_SIZE>() < (outPosition + 1) * elementSize)
+    }
+    if (inBuffer.getInfo<CL_MEM_SIZE>() / elementSize < first + elements)
+        throw cl::Error(CL_INVALID_VALUE, "clogs::Reduce::enqueue: range out of input buffer bounds");
+    if (outBuffer.getInfo<CL_MEM_SIZE>() / elementSize <= outPosition)
         throw cl::Error(CL_INVALID_VALUE, "clogs::Reduce::enqueue: output position out of buffer bounds");
     if (!(inBuffer.getInfo<CL_MEM_FLAGS>() & (CL_MEM_READ_WRITE | CL_MEM_READ_ONLY)))
     {

@@ -81,18 +81,20 @@
  * visible to workitem 0.
  *
  * @param in       Array containing items
- * @param size     Number of elements to reduce
+ * @param first    Starting position for scan
+ * @param last     End position for scan
  * @param lid      Local ID of current work-item
  * @param sums     Scratch space and output area
  */
 void reduceRange(
-    __global const REDUCE_T * restrict in, uint size, uint lid,
+    __global const REDUCE_T * restrict in, uint first, uint last, uint lid,
     __local REDUCE_T sums[REDUCE_WORK_GROUP_SIZE])
 {
     REDUCE_T accum = 0;
-    for (uint i = 0; i < size; i += REDUCE_WORK_GROUP_SIZE)
-        if (i + lid < size)
-            accum += in[i];
+    for (uint i = first; i < last; i += REDUCE_WORK_GROUP_SIZE)
+        if (i + lid < last)
+            accum += in[i + lid];
+    sums[lid] = accum;
 
     /* Local reduction */
     for (uint scale = REDUCE_WORK_GROUP_SIZE / 2; scale >= 1; scale >>= 1)
@@ -112,29 +114,30 @@ void reduce(
     uint blockSize)
 {
     __local REDUCE_T sums[REDUCE_WORK_GROUP_SIZE];
-    __local bool last;
+    __local bool done;
 
     const uint group = get_group_id(0);
     const uint lid = get_local_id(0);
-    const uint pos = group * blockSize + lid;
-    const uint end = min(pos + blockSize, elements);
+    const uint first = group * blockSize;
+    const uint last = min(first + blockSize, elements);
 
-    reduceRange(in + start, elements, lid, sums);
+    reduceRange(in + start, first, last, lid, sums);
 
     /* No barrier needed here, because sums[0] is computed by thread 0 */
     if (lid == 0)
     {
         partial[group] = sums[0];
         mem_fence(CLK_GLOBAL_MEM_FENCE);
-        last = (atomic_dec(wgc) == 1);
+        int old = atomic_dec(wgc);
+        done = (old == 1);
     }
 
-    barrier(CLK_LOCAL_MEM_FENCE);
-    if (last)
+    barrier(CLK_LOCAL_MEM_FENCE); // ensures all work items see done
+    if (done)
     {
         mem_fence(CLK_GLOBAL_MEM_FENCE);
-        // TODO: this could be much more efficient if wgs is bigger than blocks
-        reduceRange(partial, REDUCE_BLOCKS, lid, sums);
+        // TODO: this could be made much more efficient if wgs is bigger than blocks
+        reduceRange(partial, 0, REDUCE_BLOCKS, lid, sums);
         if (lid == 0)
         {
             *wgc = REDUCE_BLOCKS;
