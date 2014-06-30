@@ -155,8 +155,8 @@ ReduceParameters::Value Reduce::tune(
     const ::size_t elementSize = problem.type.getSize();
     const ::size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
     const ::size_t maxWorkGroupSize = std::min(device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>(), localMemElements);
-    const ::size_t startBlocks = device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
-    const ::size_t maxBlocks = 4 * startBlocks;
+    const ::size_t computeUnits = device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
+    const ::size_t startBlocks = 16 * computeUnits;
 
     std::vector<std::size_t> problemSizes;
     problemSizes.push_back(65536);
@@ -184,7 +184,7 @@ ReduceParameters::Value Reduce::tune(
     {
         // Tune number of blocks
         std::vector<boost::any> sets;
-        for (::size_t blocks = startBlocks; blocks <= maxBlocks; blocks += startBlocks)
+        for (::size_t blocks = 4 * computeUnits; blocks <= 64 * computeUnits; blocks += 4 * computeUnits)
         {
             ReduceParameters::Value params = cand;
             params.reduceBlocks = blocks;
