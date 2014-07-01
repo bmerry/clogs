@@ -7,6 +7,7 @@ Takes OpenCL C code and turns it into constant strings in a C++ source file.
 from __future__ import print_function, division
 import sys
 import re
+import hashlib
 from textwrap import dedent
 
 __author__ = "Bruce Merry"
@@ -35,25 +36,19 @@ def main(argv):
 
     with open(sys.argv[-1], 'w') as outf:
         print(dedent('''
-            #include <clogs/visibility.h>
-
-            #ifdef CLOGS_DLL_DO_PUSH_POP
-            # pragma GCC visibility push(default)
-            #endif
+            #include <clogs/visibility_push.h>
             #include <map>
             #include <string>
-            #ifdef CLOGS_DLL_DO_PUSH_POP
-            # pragma GCC visibility pop
-            #endif
-
-            static std::map<std::string, std::string> g_sources;
+            #include <clogs/visibility_pop.h>
+            #include "../../src/utils.h"
 
             namespace clogs
             {
             namespace detail
             {
 
-            CLOGS_LOCAL const std::map<std::string, std::string> &getSourceMap() { return g_sources; }
+            static std::map<std::string, Source> g_sources;
+            CLOGS_LOCAL const std::map<std::string, Source> &getSourceMap() { return g_sources; }
 
             }} // namespace clogs::detail
 
@@ -72,12 +67,14 @@ def main(argv):
             label = re.sub(r'\.\./kernels/', '', label)
             with open(i, 'r') as inf:
                 lines = inf.readlines()
+                hasher = hashlib.sha256()
+                map(hasher.update, lines)
                 lines = [escape(line.rstrip('\n')) for line in lines]
-                print('    g_sources["{0}"] ='.format(escape(label)),
+                print('    clogs::detail::g_sources["{0}"] = clogs::detail::Source('.format(escape(label)),
                         file = outf)
                 for line in lines:
                     print('        "{0}\\n"'.format(line), file = outf)
-                print('        ;', file = outf)
+                print('        , "{0}");'.format(hasher.hexdigest()), file = outf)
         print(dedent('''
             }
 

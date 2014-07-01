@@ -50,28 +50,13 @@
 #include "utils.h"
 #include "parameters.h"
 #include "tune.h"
+#include "cache.h"
 
 namespace clogs
 {
 
 namespace detail
 {
-
-CLOGS_STRUCT(
-    ScanParameters::Key,
-    (device)
-    (elementType)
-)
-CLOGS_STRUCT(
-    ScanParameters::Value,
-    (warpSizeMem)
-    (warpSizeSchedule)
-    (reduceWorkGroupSize)
-    (scanWorkGroupSize)
-    (scanWorkScale)
-    (scanBlocks)
-    (programBinary)
-)
 
 void ScanProblem::setType(const Type &type)
 {
@@ -82,7 +67,7 @@ void ScanProblem::setType(const Type &type)
 
 void Scan::initialize(
     const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
-    ScanParameters::Value &params, bool tuning)
+    ScanParameters::Value &params)
 {
     reduceWorkGroupSize = params.reduceWorkGroupSize;
     scanWorkGroupSize = params.scanWorkGroupSize;
@@ -109,8 +94,7 @@ void Scan::initialize(
     {
         sums = cl::Buffer(context, CL_MEM_READ_WRITE, params.scanBlocks * elementSize);
 
-        program = build(context, device, "scan.cl", defines, stringDefines, "",
-                        &params.programBinary, tuning);
+        program = build(context, device, "scan.cl", defines, stringDefines);
 
         reduceKernel = cl::Kernel(program, "reduce");
         reduceKernel.setArg(0, sums);
@@ -365,8 +349,6 @@ ScanParameters::Value Scan::tune(
     params.scanWorkGroupSize = bestScanWorkGroupSize;
     params.scanWorkScale = bestScanWorkScale;
     params.scanBlocks = bestBlocks;
-    // Instantiate just to populate the program
-    Scan dummy(contextForDevice(device), device, problem, params);
 
     tuner.logResult();
     return params;
@@ -383,15 +365,14 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProbl
         throw std::invalid_argument("type is not a supported integral format on this device");
 
     ScanParameters::Key key = makeKey(device, problem);
-    ScanParameters::Value params;
-    getScanParameters(key, params);
-    initialize(context, device, problem, params, false);
+    ScanParameters::Value params = getDB().scan.lookup(key);
+    initialize(context, device, problem, params);
 }
 
 Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
            ScanParameters::Value &params)
 {
-    initialize(context, device, problem, params, true);
+    initialize(context, device, problem, params);
 }
 
 ScanParameters::Key Scan::makeKey(const cl::Device &device, const ScanProblem &problem)

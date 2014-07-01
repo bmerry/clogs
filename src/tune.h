@@ -86,36 +86,6 @@ public:
 CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device);
 
 /**
- * Look up tuning parameters for a scan
- *
- * @param key             Lookup key
- * @param[out] values     Found parameters
- *
- * @throw CacheError if the cache entry did not exist or could not be read
- */
-CLOGS_LOCAL void getScanParameters(const ScanParameters::Key &key, ScanParameters::Value &values);
-
-/**
- * Look up tuning parameters for a reduction
- *
- * @param key             Lookup key
- * @param[out] values     Found parameters
- *
- * @throw CacheError if the cache entry did not exist or could not be read
- */
-CLOGS_LOCAL void getReduceParameters(const ReduceParameters::Key &key, ReduceParameters::Value &values);
-
-/**
- * Look up tuning parameters for a radixsort
- *
- * @param key             Lookup key
- * @param[out] values     Found parameters
- *
- * @throw CacheError if the cache entry did not exist or could not be read
- */
-CLOGS_LOCAL void getRadixsortParameters(const RadixsortParameters::Key &key, RadixsortParameters::Value &values);
-
-/**
  * Generate the tuning parameters for all algorithms. This should not be called
  * from concurrently: there are no race conditions, but it could skew the
  * tuning results by creating extra load on the system.

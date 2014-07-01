@@ -43,6 +43,7 @@
 
 #include <clogs/core.h>
 #include "utils.h"
+#include "cache.h"
 
 namespace clogs
 {
@@ -172,17 +173,39 @@ cl::Program build(
     const std::string &filename,
     const std::map<std::string, int> &defines,
     const std::map<std::string, std::string> &stringDefines,
-    const std::string &options,
-    std::vector<unsigned char> *binary,
-    bool allowSource)
+    const std::string &options)
 {
     VECTOR_CLASS<cl::Device> devices(1, device);
 
-    /* Try binary first */
-    if (binary != NULL && !binary->empty() && !unitTestsEnabled)
+    const std::map<std::string, Source> &sourceMap = detail::getSourceMap();
+    assert(sourceMap.count(filename));
+    const Source &source = sourceMap.find(filename)->second;
+
+    std::ostringstream s;
+    s.imbue(std::locale::classic());
+    for (std::map<std::string, int>::const_iterator i = defines.begin(); i != defines.end(); ++i)
+    {
+        s << "#define " << i->first << " " << i->second << "\n";
+    }
+    for (std::map<std::string, std::string>::const_iterator i = stringDefines.begin();
+         i != stringDefines.end(); ++i)
+    {
+        s << "#define " << i->first << " " << i->second << "\n";
+    }
+    if (unitTestsEnabled)
+        s << "#define UNIT_TESTS 1\n";
+    s << "#line 1 \"" << filename << "\"\n";
+
+    /* First check if it is cached */
+    KernelParameters::Key key;
+    key.device = deviceKey(device);
+    key.header = s.str();
+    key.checksum = source.checksum;
+    KernelParameters::Value value;
+    if (getDB().kernel.lookup(key, value))
     {
         cl::Program::Binaries binaries(1);
-        binaries[0] = std::make_pair(static_cast<const void *>(&(*binary)[0]), binary->size());
+        binaries[0] = std::make_pair(static_cast<const void *>(&value.binary[0]), value.binary.size());
         try
         {
             cl::Program program(context, devices, binaries, NULL);
@@ -200,54 +223,30 @@ cl::Program build(
         }
     }
 
-    // Binary missing or did not work
-    if (!allowSource && !unitTestsEnabled)
-        throw CacheError("cached program binary missing or invalid");
-
-    const std::map<std::string, std::string> &sourceMap = detail::getSourceMap();
-    if (!sourceMap.count(filename))
-        throw std::invalid_argument("No such program " + filename);
-    const std::string &source = sourceMap.find(filename)->second;
-
-    std::ostringstream s;
-    s.imbue(std::locale::classic());
-    for (std::map<std::string, int>::const_iterator i = defines.begin(); i != defines.end(); ++i)
-    {
-        s << "#define " << i->first << " " << i->second << "\n";
-    }
-    for (std::map<std::string, std::string>::const_iterator i = stringDefines.begin();
-         i != stringDefines.end(); ++i)
-    {
-        s << "#define " << i->first << " " << i->second << "\n";
-    }
-    if (unitTestsEnabled)
-        s << "#define UNIT_TESTS 1\n";
-    s << "#line 1 \"" << filename << "\"\n";
-    const std::string header = s.str();
     cl::Program::Sources sources(2);
+    const std::string header = s.str();
     sources[0] = std::make_pair(header.data(), header.length());
-    sources[1] = std::make_pair(source.data(), source.length());
+    sources[1] = std::make_pair(source.text.data(), source.text.length());
+
     cl::Program program(context, sources);
 
     buildProgram(program, devices, filename, options);
 
-    /* The cl.hpp interface (as of 1.2.6) is fundamentally not exception-safe, so we
-     * do things at the C API level.
+    /* Update the cache. The cl.hpp interface (as of 1.2.6) is fundamentally
+     * not exception-safe, so we do things at the C API level.
      */
-    if (binary != NULL)
-    {
-        VECTOR_CLASS< ::size_t> binarySizes = program.getInfo<CL_PROGRAM_BINARY_SIZES>();
-        assert(binarySizes.size() == 1);
+    VECTOR_CLASS< ::size_t> binarySizes = program.getInfo<CL_PROGRAM_BINARY_SIZES>();
+    assert(binarySizes.size() == 1);
 
-        std::vector<unsigned char> data(binarySizes[0]);
-        std::vector<unsigned char *> dataPtrs(1, &data[0]);
+    value.binary.resize(binarySizes[0]);
+    std::vector<unsigned char *> dataPtrs(1, &value.binary[0]);
 
-        int err = clGetProgramInfo(program(), CL_PROGRAM_BINARIES,
-                                   sizeof(unsigned char *), &dataPtrs[0], NULL);
-        if (err != CL_SUCCESS)
-            throw cl::Error(err, "clGetProgramInfo");
-        binary->swap(data);
-    }
+    int err = clGetProgramInfo(program(), CL_PROGRAM_BINARIES,
+                               sizeof(unsigned char *), &dataPtrs[0], NULL);
+    if (err != CL_SUCCESS)
+        throw cl::Error(err, "clGetProgramInfo");
+    getDB().kernel.add(key, value);
+
     return program;
 }
 

@@ -55,24 +55,13 @@
 #include "utils.h"
 #include "parameters.h"
 #include "tune.h"
+#include "cache.h"
 
 namespace clogs
 {
 
 namespace detail
 {
-
-CLOGS_STRUCT(
-    ReduceParameters::Key,
-    (device)
-    (elementType)
-)
-CLOGS_STRUCT(
-    ReduceParameters::Value,
-    (reduceWorkGroupSize)
-    (reduceBlocks)
-    (programBinary)
-)
 
 void ReduceProblem::setType(const Type &type)
 {
@@ -84,7 +73,7 @@ void ReduceProblem::setType(const Type &type)
 void Reduce::initialize(
     const cl::Context &context, const cl::Device &device,
     const ReduceProblem &problem,
-    ReduceParameters::Value &params, bool tuning)
+    ReduceParameters::Value &params)
 {
     reduceWorkGroupSize = params.reduceWorkGroupSize;
     reduceBlocks = params.reduceBlocks;
@@ -103,8 +92,7 @@ void Reduce::initialize(
         sums = cl::Buffer(context, CL_MEM_READ_WRITE, (reduceBlocks + 1) * elementSize);
         wgc = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(cl_uint), &wgcInit);
 
-        program = build(context, device, "reduce.cl", defines, stringDefines, "",
-                        &params.programBinary, tuning);
+        program = build(context, device, "reduce.cl", defines, stringDefines);
 
         reduceKernel = cl::Kernel(program, "reduce");
         reduceKernel.setArg(0, wgc);
@@ -178,7 +166,6 @@ ReduceParameters::Value Reduce::tune(
         cand = boost::any_cast<ReduceParameters::Value>(tuner.tuneOne(
                 device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Reduce::tuneReduceCallback, _1, _2, _3, _4, problem)));
-        cand.programBinary.clear();
     }
 
     {
@@ -212,15 +199,14 @@ Reduce::Reduce(const cl::Context &context, const cl::Device &device, const Reduc
         throw std::invalid_argument("type is not a supported format on this device");
 
     ReduceParameters::Key key = makeKey(device, problem);
-    ReduceParameters::Value params;
-    getReduceParameters(key, params);
-    initialize(context, device, problem, params, false);
+    ReduceParameters::Value params = getDB().reduce.lookup(key);
+    initialize(context, device, problem, params);
 }
 
 Reduce::Reduce(const cl::Context &context, const cl::Device &device, const ReduceProblem &problem,
                ReduceParameters::Value &params)
 {
-    initialize(context, device, problem, params, true);
+    initialize(context, device, problem, params);
 }
 
 ReduceParameters::Key Reduce::makeKey(const cl::Device &device, const ReduceProblem &problem)

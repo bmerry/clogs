@@ -92,10 +92,5 @@ CLOGS_LOCAL int readFields(sqlite3_stmt *stmt, int pos, std::vector<unsigned cha
     return pos + 1;
 }
 
-CLOGS_STRUCT(
-    DeviceKey,
-    (platformName)(deviceName)(deviceVendorId)(driverVersion)
-)
-
 } // namespace detail
 } // namespace clogs

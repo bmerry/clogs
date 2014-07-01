@@ -44,6 +44,7 @@
 
 #include <clogs/core.h>
 #include "parameters.h"
+#include "cache_types.h"
 #include "utils.h"
 
 namespace clogs
@@ -53,32 +54,6 @@ namespace detail
 
 class Tuner;
 class Scan;
-
-class CLOGS_LOCAL ScanParameters
-{
-public:
-    struct CLOGS_LOCAL Key
-    {
-        DeviceKey device;
-        std::string elementType;
-    };
-
-    struct CLOGS_LOCAL Value
-    {
-        ::size_t warpSizeMem;
-        ::size_t warpSizeSchedule;
-        ::size_t reduceWorkGroupSize;
-        ::size_t scanWorkGroupSize;
-        ::size_t scanWorkScale;
-        ::size_t scanBlocks;
-        std::vector<unsigned char> programBinary;
-    };
-
-    static const char *tableName() { return "scan_v6"; }
-};
-
-CLOGS_STRUCT_FORWARD(ScanParameters::Key)
-CLOGS_STRUCT_FORWARD(ScanParameters::Value)
 
 /**
  * Internal implementations of @ref clogs::ScanProblem.
@@ -135,11 +110,10 @@ private:
      *
      * @param context, device, problem Constructor arguments
      * @param[in,out] params           Autotuned parameters (augmented with program if not already present)
-     * @param tuning                   If true, build the program if not already present
      */
     void initialize(
         const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
-        ScanParameters::Value &params, bool tuning);
+        ScanParameters::Value &params);
 
     /**
      * Constructor for autotuning

@@ -43,6 +43,19 @@ namespace clogs
 namespace detail
 {
 
+/// Kernels source that has been embedded by clc2cpp
+struct CLOGS_LOCAL Source
+{
+    std::string text;
+    std::string checksum;
+
+    Source() {}
+    Source(const std::string &text, const std::string &checksum)
+        : text(text), checksum(checksum)
+    {
+    }
+};
+
 /// Code shared by all the primitives
 class CLOGS_LOCAL Algorithm : public boost::noncopyable
 {
@@ -77,7 +90,7 @@ CLOGS_LOCAL bool deviceHasExtension(const cl::Device &device, const std::string 
  *
  * The implementation of this function is in generated code.
  */
-CLOGS_LOCAL const std::map<std::string, std::string> &getSourceMap();
+CLOGS_LOCAL const std::map<std::string, Source> &getSourceMap();
 
 /**
  * Subgroups of this size are guaranteed to have a synchronized view of
@@ -113,11 +126,8 @@ static inline std::string toString(const T &x)
 CLOGS_LOCAL void enableUnitTests();
 
 /**
- * Create a program from either source or binary. If binary is a non-empty
- * string, it is used, falling back to using the source if CL_INVALID_BINARY
- * is returned. However, if @a allowSource is false then the binary must
- * succeed or an exception is thrown. If source was used and @a binary is
- * non-NULL, it is updated with the new program binary.
+ * Create a program. If a valid binary is found in the cache it is used,
+ * otherwise the program is built from source and the cache is updated.
  */
 CLOGS_LOCAL cl::Program build(
     const cl::Context &context,
@@ -125,8 +135,7 @@ CLOGS_LOCAL cl::Program build(
     const std::string &filename,
     const std::map<std::string, int> &defines,
     const std::map<std::string, std::string> &stringDefines,
-    const std::string &options,
-    std::vector<unsigned char> *binary, bool allowSource);
+    const std::string &options = "");
 
 template<typename T>
 static inline T roundDownPower2(T x)

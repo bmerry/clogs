@@ -196,17 +196,6 @@ fieldTypes(const T *, std::vector<const char *> &out)
         return false;                                                   \
     }
 
-/// Lookup key for an OpenCL device, for tuning caching
-struct CLOGS_LOCAL DeviceKey
-{
-    std::string platformName;   ///< @c CL_PLATFORM_NAME
-    std::string deviceName;     ///< @c CL_DEVICE_NAME
-    cl_uint deviceVendorId;     ///< @c CL_DEVICE_VENDOR_ID
-    std::string driverVersion;  ///< @c CL_DRIVER_VERSION
-};
-
-CLOGS_STRUCT_FORWARD(DeviceKey)
-
 } // namespace detail
 } // namespace clogs
 

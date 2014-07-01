@@ -43,6 +43,7 @@
 
 #include <clogs/core.h>
 #include "parameters.h"
+#include "cache_types.h"
 #include "utils.h"
 
 namespace clogs
@@ -52,28 +53,6 @@ namespace detail
 
 class Tuner;
 class Reduce;
-
-class CLOGS_LOCAL ReduceParameters
-{
-public:
-    struct CLOGS_LOCAL Key
-    {
-        DeviceKey device;
-        std::string elementType;
-    };
-
-    struct CLOGS_LOCAL Value
-    {
-        ::size_t reduceWorkGroupSize;
-        ::size_t reduceBlocks;
-        std::vector<unsigned char> programBinary;
-    };
-
-    static const char *tableName() { return "reduce_v1"; }
-};
-
-CLOGS_STRUCT_FORWARD(ReduceParameters::Key)
-CLOGS_STRUCT_FORWARD(ReduceParameters::Value)
 
 /**
  * Internal implementation of @ref clogs::ReduceProblem.
@@ -110,11 +89,10 @@ private:
      *
      * @param context, device, problem Constructor arguments
      * @param[in,out] params           Autotuned parameters (augmented with program if not already present)
-     * @param tuning                   If true, build the program if not already present
      */
     void initialize(
         const cl::Context &context, const cl::Device &device, const ReduceProblem &problem,
-        ReduceParameters::Value &params, bool tuning);
+        ReduceParameters::Value &params);
 
     /**
      * Constructor for autotuning

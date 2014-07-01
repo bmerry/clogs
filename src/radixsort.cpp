@@ -49,6 +49,7 @@
 #include "radixsort.h"
 #include "parameters.h"
 #include "tune.h"
+#include "cache.h"
 #include "tr1_random.h"
 #include "tr1_functional.h"
 
@@ -56,25 +57,6 @@ namespace clogs
 {
 namespace detail
 {
-
-CLOGS_STRUCT(
-    RadixsortParameters::Key,
-    (device)
-    (keyType)
-    (valueSize)
-)
-CLOGS_STRUCT(
-    RadixsortParameters::Value,
-    (warpSizeMem)
-    (warpSizeSchedule)
-    (reduceWorkGroupSize)
-    (scanWorkGroupSize)
-    (scatterWorkGroupSize)
-    (scatterWorkScale)
-    (scanBlocks)
-    (radixBits)
-    (programBinary)
-)
 
 void RadixsortProblem::setKeyType(const Type &keyType)
 {
@@ -283,7 +265,7 @@ void Radixsort::setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &va
 void Radixsort::initialize(
     const cl::Context &context, const cl::Device &device,
     const RadixsortProblem &problem,
-    RadixsortParameters::Value &params, bool tuning)
+    RadixsortParameters::Value &params)
 {
     reduceWorkGroupSize = params.reduceWorkGroupSize;
     scanWorkGroupSize = params.scanWorkGroupSize;
@@ -401,7 +383,7 @@ void Radixsort::initialize(
     try
     {
         histogram = cl::Buffer(context, CL_MEM_READ_WRITE, params.scanBlocks * radix * sizeof(cl_uint));
-        program = build(context, device, "radixsort.cl", defines, stringDefines, "", &params.programBinary, tuning);
+        program = build(context, device, "radixsort.cl", defines, stringDefines);
 
         reduceKernel = cl::Kernel(program, "radixsortReduce");
 
@@ -422,7 +404,7 @@ Radixsort::Radixsort(
     const RadixsortProblem &problem,
     RadixsortParameters::Value &params)
 {
-    initialize(context, device, problem, params, true);
+    initialize(context, device, problem, params);
 }
 
 Radixsort::Radixsort(
@@ -435,9 +417,8 @@ Radixsort::Radixsort(
         throw std::invalid_argument("valueType is not valid");
 
     RadixsortParameters::Key key = makeKey(device, problem);
-    RadixsortParameters::Value params;
-    getRadixsortParameters(key, params);
-    initialize(context, device, problem, params, false);
+    RadixsortParameters::Value params = getDB().radixsort.lookup(key);
+    initialize(context, device, problem, params);
 }
 
 RadixsortParameters::Key Radixsort::makeKey(
@@ -674,7 +655,6 @@ RadixsortParameters::Value Radixsort::tune(
             cand = boost::any_cast<RadixsortParameters::Value>(tuner.tuneOne(
                 device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneReduceCallback, _1, _2, _3, _4, problem)));
-            cand.programBinary.clear();
         }
 
         // Tune the scatter kernel
@@ -697,7 +677,6 @@ RadixsortParameters::Value Radixsort::tune(
             cand = boost::any_cast<RadixsortParameters::Value>(tuner.tuneOne(
                 device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneScatterCallback, _1, _2, _3, _4, problem)));
-            cand.programBinary.clear();
         }
 
         // Tune the block count
@@ -739,15 +718,12 @@ RadixsortParameters::Value Radixsort::tune(
             cand = boost::any_cast<RadixsortParameters::Value>(tuner.tuneOne(
                 device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneBlocksCallback, _1, _2, _3, _4, problem)));
-            cand.programBinary.clear();
         }
 
         // TODO: benchmark the whole combination
         out = cand;
     }
 
-    /* Generate the binary */
-    Radixsort(contextForDevice(device), device, problem, out);
     tuner.logResult();
     return out;
 }

@@ -39,6 +39,7 @@
 #include <clogs/core.h>
 #include "parameters.h"
 #include "utils.h"
+#include "cache_types.h"
 
 class TestRadixsort;
 
@@ -49,35 +50,6 @@ namespace detail
 
 class Tuner;
 class Radixsort;
-
-class CLOGS_LOCAL RadixsortParameters
-{
-public:
-    struct Key
-    {
-        DeviceKey device;
-        std::string keyType;
-        ::size_t valueSize;
-    };
-
-    struct Value
-    {
-        ::size_t warpSizeMem;
-        ::size_t warpSizeSchedule;
-        ::size_t reduceWorkGroupSize;
-        ::size_t scanWorkGroupSize;
-        ::size_t scatterWorkGroupSize;
-        ::size_t scatterWorkScale;
-        ::size_t scanBlocks;
-        unsigned int radixBits;
-        std::vector<unsigned char> programBinary;
-    };
-
-    static const char *tableName() { return "radixsort_v5"; }
-};
-
-CLOGS_STRUCT_FORWARD(RadixsortParameters::Key)
-CLOGS_STRUCT_FORWARD(RadixsortParameters::Value)
 
 class CLOGS_LOCAL RadixsortProblem
 {
@@ -178,12 +150,11 @@ private:
      *
      * @param context, device, problem  Constructor arguments
      * @param[in,out] params            Autotuned parameters (updated with binary if @a autotuning)
-     * @param tuning                    Whether this construction is for autotuning
      */
     void initialize(
         const cl::Context &context, const cl::Device &device,
         const RadixsortProblem &problem,
-        RadixsortParameters::Value &params, bool tuning);
+        RadixsortParameters::Value &params);
 
     /**
      * Constructor for autotuning
