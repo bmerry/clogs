@@ -73,7 +73,7 @@ void ReduceProblem::setType(const Type &type)
 void Reduce::initialize(
     const cl::Context &context, const cl::Device &device,
     const ReduceProblem &problem,
-    ReduceParameters::Value &params)
+    const ReduceParameters::Value &params)
 {
     reduceWorkGroupSize = params.reduceWorkGroupSize;
     reduceBlocks = params.reduceBlocks;
@@ -106,10 +106,10 @@ void Reduce::initialize(
 
 std::pair<double, double> Reduce::tuneReduceCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, boost::any &paramsAny,
+    std::size_t elements, const boost::any &paramsAny,
     const ReduceProblem &problem)
 {
-    ReduceParameters::Value &params = boost::any_cast<ReduceParameters::Value &>(paramsAny);
+    const ReduceParameters::Value &params = boost::any_cast<const ReduceParameters::Value &>(paramsAny);
     const ::size_t reduceWorkGroupSize = params.reduceWorkGroupSize;
     const ::size_t reduceBlocks = params.reduceBlocks;
     const ::size_t elementSize = problem.type.getSize();
@@ -204,7 +204,7 @@ Reduce::Reduce(const cl::Context &context, const cl::Device &device, const Reduc
 }
 
 Reduce::Reduce(const cl::Context &context, const cl::Device &device, const ReduceProblem &problem,
-               ReduceParameters::Value &params)
+               const ReduceParameters::Value &params)
 {
     initialize(context, device, problem, params);
 }

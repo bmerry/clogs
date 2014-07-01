@@ -67,7 +67,7 @@ void ScanProblem::setType(const Type &type)
 
 void Scan::initialize(
     const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
-    ScanParameters::Value &params)
+    const ScanParameters::Value &params)
 {
     reduceWorkGroupSize = params.reduceWorkGroupSize;
     scanWorkGroupSize = params.scanWorkGroupSize;
@@ -116,10 +116,10 @@ void Scan::initialize(
 
 std::pair<double, double> Scan::tuneReduceCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, boost::any &paramsAny,
+    std::size_t elements, const boost::any &paramsAny,
     const ScanProblem &problem)
 {
-    ScanParameters::Value &params = boost::any_cast<ScanParameters::Value &>(paramsAny);
+    const ScanParameters::Value &params = boost::any_cast<const ScanParameters::Value &>(paramsAny);
     const ::size_t reduceWorkGroupSize = params.reduceWorkGroupSize;
     const ::size_t maxBlocks = params.scanBlocks;
     const ::size_t elementSize = problem.type.getSize();
@@ -164,10 +164,10 @@ std::pair<double, double> Scan::tuneReduceCallback(
 
 std::pair<double, double> Scan::tuneScanCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, boost::any &paramsAny,
+    std::size_t elements, const boost::any &paramsAny,
     const ScanProblem &problem)
 {
-    ScanParameters::Value &params = boost::any_cast<ScanParameters::Value &>(paramsAny);
+    const ScanParameters::Value &params = boost::any_cast<const ScanParameters::Value &>(paramsAny);
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, elements * problem.type.getSize());
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
 
@@ -210,10 +210,10 @@ std::pair<double, double> Scan::tuneScanCallback(
 
 std::pair<double, double> Scan::tuneBlocksCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, boost::any &paramsAny,
+    std::size_t elements, const boost::any &paramsAny,
     const ScanProblem &problem)
 {
-    ScanParameters::Value &params = boost::any_cast<ScanParameters::Value &>(paramsAny);
+    const ScanParameters::Value &params = boost::any_cast<const ScanParameters::Value &>(paramsAny);
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, elements * problem.type.getSize());
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
 
@@ -370,7 +370,7 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProbl
 }
 
 Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
-           ScanParameters::Value &params)
+           const ScanParameters::Value &params)
 {
     initialize(context, device, problem, params);
 }

@@ -325,7 +325,7 @@ boost::any Tuner::tuneOne(
         const cl::Context &,
         const cl::Device &,
         std::size_t,
-        boost::any &)> callback,
+        const boost::any &)> callback,
     double ratio)
 {
     std::vector<boost::any> retained = parameterSets;

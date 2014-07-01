@@ -88,21 +88,21 @@ private:
      * or during autotuning.
      *
      * @param context, device, problem Constructor arguments
-     * @param[in,out] params           Autotuned parameters (augmented with program if not already present)
+     * @param params                   Autotuned parameters
      */
     void initialize(
         const cl::Context &context, const cl::Device &device, const ReduceProblem &problem,
-        ReduceParameters::Value &params);
+        const ReduceParameters::Value &params);
 
     /**
      * Constructor for autotuning
      */
     Reduce(const cl::Context &context, const cl::Device &device, const ReduceProblem &problem,
-           ReduceParameters::Value &params);
+           const ReduceParameters::Value &params);
 
     static std::pair<double, double> tuneReduceCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, boost::any &parameters,
+        std::size_t elements, const boost::any &parameters,
         const ReduceProblem &problem);
 
 public:

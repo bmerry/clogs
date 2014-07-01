@@ -265,7 +265,7 @@ void Radixsort::setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &va
 void Radixsort::initialize(
     const cl::Context &context, const cl::Device &device,
     const RadixsortProblem &problem,
-    RadixsortParameters::Value &params)
+    const RadixsortParameters::Value &params)
 {
     reduceWorkGroupSize = params.reduceWorkGroupSize;
     scanWorkGroupSize = params.scanWorkGroupSize;
@@ -402,7 +402,7 @@ void Radixsort::initialize(
 Radixsort::Radixsort(
     const cl::Context &context, const cl::Device &device,
     const RadixsortProblem &problem,
-    RadixsortParameters::Value &params)
+    const RadixsortParameters::Value &params)
 {
     initialize(context, device, problem, params);
 }
@@ -467,10 +467,10 @@ static cl::Buffer makeRandomBuffer(const cl::CommandQueue &queue, ::size_t size)
 
 std::pair<double, double> Radixsort::tuneReduceCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, boost::any &paramsAny,
+    std::size_t elements, const boost::any &paramsAny,
     const RadixsortProblem &problem)
 {
-    RadixsortParameters::Value &params = boost::any_cast<RadixsortParameters::Value &>(paramsAny);
+    const RadixsortParameters::Value &params = boost::any_cast<const RadixsortParameters::Value &>(paramsAny);
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
     const ::size_t keyBufferSize = elements * problem.keyType.getSize();
     const cl::Buffer keyBuffer = makeRandomBuffer(queue, keyBufferSize);
@@ -495,10 +495,10 @@ std::pair<double, double> Radixsort::tuneReduceCallback(
 
 std::pair<double, double> Radixsort::tuneScatterCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, boost::any &paramsAny,
+    std::size_t elements, const boost::any &paramsAny,
     const RadixsortProblem &problem)
 {
-    RadixsortParameters::Value &params = boost::any_cast<RadixsortParameters::Value &>(paramsAny);
+    const RadixsortParameters::Value &params = boost::any_cast<const RadixsortParameters::Value &>(paramsAny);
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
     const ::size_t keyBufferSize = elements * problem.keyType.getSize();
     const ::size_t valueBufferSize = elements * problem.valueType.getSize();
@@ -544,10 +544,10 @@ std::pair<double, double> Radixsort::tuneScatterCallback(
 
 std::pair<double, double> Radixsort::tuneBlocksCallback(
     const cl::Context &context, const cl::Device &device,
-    std::size_t elements, boost::any &paramsAny,
+    std::size_t elements, const boost::any &paramsAny,
     const RadixsortProblem &problem)
 {
-    RadixsortParameters::Value &params = boost::any_cast<RadixsortParameters::Value &>(paramsAny);
+    const RadixsortParameters::Value &params = boost::any_cast<const RadixsortParameters::Value &>(paramsAny);
     cl::CommandQueue queue(context, device, CL_QUEUE_PROFILING_ENABLE);
     const ::size_t keyBufferSize = elements * problem.keyType.getSize();
     const ::size_t valueBufferSize = elements * problem.valueType.getSize();

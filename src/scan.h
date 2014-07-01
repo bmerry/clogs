@@ -109,31 +109,31 @@ private:
      * or during autotuning.
      *
      * @param context, device, problem Constructor arguments
-     * @param[in,out] params           Autotuned parameters (augmented with program if not already present)
+     * @param params                   Autotuned parameters
      */
     void initialize(
         const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
-        ScanParameters::Value &params);
+        const ScanParameters::Value &params);
 
     /**
      * Constructor for autotuning
      */
     Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
-         ScanParameters::Value &params);
+         const ScanParameters::Value &params);
 
     static std::pair<double, double> tuneReduceCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, boost::any &parameters,
+        std::size_t elements, const boost::any &parameters,
         const ScanProblem &problem);
 
     static std::pair<double, double> tuneScanCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, boost::any &parameters,
+        std::size_t elements, const boost::any &parameters,
         const ScanProblem &problem);
 
     static std::pair<double, double> tuneBlocksCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, boost::any &parameters,
+        std::size_t elements, const boost::any &parameters,
         const ScanProblem &problem);
 public:
     /**

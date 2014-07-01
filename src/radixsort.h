@@ -149,33 +149,33 @@ private:
      * or during autotuning.
      *
      * @param context, device, problem  Constructor arguments
-     * @param[in,out] params            Autotuned parameters (updated with binary if @a autotuning)
+     * @param params                    Autotuned parameters
      */
     void initialize(
         const cl::Context &context, const cl::Device &device,
         const RadixsortProblem &problem,
-        RadixsortParameters::Value &params);
+        const RadixsortParameters::Value &params);
 
     /**
      * Constructor for autotuning
      */
     Radixsort(const cl::Context &context, const cl::Device &device,
               const RadixsortProblem &problem,
-              RadixsortParameters::Value &params);
+              const RadixsortParameters::Value &params);
 
     static std::pair<double, double> tuneReduceCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, boost::any &params,
+        std::size_t elements, const boost::any &params,
         const RadixsortProblem &problem);
 
     static std::pair<double, double> tuneScatterCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, boost::any &params,
+        std::size_t elements, const boost::any &params,
         const RadixsortProblem &problem);
 
     static std::pair<double, double> tuneBlocksCallback(
         const cl::Context &context, const cl::Device &device,
-        std::size_t elements, boost::any &params,
+        std::size_t elements, const boost::any &params,
         const RadixsortProblem &problem);
 public:
     /**

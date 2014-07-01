@@ -134,7 +134,7 @@ public:
      * -# The first parameter set with B >= Amax is returned.
      *
      * To simply pick the
-     * best, simply return B = A. However, if earlier parameter sets are in some
+     * best, return B = A. However, if earlier parameter sets are in some
      * way intrinsicly better, then setting e.g. B = 1.05 * A will yield a
      * parameter set that has A ~= Amax but possibly much earlier. It is required
      * that A <= B.
@@ -162,7 +162,7 @@ public:
             const cl::Context &,
             const cl::Device &,
             std::size_t,
-            boost::any &)> callback,
+            const boost::any &)> callback,
         double ratio = 0.5);
 
     /**
