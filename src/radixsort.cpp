@@ -603,7 +603,7 @@ RadixsortParameters::Value Radixsort::tune(
      */
     bool isCPU = device.getInfo<CL_DEVICE_TYPE>() & CL_DEVICE_TYPE_CPU;
     const ::size_t maxDataSize = isCPU ? 32 * 1024 * 1024 : 256 * 1024 * 1024;
-    const ::size_t dataSize = std::min(maxDataSize, device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / 8);
+    const ::size_t dataSize = std::min(maxDataSize, (std::size_t) device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() / 8);
     const ::size_t elements = dataSize / (problem.keyType.getSize() + problem.valueType.getSize());
 
     std::vector<std::size_t> problemSizes;
