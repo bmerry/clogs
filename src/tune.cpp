@@ -170,6 +170,7 @@ boost::any TunerBase::tuneOne(
         }
     }
     abort(); // should never be reached due to A <= B
+    return boost::any();
 }
 
 /**
