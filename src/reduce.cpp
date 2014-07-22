@@ -138,7 +138,7 @@ std::pair<double, double> Reduce::tuneReduceCallback(
 }
 
 ReduceParameters::Value Reduce::tune(
-    Tuner &tuner, const cl::Device &device, const ReduceProblem &problem)
+    TunerBase &tuner, const cl::Device &device, const ReduceProblem &problem)
 {
     const ::size_t elementSize = problem.type.getSize();
     const ::size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;

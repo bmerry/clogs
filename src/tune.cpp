@@ -75,23 +75,143 @@ int SaveParametersError::getError() const
     return err;
 }
 
-Tuner::Tuner() : force(true), keepGoing(false)
+TunerBase::TunerBase() : force(true), keepGoing(false)
 {
 }
 
-void Tuner::setForce(bool force)
+void TunerBase::setForce(bool force)
 {
     this->force = force;
 }
 
-void Tuner::setKeepGoing(bool keepGoing)
+void TunerBase::setKeepGoing(bool keepGoing)
 {
     this->keepGoing = keepGoing;
 }
 
+void TunerBase::logStartGroup()
+{
+}
+
+void TunerBase::logEndGroup()
+{
+    std::cout << std::endl;
+}
+
+void TunerBase::logStartTest()
+{
+}
+
+void TunerBase::logEndTest(bool success, double rate)
+{
+    (void) rate;
+    std::cout << "!."[success] << std::flush;
+}
+
+void TunerBase::logResult()
+{
+}
+
+boost::any TunerBase::tuneOne(
+    const cl::Device &device,
+    const std::vector<boost::any> &parameterSets,
+    const std::vector<std::size_t> &problemSizes,
+    FUNCTIONAL_NAMESPACE::function<
+    std::pair<double, double>(
+        const cl::Context &,
+        const cl::Device &,
+        std::size_t,
+        const boost::any &)> callback,
+    double ratio)
+{
+    std::vector<boost::any> retained = parameterSets;
+    for (std::size_t pass = 0; pass < problemSizes.size(); pass++)
+    {
+        logStartGroup();
+        const std::size_t problemSize = problemSizes[pass];
+        std::vector<std::pair<double, double> > results;
+        results.reserve(retained.size());
+        std::vector<boost::any> retained2;
+        double maxA = -HUGE_VAL;
+        for (std::size_t i = 0; i < retained.size(); i++)
+        {
+            boost::any &params = retained[i];
+            logStartTest();
+            bool valid = false;
+            try
+            {
+                cl::Context context = contextForDevice(device);
+                std::pair<double, double> r = callback(context, device, problemSize, params);
+                if (r.first == r.first) // filter out NaN
+                {
+                    assert(r.first <= r.second);
+                    retained2.push_back(params);
+                    results.push_back(r);
+                    if (r.first > maxA)
+                        maxA = r.first;
+                    logEndTest(true, r.first);
+                    valid = true;
+                }
+            }
+            catch (InternalError &e)
+            {
+            }
+            catch (cl::Error &e)
+            {
+            }
+            if (!valid)
+                logEndTest(false, 0.0);
+        }
+        retained.swap(retained2);
+        retained2.clear();
+        if (retained.empty())
+        {
+            throw TuneError("no suitable kernel found");
+        }
+        logEndGroup();
+
+        if (pass < problemSizes.size() - 1)
+        {
+            for (std::size_t i = 0; i < results.size(); i++)
+                if (results[i].first >= ratio * maxA)
+                    retained2.push_back(retained[i]);
+            retained.swap(retained2);
+            retained2.clear();
+        }
+        else
+        {
+            for (std::size_t i = 0; i < results.size(); i++)
+                if (results[i].second >= maxA)
+                    return retained[i];
+        }
+    }
+    abort(); // should never be reached due to A <= B
+}
+
 /**
- * Tune the scan algorithm for a device.
+ * Internals of the tuning, keeping state about already-tuned configurations
  */
+class CLOGS_LOCAL Tuner : public TunerBase
+{
+private:
+    std::set<ScanParameters::Key> seenScan;
+    std::set<ReduceParameters::Key> seenReduce;
+    std::set<RadixsortParameters::Key> seenRadixsort;
+
+    /// Tune scan for one device
+    void tuneScan(const cl::Context &context, const cl::Device &device);
+    /// Tune reduce for one device
+    void tuneReduce(const cl::Context &context, const cl::Device &device);
+    /// Tune radixsort for one device
+    void tuneRadixsort(const cl::Context &context, const cl::Device &device);
+    /// Tune all algorithms for one device
+    void tuneDevice(const cl::Device &context);
+
+public:
+    /// Tune a list of devices
+    void tuneAll(const std::vector<cl::Device> &devices);
+};
+
 void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
 {
     const std::vector<Type> types = Type::allTypes();
@@ -147,9 +267,6 @@ void Tuner::tuneScan(const cl::Context &context, const cl::Device &device)
     }
 }
 
-/**
- * Tune the reduction algorithm for a device.
- */
 void Tuner::tuneReduce(const cl::Context &context, const cl::Device &device)
 {
     const std::vector<Type> types = Type::allTypes();
@@ -206,9 +323,6 @@ void Tuner::tuneReduce(const cl::Context &context, const cl::Device &device)
     }
 }
 
-/**
- * Tune the radix sort algorithm for a device.
- */
 void Tuner::tuneRadixsort(const cl::Context &context, const cl::Device &device)
 {
     const std::vector<Type> types = Type::allTypes();
@@ -291,105 +405,6 @@ void Tuner::tuneAll(const std::vector<cl::Device> &devices)
     {
         tuneDevice(devices[i]);
     }
-}
-
-void Tuner::logStartGroup()
-{
-}
-
-void Tuner::logEndGroup()
-{
-    std::cout << std::endl;
-}
-
-void Tuner::logStartTest()
-{
-}
-
-void Tuner::logEndTest(bool success, double rate)
-{
-    (void) rate;
-    std::cout << "!."[success] << std::flush;
-}
-
-void Tuner::logResult()
-{
-}
-
-boost::any Tuner::tuneOne(
-    const cl::Device &device,
-    const std::vector<boost::any> &parameterSets,
-    const std::vector<std::size_t> &problemSizes,
-    FUNCTIONAL_NAMESPACE::function<
-    std::pair<double, double>(
-        const cl::Context &,
-        const cl::Device &,
-        std::size_t,
-        const boost::any &)> callback,
-    double ratio)
-{
-    std::vector<boost::any> retained = parameterSets;
-    for (std::size_t pass = 0; pass < problemSizes.size(); pass++)
-    {
-        logStartGroup();
-        const std::size_t problemSize = problemSizes[pass];
-        std::vector<std::pair<double, double> > results;
-        results.reserve(retained.size());
-        std::vector<boost::any> retained2;
-        double maxA = -HUGE_VAL;
-        for (std::size_t i = 0; i < retained.size(); i++)
-        {
-            boost::any &params = retained[i];
-            logStartTest();
-            bool valid = false;
-            try
-            {
-                cl::Context context = contextForDevice(device);
-                std::pair<double, double> r = callback(context, device, problemSize, params);
-                if (r.first == r.first) // filter out NaN
-                {
-                    assert(r.first <= r.second);
-                    retained2.push_back(params);
-                    results.push_back(r);
-                    if (r.first > maxA)
-                        maxA = r.first;
-                    logEndTest(true, r.first);
-                    valid = true;
-                }
-            }
-            catch (InternalError &e)
-            {
-            }
-            catch (cl::Error &e)
-            {
-            }
-            if (!valid)
-                logEndTest(false, 0.0);
-        }
-        retained.swap(retained2);
-        retained2.clear();
-        if (retained.empty())
-        {
-            throw TuneError("no suitable kernel found");
-        }
-        logEndGroup();
-
-        if (pass < problemSizes.size() - 1)
-        {
-            for (std::size_t i = 0; i < results.size(); i++)
-                if (results[i].first >= ratio * maxA)
-                    retained2.push_back(retained[i]);
-            retained.swap(retained2);
-            retained2.clear();
-        }
-        else
-        {
-            for (std::size_t i = 0; i < results.size(); i++)
-                if (results[i].second >= maxA)
-                    return retained[i];
-        }
-    }
-    abort(); // should never be reached due to A <= B
 }
 
 CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force, bool keepGoing)

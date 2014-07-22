@@ -593,7 +593,7 @@ std::pair<double, double> Radixsort::tuneBlocksCallback(
 }
 
 RadixsortParameters::Value Radixsort::tune(
-    Tuner &tuner,
+    TunerBase &tuner,
     const cl::Device &device,
     const RadixsortProblem &problem)
 {

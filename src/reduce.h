@@ -51,7 +51,7 @@ namespace clogs
 namespace detail
 {
 
-class Tuner;
+class TunerBase;
 class Reduce;
 
 /**
@@ -151,7 +151,7 @@ public:
      * @param problem     Problem parameters
      */
     static ReduceParameters::Value tune(
-        Tuner &tuner,
+        TunerBase &tuner,
         const cl::Device &device, const ReduceProblem &problem);
 
     /**

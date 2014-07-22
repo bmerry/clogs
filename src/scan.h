@@ -52,7 +52,7 @@ namespace clogs
 namespace detail
 {
 
-class Tuner;
+class TunerBase;
 class Scan;
 
 /**
@@ -182,7 +182,7 @@ public:
      * @param problem     Scan parameters
      */
     static ScanParameters::Value tune(
-        Tuner &tuner,
+        TunerBase &tuner,
         const cl::Device &device, const ScanProblem &problem);
 
     /**

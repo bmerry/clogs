@@ -38,10 +38,7 @@
 #include "tr1_functional.h"
 #include <clogs/visibility_pop.h>
 
-#include "parameters.h"
-#include "scan.h"
-#include "reduce.h"
-#include "radixsort.h"
+#include "cache_types.h"
 
 namespace cl
 {
@@ -97,34 +94,19 @@ CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device);
 CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force, bool keepGoing);
 
 /**
- * Internals of the tuning, keeping state about already-tuned configurations
+ * Base class for @ref Tuner, which is independent of any particular algorithm.
  */
-class CLOGS_LOCAL Tuner
+class CLOGS_LOCAL TunerBase
 {
-private:
-    std::set<ScanParameters::Key> seenScan;
-    std::set<ReduceParameters::Key> seenReduce;
-    std::set<RadixsortParameters::Key> seenRadixsort;
+protected:
     bool force;
     bool keepGoing;
 
-    /// Tune scan for one device
-    void tuneScan(const cl::Context &context, const cl::Device &device);
-    /// Tune reduce for one device
-    void tuneReduce(const cl::Context &context, const cl::Device &device);
-    /// Tune radixsort for one device
-    void tuneRadixsort(const cl::Context &context, const cl::Device &device);
-    /// Tune all algorithms for one device
-    void tuneDevice(const cl::Device &context);
-
 public:
-    Tuner();
-
     void setForce(bool force);
     void setKeepGoing(bool keepGoing);
 
-    /// Tune a list of devices
-    void tuneAll(const std::vector<cl::Device> &devices);
+    TunerBase();
 
     /**
      * Perform low-level tuning. The callback function is called for each set of parameters,
