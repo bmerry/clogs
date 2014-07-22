@@ -63,21 +63,6 @@ public:
 };
 
 /**
- * Exception thrown when autotuning parameters could not be saved.
- */
-class CLOGS_API SaveParametersError : public std::runtime_error
-{
-private:
-    const std::string &filename;
-    int err;
-public:
-    SaveParametersError(const std::string &filename, int err);
-
-    const std::string &getFilename() const;
-    int getError() const;
-};
-
-/**
  * Create a key with fields uniquely describing @a device.
  */
 CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device);

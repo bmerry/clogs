@@ -77,7 +77,7 @@ int main(int argc, char **argv)
         std::vector<cl::Device> devices = findDevices(vm);
         clogs::detail::tuneAll(devices, force, keepGoing);
     }
-    catch (clogs::detail::SaveParametersError &e)
+    catch (clogs::CacheError &e)
     {
         std::cerr << e.what() << std::endl;
         return 1;

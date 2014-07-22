@@ -59,22 +59,6 @@ namespace clogs
 namespace detail
 {
 
-SaveParametersError::SaveParametersError(const std::string &filename, int err)
-    : std::runtime_error(filename + ": " + strerror(err)),
-    filename(filename), err(err)
-{
-}
-
-const std::string &SaveParametersError::getFilename() const
-{
-    return filename;
-}
-
-int SaveParametersError::getError() const
-{
-    return err;
-}
-
 TunerBase::TunerBase() : force(true), keepGoing(false)
 {
 }
