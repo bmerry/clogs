@@ -3,6 +3,7 @@
 * The cache is now stored in a SQLite database instead of lots of files
 * The cache is now located in an XDG-compliant location on UNIX (~/.cache/clogs by default).
 * The tuning caching mechanism has been significantly rewritten for use with SQLite
+* All kernels generated during tuning are now cached (this can use a lot of space)
 
 1.3.0
 -----
