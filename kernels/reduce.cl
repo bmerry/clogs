@@ -25,6 +25,13 @@
  * Reduction kernel for CLOGS.
  */
 
+#if ENABLE_KHR_FP64 && __OPENCL_C_VERSION__ <= 110
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+#endif
+#if ENABLE_KHR_FP16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif
+
 /**
  * Tests whether a value is a power of 2. This macro is suitable for use in
  * preprocessor expressions.

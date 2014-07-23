@@ -81,6 +81,10 @@ void Reduce::initialize(
 
     std::map<std::string, int> defines;
     std::map<std::string, std::string> stringDefines;
+    if (problem.type.getBaseType() == TYPE_HALF)
+        defines["ENABLE_KHR_FP16"] = 1;
+    if (problem.type.getBaseType() == TYPE_DOUBLE)
+        defines["ENABLE_KHR_FP64"] = 1;
     defines["REDUCE_WORK_GROUP_SIZE"] = reduceWorkGroupSize;
     defines["REDUCE_BLOCKS"] = reduceBlocks;
     stringDefines["REDUCE_T"] = problem.type.getName();
