@@ -1,3 +1,5 @@
+1.4.0
+-----
 * Reduction has been added
 * Introduced the ScanProblem and RadixsortProblem classes
 * The cache is now stored in a SQLite database instead of lots of files
