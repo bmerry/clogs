@@ -95,6 +95,34 @@ private:
     Scan(const Scan &);
     Scan &operator=(const Scan &);
 
+    void construct(cl_context context, cl_device_id device, const ScanProblem &problem,
+                   cl_int &err, const char *&errStr);
+
+protected:
+    void enqueue(cl_command_queue commandQueue,
+                 cl_mem inBuffer,
+                 cl_mem outBuffer,
+                 ::size_t elements,
+                 const void *offset,
+                 cl_uint numEvents,
+                 const cl_event *events,
+                 cl_event *event,
+                 cl_int &err,
+                 const char *&errStr);
+
+
+    void enqueue(cl_command_queue commandQueue,
+                 cl_mem inBuffer,
+                 cl_mem outBuffer,
+                 ::size_t elements,
+                 cl_mem offsetBuffer,
+                 cl_uint offsetIndex,
+                 cl_uint numEvents,
+                 const cl_event *events,
+                 cl_event *event,
+                 cl_int &err,
+                 const char *&errStr);
+
 public:
     /**
      * Constructor.
@@ -109,7 +137,15 @@ public:
      * @deprecated This interface is deprecated as it does not scale with future feature
      * additions. Use the constructor taking a @ref clogs::ScanProblem instead.
      */
-    Scan(const cl::Context &context, const cl::Device &device, const Type &type);
+    Scan(const cl::Context &context, const cl::Device &device, const Type &type)
+    {
+        cl_int err;
+        const char *errStr;
+        ScanProblem problem;
+        problem.setType(type);
+        construct(context(), device(), problem, err, errStr);
+        detail::handleError(err, errStr);
+    }
 
     /**
      * Constructor.
@@ -121,7 +157,13 @@ public:
      * @throw std::invalid_argument if @a problem is not supported on the device or is not initialized.
      * @throw clogs::InternalError if there was a problem with initialization.
      */
-    Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem);
+    Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem)
+    {
+        cl_int err;
+        const char *errStr;
+        construct(context(), device(), problem, err, errStr);
+        detail::handleError(err, errStr);
+    }
 
     ~Scan(); ///< Destructor
 
@@ -152,7 +194,10 @@ public:
                  ::size_t elements,
                  const void *offset = NULL,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
-                 cl::Event *event = NULL);
+                 cl::Event *event = NULL)
+    {
+        enqueue(commandQueue, buffer, buffer, elements, offset, events, event);
+    }
 
     /**
      * Enqueue a scan operation on a command queue.
@@ -188,13 +233,42 @@ public:
                  ::size_t elements,
                  const void *offset = NULL,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
-                 cl::Event *event = NULL);
+                 cl::Event *event = NULL)
+    {
+        cl_event outEvent;
+        cl_int err;
+        const char *errStr;
+        detail::UnwrapArray<cl::Event> events_(events);
+        enqueue(commandQueue(), inBuffer(), outBuffer(), elements, offset,
+                events_.size(), events_.data(),
+                event != NULL ? &outEvent : NULL,
+                err, errStr);
+        detail::handleError(err, errStr);
+        if (event != NULL)
+            *event = outEvent; // steals reference
+    }
+
+    void enqueue(cl_command_queue commandQueue,
+                 cl_mem inBuffer,
+                 cl_mem outBuffer,
+                 ::size_t elements,
+                 const void *offset = NULL,
+                 cl_uint numEvents = 0,
+                 const cl_event *events = NULL,
+                 cl_event *event = NULL)
+    {
+        cl_int err;
+        const char *errStr;
+        enqueue(commandQueue, inBuffer, outBuffer, elements, offset, numEvents, events, event,
+                err, errStr);
+        detail::handleError(err, errStr);
+    }
 
     /**
      * Enqueue a scan operation on a command queue, with an offset in a buffer (in-place).
      *
      * This is equivalent to calling
-     * @c enqueue(@a commandQueue, @a buffer, @a buffer, @a elements, @a offsetBuffer, @a offsetIndex, @a events, @a event);
+     * @c enqueue(@a commandQueue, @a buffer, @a buffer, @a elements, @a offsetBuffer, @a offsetIndex);
      */
     void enqueue(const cl::CommandQueue &commandQueue,
                  const cl::Buffer &buffer,
@@ -202,7 +276,10 @@ public:
                  const cl::Buffer &offsetBuffer,
                  cl_uint offsetIndex,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
-                 cl::Event *event = NULL);
+                 cl::Event *event = NULL)
+    {
+        enqueue(commandQueue, buffer, buffer, elements, offsetBuffer, offsetIndex, events, event);
+    }
 
     /**
      * Enqueue a scan operation on a command queue, with an offset in a buffer.
@@ -246,7 +323,38 @@ public:
                  const cl::Buffer &offsetBuffer,
                  cl_uint offsetIndex,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
-                 cl::Event *event = NULL);
+                 cl::Event *event = NULL)
+    {
+        cl_event outEvent;
+        cl_int err;
+        const char *errStr;
+        detail::UnwrapArray<cl::Event> events_(events);
+        enqueue(commandQueue(), inBuffer(), outBuffer(), elements,
+                offsetBuffer(), offsetIndex,
+                events_.size(), events_.data(),
+                event != NULL ? &outEvent : NULL,
+                err, errStr);
+        detail::handleError(err, errStr);
+        if (event != NULL)
+            *event = outEvent; // steals reference
+    }
+
+    void enqueue(cl_command_queue commandQueue,
+                 cl_mem inBuffer,
+                 cl_mem outBuffer,
+                 ::size_t elements,
+                 cl_mem offsetBuffer,
+                 cl_uint offsetIndex,
+                 cl_uint numEvents = 0,
+                 const cl_event *events = NULL,
+                 cl_event *event = NULL)
+    {
+        cl_int err;
+        const char *errStr;
+        enqueue(commandQueue, inBuffer, outBuffer, elements, offsetBuffer, offsetIndex,
+                numEvents, events, event, err, errStr);
+        detail::handleError(err, errStr);
+    }
 };
 
 } // namespace clogs

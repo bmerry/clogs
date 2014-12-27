@@ -63,14 +63,14 @@ class TestScan : public clogs::Test::TestFixture
     CLOGS_TEST_BIND_NAME(testVector<cl_ulong4>, "12345", clogs::Type(clogs::TYPE_ULONG, 4), 12345, OFFSET_HOST);
     CLOGS_TEST_BIND_NAME(testVector<cl_char3>, "12345", clogs::Type(clogs::TYPE_CHAR, 3), 12345, OFFSET_BUFFER);
     CPPUNIT_TEST(testEventCallback);
-    CPPUNIT_TEST_EXCEPTION(testReadOnly, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testTooSmallBuffer, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testBadBuffer, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testZero, cl::Error);
+    CPPUNIT_TEST_EXCEPTION(testReadOnly, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testTooSmallBuffer, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testBadBuffer, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testZero, clogs::Error);
     CPPUNIT_TEST_EXCEPTION(testVoid, std::invalid_argument);
     CPPUNIT_TEST_EXCEPTION(testFloat, std::invalid_argument);
-    CPPUNIT_TEST_EXCEPTION(testOffsetWriteOnly, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testOffsetTooSmall, cl::Error);
+    CPPUNIT_TEST_EXCEPTION(testOffsetWriteOnly, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testOffsetTooSmall, clogs::Error);
     CPPUNIT_TEST_SUITE_END();
 public:
     /// Adds tests dynamically

@@ -53,13 +53,13 @@ class TestReduce : public clogs::Test::TestFixture
     CPPUNIT_TEST_SUITE(TestReduce);
     CPPUNIT_TEST_SUITE_ADD_CUSTOM_TESTS(addCustomTests);
     CPPUNIT_TEST(testEventCallback);
-    CPPUNIT_TEST_EXCEPTION(testUnreadable, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testUnwriteable, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testBadBuffer, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testZero, cl::Error);
+    CPPUNIT_TEST_EXCEPTION(testUnreadable, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testUnwriteable, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testBadBuffer, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testZero, clogs::Error);
     CPPUNIT_TEST_EXCEPTION(testNull, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testInputOverflow, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testOutputOverflow, cl::Error);
+    CPPUNIT_TEST_EXCEPTION(testInputOverflow, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testOutputOverflow, clogs::Error);
     CPPUNIT_TEST_EXCEPTION(testUninitializedProblem, std::invalid_argument);
     CPPUNIT_TEST_SUITE_END();
 

@@ -369,17 +369,39 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
                 </para></listitem>
             </orderedlist>
         </section>
+        <section id="using.nobindings">
+            <title>Avoiding the OpenCL C++ bindings</title>
+            <para>
+                The examples all show the interfaces using the classes defined
+                in the OpenCL C++ bindings, such as
+                <type>cl::CommandQueue</type>. However, interfaces are also
+                provided that use the plain C bindings e.g.,
+                <type>cl_command_queue</type>. Using the C bindings may be very
+                slightly faster (on the CPU) since it avoids some extra
+                reference counting.
+            </para>
+        </section>
         <section id="using.errors">
             <title>Error handling</title>
             <para>
-                The source of CLOGS is compiled with
-                <symbol>__CL_ENABLE_EXCEPTIONS</symbol> defined, so any error
-                caused internally will be thrown as a
-                <type>cl::Error</type>. Additionally, the reference
+                Errors are reported exclusively via exceptions. OpenCL errors
+                are reported with exceptions of type
+                <type>clogs::Error</type>. If
+                <symbol>__CL_ENABLE_EXCEPTIONS</symbol> is defined, then this
+                is a typedef of <type>cl::Error</type>; otherwise, it is a
+                type with the same interface, which inherits from
+                <type>std::runtime_error</type>. Additionally, the reference
                 documentation lists some higher-level conditions which
-                will be signaled by throwing <type>cl::Error</type> (for
+                will be signaled by throwing <type>clogs::Error</type> (for
                 example, if <replaceable>numElements</replaceable> was
                 too large and would have overflowed the buffer).
+            </para>
+            <para>
+                Out-of-memory conditions may be reported either with
+                <type>clogs::Error</type> (if it is the OpenCL implementation
+                that failed to allocate memory) or
+                <type>std::bad_alloc</type> (if it is CLOGS that fails to
+                allocate memory).
             </para>
             <para>
                 The other type of exception that may occur is

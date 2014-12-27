@@ -1,4 +1,5 @@
 /* Copyright (c) 2012, 2014 University of Cape Town
+ * Copyright (c) 2014, Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +28,10 @@
 
 #ifndef UTILS_H
 #define UTILS_H
+
+#ifndef __CL_ENABLE_EXCEPTIONS
+# define __CL_ENABLE_EXCEPTIONS
+#endif
 
 #include <clogs/visibility_push.h>
 #include <string>
@@ -156,6 +161,73 @@ template<typename T>
 static inline T roundUp(T x, T y)
 {
     return (x + y - 1) / y * y;
+}
+
+/**
+ * Set @a err to @c CL_SUCCESS and @a errStr to NULL.
+ */
+static inline void clearError(cl_int &err, const char *&errStr)
+{
+    err = CL_SUCCESS;
+    errStr = NULL;
+}
+
+/**
+ * Set @a err and @a errStr from an exception object. Either may be NULL.
+ */
+static inline void setError(cl_int &err, const char *&errStr, const cl::Error &exc)
+{
+    err = exc.err();
+    errStr = exc.what();
+}
+
+/**
+ * Subclasses T with a constructor that does an extra retain when constructed
+ * from a base CL type.
+ */
+template<typename T>
+class CLOGS_LOCAL RetainWrapper : public T
+{
+public:
+    typedef typename T::cl_type cl_type;
+
+    explicit RetainWrapper(const cl_type &obj) : T(obj)
+    {
+        if (obj != 0)
+            this->retain();
+    }
+};
+
+template<typename T>
+static inline T retainWrap(typename T::cl_type obj)
+{
+    return RetainWrapper<T>(obj);
+}
+
+template<typename T>
+static inline VECTOR_CLASS<T> retainWrap(cl_uint length, const typename T::cl_type *obj)
+{
+    if (length > 0 && obj == NULL)
+        throw cl::Error(CL_INVALID_VALUE, "length must be zero for null arrays");
+    VECTOR_CLASS<T> ret;
+    ret.reserve(length);
+    for (cl_uint i = 0; i < length; i++)
+        ret.push_back(RetainWrapper<T>(obj[i]));
+    return ret;
+}
+
+/**
+ * Extract a wrapped value and steal its reference. If @a out if
+ * NULL, this is a no-op.
+ */
+template<typename T>
+static inline void unwrap(T &in, typename T::cl_type *out)
+{
+    if (out != NULL)
+    {
+        *out = in();
+        in() = 0;
+    }
 }
 
 } // namespace detail

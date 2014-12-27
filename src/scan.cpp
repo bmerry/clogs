@@ -568,16 +568,21 @@ void ScanProblem::setType(const Type &type)
     detail_->setType(type);
 }
 
-Scan::Scan(const cl::Context &context, const cl::Device &device, const Type &type)
+void Scan::construct(cl_context context, cl_device_id device, const ScanProblem &problem,
+                     cl_int &err, const char *&errStr)
 {
-    detail::ScanProblem problem;
-    problem.setType(type);
-    detail_ = new detail::Scan(context, device, problem);
-}
-
-Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProblem &problem)
-{
-    detail_ = new detail::Scan(context, device, *problem.detail_);
+    try
+    {
+        detail_ = new detail::Scan(
+            detail::retainWrap<cl::Context>(context),
+            detail::retainWrap<cl::Device>(device),
+            *problem.detail_);
+        detail::clearError(err, errStr);
+    }
+    catch (cl::Error &e)
+    {
+        detail::setError(err, errStr, e);
+    }
 }
 
 Scan::~Scan()
@@ -590,48 +595,68 @@ void Scan::setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void
     detail_->setEventCallback(callback, userData);
 }
 
-void Scan::enqueue(const cl::CommandQueue &commandQueue,
-                   const cl::Buffer &buffer,
+void Scan::enqueue(cl_command_queue commandQueue,
+                   cl_mem inBuffer,
+                   cl_mem outBuffer,
                    ::size_t elements,
                    const void *offset,
-                   const VECTOR_CLASS<cl::Event> *events,
-                   cl::Event *event)
+                   cl_uint numEvents,
+                   const cl_event *events,
+                   cl_event *event,
+                   cl_int &err,
+                   const char *&errStr)
 {
-    detail_->enqueue(commandQueue, buffer, buffer, elements, offset, events, event);
+    try
+    {
+        VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
+        cl::Event event_;
+        detail_->enqueue(
+            detail::retainWrap<cl::CommandQueue>(commandQueue),
+            detail::retainWrap<cl::Buffer>(inBuffer),
+            detail::retainWrap<cl::Buffer>(outBuffer),
+            elements, offset,
+            events ? &events_ : NULL,
+            event ? &event_ : NULL);
+        detail::clearError(err, errStr);
+        detail::unwrap(event_, event);
+    }
+    catch (cl::Error &e)
+    {
+        detail::setError(err, errStr, e);
+    }
 }
 
-void Scan::enqueue(const cl::CommandQueue &commandQueue,
-                   const cl::Buffer &inBuffer,
-                   const cl::Buffer &outBuffer,
+void Scan::enqueue(cl_command_queue commandQueue,
+                   cl_mem inBuffer,
+                   cl_mem outBuffer,
                    ::size_t elements,
-                   const void *offset,
-                   const VECTOR_CLASS<cl::Event> *events,
-                   cl::Event *event)
-{
-    detail_->enqueue(commandQueue, inBuffer, outBuffer, elements, offset, events, event);
-}
-
-void Scan::enqueue(const cl::CommandQueue &commandQueue,
-                   const cl::Buffer &buffer,
-                   ::size_t elements,
-                   const cl::Buffer &offsetBuffer,
+                   cl_mem offsetBuffer,
                    cl_uint offsetIndex,
-                   const VECTOR_CLASS<cl::Event> *events,
-                   cl::Event *event)
+                   cl_uint numEvents,
+                   const cl_event *events,
+                   cl_event *event,
+                   cl_int &err,
+                   const char *&errStr)
 {
-    detail_->enqueue(commandQueue, buffer, buffer, elements, offsetBuffer, offsetIndex, events, event);
-}
-
-void Scan::enqueue(const cl::CommandQueue &commandQueue,
-                   const cl::Buffer &inBuffer,
-                   const cl::Buffer &outBuffer,
-                   ::size_t elements,
-                   const cl::Buffer &offsetBuffer,
-                   cl_uint offsetIndex,
-                   const VECTOR_CLASS<cl::Event> *events,
-                   cl::Event *event)
-{
-    detail_->enqueue(commandQueue, inBuffer, outBuffer, elements, offsetBuffer, offsetIndex, events, event);
+    try
+    {
+        VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
+        cl::Event event_;
+        detail_->enqueue(
+            detail::retainWrap<cl::CommandQueue>(commandQueue),
+            detail::retainWrap<cl::Buffer>(inBuffer),
+            detail::retainWrap<cl::Buffer>(outBuffer),
+            elements,
+            detail::retainWrap<cl::Buffer>(offsetBuffer), offsetIndex,
+            events ? &events_ : NULL,
+            event ? &event_ : NULL);
+        detail::clearError(err, errStr);
+        detail::unwrap(event_, event);
+    }
+    catch (cl::Error &e)
+    {
+        detail::setError(err, errStr, e);
+    }
 }
 
 } // namespace clogs
