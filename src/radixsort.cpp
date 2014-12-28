@@ -627,13 +627,14 @@ RadixsortParameters::Value Radixsort::tune(
          * size, by starting with a smaller size.
          */
         ::size_t startBlocks = maxBlocks / 2;
+        startBlocks = roundDown(startBlocks, (::size_t) scanWorkGroupSize / radix);
 
         if (maxWorkGroupSize < radix)
             break;
 
         RadixsortParameters::Value cand;
         // Set default values, which are later tuned
-        ::size_t scatterSlice = std::max(warpSizeSchedule, (::size_t) radix);
+        const ::size_t scatterSlice = std::max(warpSizeSchedule, (::size_t) radix);
         cand.radixBits = radixBits;
         cand.warpSizeMem = warpSizeMem;
         cand.warpSizeSchedule = warpSizeSchedule;
@@ -688,6 +689,7 @@ RadixsortParameters::Value Radixsort::tune(
             const ::size_t slicesPerWorkGroup = scatterWorkGroupSize / scatterSlice;
             // Have to reduce the maximum to align with slicesPerWorkGroup, which was 1 earlier
             maxBlocks = roundDown(maxBlocks, slicesPerWorkGroup);
+            maxBlocks = roundDown(maxBlocks, scatterWorkGroupSize / radix);
             std::set< ::size_t> scanBlockCands;
             for (::size_t scanBlocks = std::max(scanWorkGroupSize / radix, slicesPerWorkGroup); scanBlocks <= maxBlocks; scanBlocks *= 2)
             {
