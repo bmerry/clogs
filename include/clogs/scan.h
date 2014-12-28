@@ -76,7 +76,7 @@ public:
  * Exclusive scan (prefix sum) primitive.
  *
  * One instance of this class can be reused for multiple scans, provided that
- *  - calls to @ref enqueue do not overlap; and
+ *  - calls to @ref enqueue(const cl::CommandQueue &, const cl::Buffer &, const cl::Buffer &, ::size_t, const void *, const VECTOR_CLASS<cl::Event> *, cl::Event *) "enqueue" do not overlap; and
  *  - their execution does not overlap.
  *
  * An instance of the class is specialized to a specific context, device, and
@@ -193,21 +193,7 @@ public:
             detail::callbackWrapperFree);
     }
 
-    /**
-     * Set a callback function that will receive a list of all underlying events.
-     * The callback will be called multiple times during each enqueue, because
-     * the implementation uses multiple commands. This allows profiling information
-     * to be extracted from the events once they complete.
-     *
-     * The callback may also be set to @c NULL to disable it.
-     *
-     * @note This is not an event completion callback: it is called during
-     * @c enqueue, generally before the events complete.
-     *
-     * @param callback The callback function.
-     * @param userData Arbitrary data to be passed to the callback.
-     * @param free     Passed @a userData when this object is destroyed.
-     */
+    /// @overload
     void setEventCallback(
         void (CL_CALLBACK *callback)(cl_event, void *),
         void *userData,
@@ -278,6 +264,7 @@ public:
             *event = outEvent; // steals reference
     }
 
+    /// @overload
     void enqueue(cl_command_queue commandQueue,
                  cl_mem inBuffer,
                  cl_mem outBuffer,
@@ -369,6 +356,7 @@ public:
             *event = outEvent; // steals reference
     }
 
+    /// @overload
     void enqueue(cl_command_queue commandQueue,
                  cl_mem inBuffer,
                  cl_mem outBuffer,

@@ -83,7 +83,7 @@ public:
  * Radix-sort interface.
  *
  * One instance of this class can be re-used for multiple sorts, provided that
- *  - calls to @ref enqueue do not overlap; and
+ *  - calls to @ref enqueue(const cl::CommandQueue &, const cl::Buffer &, const cl::Buffer &, ::size_t, unsigned int, const VECTOR_CLASS<cl::Event> *, cl::Event *) "enqueue" do not overlap; and
  *  - their execution does not overlap.
  *
  * An instance of the class is specialized to a specific context, device, and
@@ -196,21 +196,7 @@ public:
             detail::callbackWrapperFree);
     }
 
-    /**
-     * Set a callback function that will receive a list of all underlying events.
-     * The callback will be called multiple times during each enqueue, because
-     * the implementation uses multiple commands. This allows profiling information
-     * to be extracted from the events once they complete.
-     *
-     * The callback may also be set to @c NULL to disable it.
-     *
-     * @note This is not an event completion callback: it is called during
-     * @c enqueue, generally before the events complete.
-     *
-     * @param callback The callback function.
-     * @param userData Arbitrary data to be passed to the callback.
-     * @param free     Passed @a userData when this object is destroyed.
-     */
+    /// @overload
     void setEventCallback(
         void (CL_CALLBACK *callback)(cl_event, void *),
         void *userData,
@@ -264,6 +250,7 @@ public:
             *event = outEvent; // steals reference
     }
 
+    /// @overload
     void enqueue(cl_command_queue commandQueue,
                  cl_mem keys, cl_mem values,
                  ::size_t elements, unsigned int maxBits = 0,
@@ -283,10 +270,11 @@ public:
      * used if they are big enough (as big as the buffers that are
      * being sorted); otherwise temporary buffers are allocated on
      * the fly. Providing suitably large buffers guarantees that
-     * no buffer storage is allocated by @ref enqueue.
+     * no buffer storage is allocated by
+     * @ref enqueue(const cl::CommandQueue &, const cl::Buffer &, const cl::Buffer &, ::size_t, unsigned int, const VECTOR_CLASS<cl::Event> *, cl::Event *) "enqueue".
      *
      * It is legal to set either or both values to <code>cl::Buffer()</code>
-     * to clear the temporary buffer, in which case @ref enqueue will revert
+     * to clear the temporary buffer, in which case @c enqueue will revert
      * to allocating its own temporary buffers as needed.
      *
      * This object will retain references to the buffers, so it is
@@ -300,20 +288,7 @@ public:
         detail::handleError(err, errStr);
     }
 
-    /**
-     * Set temporary buffers used during sorting. These buffers are
-     * used if they are big enough (as big as the buffers that are
-     * being sorted); otherwise temporary buffers are allocated on
-     * the fly. Providing suitably large buffers guarantees that
-     * no buffer storage is allocated by @ref enqueue.
-     *
-     * It is legal to set either or both values to <code>0</code>
-     * to clear the temporary buffer, in which case @ref enqueue will revert
-     * to allocating its own temporary buffers as needed.
-     *
-     * This object will retain references to the buffers, so it is
-     * safe for the caller to release its reference.
-     */
+    /// @overload
     void setTemporaryBuffers(cl_mem keys, cl_mem values)
     {
         cl_int err;

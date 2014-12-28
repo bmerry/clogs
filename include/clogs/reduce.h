@@ -73,9 +73,8 @@ public:
 /**
  * Reduction primitive.
  *
- *
  * One instance of this class can be reused for multiple scans, provided that
- *  - calls to @ref enqueue do not overlap; and
+ *  - calls to @ref enqueue(const cl::CommandQueue &, const cl::Buffer &, const cl::Buffer &, ::size_t, ::size_t elements, ::size_t outPosition, const VECTOR_CLASS<cl::Event> *, cl::Event *) "enqueue" do not overlap; and
  *  - their execution does not overlap.
  *
  * An instance of the class is specialized to a specific context, device, and
@@ -189,21 +188,7 @@ public:
             detail::callbackWrapperFree);
     }
 
-    /**
-     * Set a callback function that will receive a list of all underlying events.
-     * The callback may be called multiple times during each enqueue, if
-     * the implementation uses multiple commands. This allows profiling information
-     * to be extracted from the events once they complete.
-     *
-     * The callback may also be set to @c NULL to disable it.
-     *
-     * @note This is not an event completion callback: it is called during
-     * @c enqueue, generally before the events complete.
-     *
-     * @param callback The callback function.
-     * @param userData Arbitrary data to be passed to the callback.
-     * @param free     Passed @a userData when this object is destroyed.
-     */
+    /// @overload
     void setEventCallback(
         void (CL_CALLBACK *callback)(cl_event, void *),
         void *userData,
@@ -252,28 +237,7 @@ public:
             *event = outEvent; // steals the reference
     }
 
-    /**
-     * Enqueue a reduction operation on a command queue.
-     *
-     * @param commandQueue         The command queue to use.
-     * @param inBuffer             The buffer to reduce.
-     * @param outBuffer            The buffer to which the result is written.
-     * @param first                The index (in elements, not bytes) to begin the reduction.
-     * @param elements             The number of elements to reduce.
-     * @param outPosition          The index (in elements, not bytes) at which to write the result.
-     * @param numEvents            Number of events in @a events
-     * @param events               Events to wait for before starting.
-     * @param event                Event that will be signaled on completion.
-     *
-     * @throw cl::Error            If @a inBuffer is not readable on the device
-     * @throw cl::Error            If @a outBuffer is not writable on the devic
-     * @throw cl::Error            If the element range overruns the buffer.
-     * @throw cl::Error            If @a elements is zero.
-     *
-     * @pre
-     * - @a commandQueue was created with the context and device given to the constructor.
-     * - The output does not overlap with the input.
-     */
+    /// @overload
     void enqueue(cl_command_queue commandQueue,
                  cl_mem inBuffer,
                  cl_mem outBuffer,
@@ -318,11 +282,7 @@ public:
             *event = outEvent; // steals the reference
     }
 
-    /**
-     * Enqueue a reduction operation and read the result back to the host.
-     * This is a convenience wrapper that avoids the need to separately
-     * call @c clEnqueueReadBuffer.
-     */
+    /// @overload
     void enqueue(cl_command_queue commandQueue,
                  bool blocking,
                  cl_mem inBuffer,
