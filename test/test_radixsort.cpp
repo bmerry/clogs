@@ -633,15 +633,24 @@ static void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount)
     (*static_cast<int *>(eventCount))++;
 }
 
+static void CL_CALLBACK eventCallbackFree(void *eventCount)
+{
+    *static_cast<int *>(eventCount) = -1;
+}
+
 void TestRadixsort::testEventCallback()
 {
     int events = 0;
-    clogs::Radixsort sort(context, device, clogs::TYPE_UINT);
-    cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
-    sort.setEventCallback(eventCallback, &events);
-    sort.enqueue(queue, buffer, cl::Buffer(), 4, 32);
-    queue.finish();
-    CPPUNIT_ASSERT(events > 0);
+    {
+        clogs::Radixsort sort(context, device, clogs::TYPE_UINT);
+        cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
+        sort.setEventCallback(eventCallback, &events, eventCallbackFree);
+        sort.enqueue(queue, buffer, cl::Buffer(), 4, 32);
+        queue.finish();
+        CPPUNIT_ASSERT(events > 0);
+    }
+    // Check that the free function was called in destructor
+    CPPUNIT_ASSERT_EQUAL(-1, events);
 }
 
 /*******************************************************/

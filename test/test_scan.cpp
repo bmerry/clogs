@@ -231,15 +231,24 @@ static void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount)
     (*static_cast<int *>(eventCount))++;
 }
 
+static void CL_CALLBACK eventCallbackFree(void *eventCount)
+{
+    *static_cast<int *>(eventCount) = -1;
+}
+
 void TestScan::testEventCallback()
 {
     int events = 0;
-    clogs::Scan scan(context, device, clogs::TYPE_UINT);
-    cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
-    scan.setEventCallback(eventCallback, &events);
-    scan.enqueue(queue, buffer, 4);
-    queue.finish();
-    CPPUNIT_ASSERT(events > 0);
+    {
+        clogs::Scan scan(context, device, clogs::TYPE_UINT);
+        cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
+        scan.setEventCallback(eventCallback, &events, eventCallbackFree);
+        scan.enqueue(queue, buffer, 4);
+        queue.finish();
+        CPPUNIT_ASSERT(events > 0);
+    }
+    // Check that the free function was called in destructor
+    CPPUNIT_ASSERT_EQUAL(-1, events);
 }
 
 void TestScan::testReadOnly()
