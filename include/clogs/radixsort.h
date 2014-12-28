@@ -83,7 +83,7 @@ public:
  * Radix-sort interface.
  *
  * One instance of this class can be re-used for multiple sorts, provided that
- *  - calls to @ref enqueue do not overlap; and
+ *  - calls to @ref enqueue(const cl::CommandQueue &, const cl::Buffer &, const cl::Buffer &, ::size_t, unsigned int, const VECTOR_CLASS<cl::Event> *, cl::Event *) "enqueue" do not overlap; and
  *  - their execution does not overlap.
  *
  * An instance of the class is specialized to a specific context, device, and
@@ -104,6 +104,22 @@ private:
     Radixsort(const Radixsort &);
     Radixsort &operator=(const Radixsort &);
 
+    void construct(cl_context context, cl_device_id device, const RadixsortProblem &problem,
+                   cl_int &err, const char *&errStr);
+
+protected:
+    void enqueue(cl_command_queue command_queue,
+                 cl_mem keys, cl_mem values,
+                 ::size_t elements, unsigned int maxBits,
+                 cl_uint numEvents,
+                 const cl_event *events,
+                 cl_event *event,
+                 cl_int &err,
+                 const char *&errStr);
+
+    void setTemporaryBuffers(cl_mem keys, cl_mem values,
+                             cl_int &err, const char *&errStr);
+
 public:
     /**
      * Constructor.
@@ -121,7 +137,16 @@ public:
      * future features. Use the constructor taking a @ref clogs::RadixsortProblem instead.
      */
     Radixsort(const cl::Context &context, const cl::Device &device,
-              const Type &keyType, const Type &valueType = Type());
+              const Type &keyType, const Type &valueType = Type())
+    {
+        cl_int err;
+        const char *errStr;
+        RadixsortProblem problem;
+        problem.setKeyType(keyType);
+        problem.setValueType(valueType);
+        construct(context(), device(), problem, err, errStr);
+        detail::handleError(err, errStr);
+    }
 
     /**
      * Constructor.
@@ -135,7 +160,13 @@ public:
      * @throw clogs::InternalError if there was a problem with initialization
      */
     Radixsort(const cl::Context &context, const cl::Device &device,
-              const RadixsortProblem &problem);
+              const RadixsortProblem &problem)
+    {
+        cl_int err;
+        const char *errStr;
+        construct(context(), device(), problem, err, errStr);
+        detail::handleError(err, errStr);
+    }
 
     ~Radixsort(); ///< Destructor
 
@@ -152,8 +183,24 @@ public:
      *
      * @param callback The callback function.
      * @param userData Arbitrary data to be passed to the callback.
+     * @param free     Passed @a userData when this object is destroyed.
      */
-    void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
+    void setEventCallback(
+        void (CL_CALLBACK *callback)(const cl::Event &, void *),
+        void *userData,
+        void (CL_CALLBACK *free)(void *) = NULL)
+    {
+        setEventCallback(
+            detail::callbackWrapperCall,
+            detail::makeCallbackWrapper(callback, userData, free),
+            detail::callbackWrapperFree);
+    }
+
+    /// @overload
+    void setEventCallback(
+        void (CL_CALLBACK *callback)(cl_event, void *),
+        void *userData,
+        void (CL_CALLBACK *free)(void *) = NULL);
 
     /**
      * Enqueue a sort operation on a command queue.
@@ -175,6 +222,7 @@ public:
      * @throw cl::Error            If the element range overruns either buffer.
      * @throw cl::Error            If @a elements or @a maxBits is zero.
      * @throw cl::Error            If @a maxBits is greater than the number of bits in the key type.
+     *
      * @pre
      * - @a commandQueue was created with the context and device given to the constructor.
      * - @a keys and @a values do not overlap in memory.
@@ -187,23 +235,67 @@ public:
                  const cl::Buffer &keys, const cl::Buffer &values,
                  ::size_t elements, unsigned int maxBits = 0,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
-                 cl::Event *event = NULL);
+                 cl::Event *event = NULL)
+    {
+        cl_int err;
+        const char *errStr;
+        detail::UnwrapArray<cl::Event> events_(events);
+        cl_event outEvent;
+        enqueue(commandQueue(), keys(), values(), elements, maxBits,
+                events_.size(), events_.data(),
+                event != NULL ? &outEvent : NULL,
+                err, errStr);
+        detail::handleError(err, errStr);
+        if (event != NULL)
+            *event = outEvent; // steals reference
+    }
+
+    /// @overload
+    void enqueue(cl_command_queue commandQueue,
+                 cl_mem keys, cl_mem values,
+                 ::size_t elements, unsigned int maxBits = 0,
+                 cl_uint numEvents = 0,
+                 const cl_event *events = NULL,
+                 cl_event *event = NULL)
+    {
+        cl_int err;
+        const char *errStr;
+        enqueue(commandQueue, keys, values, elements, maxBits, numEvents, events, event,
+                err, errStr);
+        detail::handleError(err, errStr);
+    }
 
     /**
      * Set temporary buffers used during sorting. These buffers are
      * used if they are big enough (as big as the buffers that are
      * being sorted); otherwise temporary buffers are allocated on
      * the fly. Providing suitably large buffers guarantees that
-     * no buffer storage is allocated by @ref enqueue.
+     * no buffer storage is allocated by
+     * @ref enqueue(const cl::CommandQueue &, const cl::Buffer &, const cl::Buffer &, ::size_t, unsigned int, const VECTOR_CLASS<cl::Event> *, cl::Event *) "enqueue".
      *
      * It is legal to set either or both values to <code>cl::Buffer()</code>
-     * to clear the temporary buffer, in which case @ref enqueue will revert
+     * to clear the temporary buffer, in which case @c enqueue will revert
      * to allocating its own temporary buffers as needed.
      *
      * This object will retain references to the buffers, so it is
      * safe for the caller to release its reference.
      */
-    void setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &values);
+    void setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &values)
+    {
+        cl_int err;
+        const char *errStr;
+        setTemporaryBuffers(keys(), values(), err, errStr);
+        detail::handleError(err, errStr);
+    }
+
+    /// @overload
+    void setTemporaryBuffers(cl_mem keys, cl_mem values)
+    {
+        cl_int err;
+        const char *errStr;
+        setTemporaryBuffers(keys, values, err, errStr);
+        detail::handleError(err, errStr);
+    }
 };
 
 } // namespace clogs

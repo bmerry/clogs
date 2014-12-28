@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2013 University of Cape Town
+ * Copyright (c) 2014, Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -67,6 +68,32 @@ public:
     CacheError(const std::string &msg);
 };
 
+#ifdef __CL_ENABLE_EXCEPTIONS
+typedef cl::Error Error;
+#else
+class CLOGS_LOCAL Error
+{
+private:
+    cl_int err_;
+    const char *errStr_;
+
+public:
+    explicit Error(cl_int err, const char *errStr = NULL) : err_(err), errStr_(errStr)
+    {
+    }
+
+    virtual const char *what() const
+    {
+        return errStr_ != NULL ? errStr_ : "";
+    }
+
+    cl_int err() const
+    {
+        return err_;
+    }
+};
+#endif // !__CL_ENABLE_EXCEPTIONS
+
 /**
  * Enumeration of scalar types supported by OpenCL C which can be stored in a buffer.
  */
@@ -133,6 +160,115 @@ public:
     /// Returns a list of all supported types
     static std::vector<Type> allTypes();
 };
+
+namespace detail
+{
+
+/**
+ * Throws an exception if a non-success error code is given.
+ *
+ * @param err, errStr             Error code and message (code may be @c CL_SUCCESS)
+ *
+ * @throw cl::Error if @a err is not @c CL_SUCCESS
+ */
+static inline void handleError(cl_int err, const char *errStr)
+{
+    if (err != CL_SUCCESS)
+        throw Error(err, errStr);
+}
+
+/**
+ * Creates an array of handles from a vector of wrappers. If the wrappers are
+ * "thin", it just contains a pointer to the original data. Thus, the wrapped
+ * data must be retained until after the wrapper is destroyed.
+ */
+template<typename T, bool Thin = sizeof(T) == sizeof(typename T::cl_type)>
+class UnwrapArray
+{
+};
+
+template<typename T>
+class UnwrapArray<T, false>
+{
+private:
+    std::vector<typename T::cl_type> raw;
+
+public:
+    explicit UnwrapArray(const VECTOR_CLASS<T> *in)
+    {
+        if (in != NULL)
+        {
+            raw.reserve(in->size());
+            for (std::size_t i = 0; i < in->size(); i++)
+                raw.push_back((*in)[i]());
+        }
+    }
+
+    cl_uint size() const { return raw.size(); }
+    const typename T::cl_type *data() const { return raw.empty() ? NULL : &raw[0]; }
+};
+
+template<typename T>
+class UnwrapArray<T, true>
+{
+private:
+    const typename T::cl_type *data_;
+    std::size_t size_;
+
+public:
+    explicit UnwrapArray(const VECTOR_CLASS<T> *in)
+    {
+        if (in != NULL && !in->empty())
+        {
+            data_ = reinterpret_cast<const typename T::cl_type *>(&(*in)[0]);
+            size_ = in->size();
+        }
+        else
+        {
+            data_ = NULL;
+            size_ = 0;
+        }
+    }
+
+    cl_uint size() const { return size_; }
+    const typename T::cl_type *data() const { return data_; }
+};
+
+struct CallbackWrapper
+{
+    void (CL_CALLBACK *callback)(const cl::Event &, void *);
+    void (CL_CALLBACK *free)(void *);
+    void *userData;
+};
+
+static inline void CL_CALLBACK callbackWrapperCall(cl_event event, void *userData)
+{
+    CallbackWrapper *wrapper = reinterpret_cast<CallbackWrapper *>(userData);
+    clRetainEvent(event); // because cl::Event constructor steals a ref
+    wrapper->callback(cl::Event(event), wrapper->userData);
+}
+
+static inline void CL_CALLBACK callbackWrapperFree(void *userData)
+{
+    CallbackWrapper *wrapper = reinterpret_cast<CallbackWrapper *>(userData);
+    if (wrapper->free)
+        wrapper->free(wrapper->userData);
+    delete wrapper;
+}
+
+static inline CallbackWrapper *makeCallbackWrapper(
+    void (CL_CALLBACK *callback)(const cl::Event &, void *),
+    void *userData,
+    void (CL_CALLBACK *free)(void *))
+{
+    CallbackWrapper *wrapper = new CallbackWrapper();
+    wrapper->callback = callback;
+    wrapper->userData = userData;
+    wrapper->free = free;
+    return wrapper;
+}
+
+} // namespace detail
 
 } // namespace clogs
 

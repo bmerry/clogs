@@ -73,9 +73,8 @@ public:
 /**
  * Reduction primitive.
  *
- *
  * One instance of this class can be reused for multiple scans, provided that
- *  - calls to @ref enqueue do not overlap; and
+ *  - calls to @ref enqueue(const cl::CommandQueue &, const cl::Buffer &, const cl::Buffer &, ::size_t, ::size_t elements, ::size_t outPosition, const VECTOR_CLASS<cl::Event> *, cl::Event *) "enqueue" do not overlap; and
  *  - their execution does not overlap.
  *
  * An instance of the class is specialized to a specific context, device, and
@@ -94,6 +93,36 @@ private:
     Reduce(const Reduce &);
     Reduce &operator=(const Reduce &);
 
+private:
+    void construct(
+        cl_context context, cl_device_id device, const ReduceProblem &problem,
+        cl_int &err, const char *&errStr);
+
+protected:
+    void enqueue(cl_command_queue commandQueue,
+                 cl_mem inBuffer,
+                 cl_mem outBuffer,
+                 ::size_t first,
+                 ::size_t elements,
+                 ::size_t outPosition,
+                 cl_uint numEvents,
+                 const cl_event *events,
+                 cl_event *event,
+                 cl_int &err,
+                 const char *&errStr);
+
+    void enqueue(cl_command_queue commandQueue,
+                 bool blocking,
+                 cl_mem inBuffer,
+                 void *out,
+                 ::size_t first,
+                 ::size_t elements,
+                 cl_uint numEvents,
+                 const cl_event *events,
+                 cl_event *event,
+                 cl_int &err,
+                 const char *&errStr);
+
 public:
     /**
      * Constructor.
@@ -105,7 +134,31 @@ public:
      * @throw std::invalid_argument if @a problem is not supported on the device or is not initialized.
      * @throw clogs::InternalError if there was a problem with initialization.
      */
-    Reduce(const cl::Context &context, const cl::Device &device, const ReduceProblem &problem);
+    Reduce(const cl::Context &context, const cl::Device &device, const ReduceProblem &problem)
+    {
+        int err;
+        const char *errStr;
+        construct(context(), device(), problem, err, errStr);
+        detail::handleError(err, errStr);
+    }
+
+    /**
+     * Constructor. This class will add new references to the @a context and @a device.
+     *
+     * @param context              OpenCL context to use
+     * @param device               OpenCL device to use.
+     * @param problem              Description of the specific reduction problem.
+     *
+     * @throw std::invalid_argument if @a problem is not supported on the device or is not initialized.
+     * @throw clogs::InternalError if there was a problem with initialization.
+     */
+    Reduce(cl_context context, cl_device_id device, const ReduceProblem &problem)
+    {
+        int err;
+        const char *errStr;
+        construct(context, device, problem, err, errStr);
+        detail::handleError(err, errStr);
+    }
 
     ~Reduce(); ///< Destructor
 
@@ -122,8 +175,24 @@ public:
      *
      * @param callback The callback function.
      * @param userData Arbitrary data to be passed to the callback.
+     * @param free     Passed @a userData when this object is destroyed.
      */
-    void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
+    void setEventCallback(
+        void (CL_CALLBACK *callback)(const cl::Event &, void *),
+        void *userData,
+        void (CL_CALLBACK *free)(void *) = NULL)
+    {
+        setEventCallback(
+            detail::callbackWrapperCall,
+            detail::makeCallbackWrapper(callback, userData, free),
+            detail::callbackWrapperFree);
+    }
+
+    /// @overload
+    void setEventCallback(
+        void (CL_CALLBACK *callback)(cl_event, void *),
+        void *userData,
+        void (CL_CALLBACK *free)(void *) = NULL);
 
     /**
      * Enqueue a reduction operation on a command queue.
@@ -137,8 +206,8 @@ public:
      * @param events               Events to wait for before starting.
      * @param event                Event that will be signaled on completion.
      *
-     * @throw cl::Error            If @a inBuffer is not readable on the device.
-     * @throw cl::Error            If @a outBuffer is not writable on the device.
+     * @throw cl::Error            If @a inBuffer is not readable on the device
+     * @throw cl::Error            If @a outBuffer is not writable on the devic
      * @throw cl::Error            If the element range overruns the buffer.
      * @throw cl::Error            If @a elements is zero.
      *
@@ -153,7 +222,38 @@ public:
                  ::size_t elements,
                  ::size_t outPosition,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
-                 cl::Event *event = NULL);
+                 cl::Event *event = NULL)
+    {
+        cl_event outEvent;
+        int err;
+        const char *errStr;
+        detail::UnwrapArray<cl::Event> rawEvents(events);
+        enqueue(commandQueue(), inBuffer(), outBuffer(), first, elements, outPosition,
+                rawEvents.size(), rawEvents.data(),
+                event != NULL ? &outEvent : NULL,
+                err, errStr);
+        detail::handleError(err, errStr);
+        if (event != NULL)
+            *event = outEvent; // steals the reference
+    }
+
+    /// @overload
+    void enqueue(cl_command_queue commandQueue,
+                 cl_mem inBuffer,
+                 cl_mem outBuffer,
+                 ::size_t first,
+                 ::size_t elements,
+                 ::size_t outPosition,
+                 cl_uint numEvents = 0,
+                 const cl_event *events = NULL,
+                 cl_event *event = NULL)
+    {
+        cl_int err;
+        const char *errStr;
+        enqueue(commandQueue, inBuffer, outBuffer, first, elements, outPosition,
+                numEvents, events, event, err, errStr);
+        detail::handleError(err, errStr);
+    }
 
     /**
      * Enqueue a reduction operation and read the result back to the host.
@@ -167,7 +267,38 @@ public:
                  ::size_t first,
                  ::size_t elements,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
-                 cl::Event *event = NULL);
+                 cl::Event *event = NULL)
+    {
+        cl_event outEvent;
+        cl_int err;
+        const char *errStr;
+        detail::UnwrapArray<cl::Event> rawEvents(events);
+        enqueue(commandQueue(), blocking, inBuffer(), out, first, elements,
+                rawEvents.size(), rawEvents.data(),
+                event != NULL ? &outEvent : NULL,
+                err, errStr);
+        detail::handleError(err, errStr);
+        if (event != NULL)
+            *event = outEvent; // steals the reference
+    }
+
+    /// @overload
+    void enqueue(cl_command_queue commandQueue,
+                 bool blocking,
+                 cl_mem inBuffer,
+                 void *out,
+                 ::size_t first,
+                 ::size_t elements,
+                 cl_uint numEvents = 0,
+                 const cl_event *events = NULL,
+                 cl_event *event = NULL)
+    {
+        cl_int err;
+        const char *errStr;
+        enqueue(commandQueue, blocking, inBuffer, out, first, elements,
+                numEvents, events, event, err, errStr);
+        detail::handleError(err, errStr);
+    }
 };
 
 } // namespace clogs

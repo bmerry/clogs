@@ -767,43 +767,77 @@ void RadixsortProblem::setValueType(const Type &valueType)
     detail_->setValueType(valueType);
 }
 
-Radixsort::Radixsort(
-    const cl::Context &context, const cl::Device &device,
-    const Type &keyType, const Type &valueType)
+void Radixsort::construct(
+    cl_context context, cl_device_id device,
+    const RadixsortProblem &problem,
+    cl_int &err, const char *&errStr)
 {
-    detail::RadixsortProblem problem;
-    problem.setKeyType(keyType);
-    problem.setValueType(valueType);
-    detail_ = new detail::Radixsort(context, device, problem);
-}
-
-Radixsort::Radixsort(
-    const cl::Context &context, const cl::Device &device,
-    const RadixsortProblem &problem)
-{
-    detail_ = new detail::Radixsort(context, device, *problem.detail_);
+    try
+    {
+        detail_ = new detail::Radixsort(
+            detail::retainWrap<cl::Context>(context),
+            detail::retainWrap<cl::Device>(device),
+            *problem.detail_);
+        detail::clearError(err, errStr);
+    }
+    catch (cl::Error &e)
+    {
+        detail::setError(err, errStr, e);
+    }
 }
 
 void Radixsort::setEventCallback(
-    void (CL_CALLBACK *callback)(const cl::Event &event, void *),
-    void *userData)
+    void (CL_CALLBACK *callback)(cl_event, void *),
+    void *userData,
+    void (CL_CALLBACK *free)(void *))
 {
-    detail_->setEventCallback(callback, userData);
+    detail_->setEventCallback(callback, userData, free);
 }
 
 void Radixsort::enqueue(
-    const cl::CommandQueue &commandQueue,
-    const cl::Buffer &keys, const cl::Buffer &values,
+    cl_command_queue commandQueue,
+    cl_mem keys, cl_mem values,
     ::size_t elements, unsigned int maxBits,
-    const VECTOR_CLASS<cl::Event> *events,
-    cl::Event *event)
+    cl_uint numEvents,
+    const cl_event *events,
+    cl_event *event,
+    cl_int &err,
+    const char *&errStr)
 {
-    detail_->enqueue(commandQueue, keys, values, elements, maxBits, events, event);
+    try
+    {
+        VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
+        cl::Event event_;
+        detail_->enqueue(
+            detail::retainWrap<cl::CommandQueue>(commandQueue),
+            detail::retainWrap<cl::Buffer>(keys),
+            detail::retainWrap<cl::Buffer>(values),
+            elements, maxBits,
+            events ? &events_ : NULL,
+            event ? &event_ : NULL);
+        detail::clearError(err, errStr);
+        detail::unwrap(event_, event);
+    }
+    catch (cl::Error &e)
+    {
+        detail::setError(err, errStr, e);
+    }
 }
 
-void Radixsort::setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &values)
+void Radixsort::setTemporaryBuffers(cl_mem keys, cl_mem values,
+                                    cl_int &err, const char *&errStr)
 {
-    detail_->setTemporaryBuffers(keys, values);
+    try
+    {
+        detail_->setTemporaryBuffers(
+            detail::retainWrap<cl::Buffer>(keys),
+            detail::retainWrap<cl::Buffer>(values));
+        detail::clearError(err, errStr);
+    }
+    catch (cl::Error &e)
+    {
+        detail::setError(err, errStr, e);
+    }
 }
 
 Radixsort::~Radixsort()

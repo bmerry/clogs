@@ -63,14 +63,14 @@ class TestScan : public clogs::Test::TestFixture
     CLOGS_TEST_BIND_NAME(testVector<cl_ulong4>, "12345", clogs::Type(clogs::TYPE_ULONG, 4), 12345, OFFSET_HOST);
     CLOGS_TEST_BIND_NAME(testVector<cl_char3>, "12345", clogs::Type(clogs::TYPE_CHAR, 3), 12345, OFFSET_BUFFER);
     CPPUNIT_TEST(testEventCallback);
-    CPPUNIT_TEST_EXCEPTION(testReadOnly, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testTooSmallBuffer, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testBadBuffer, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testZero, cl::Error);
+    CPPUNIT_TEST_EXCEPTION(testReadOnly, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testTooSmallBuffer, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testBadBuffer, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testZero, clogs::Error);
     CPPUNIT_TEST_EXCEPTION(testVoid, std::invalid_argument);
     CPPUNIT_TEST_EXCEPTION(testFloat, std::invalid_argument);
-    CPPUNIT_TEST_EXCEPTION(testOffsetWriteOnly, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testOffsetTooSmall, cl::Error);
+    CPPUNIT_TEST_EXCEPTION(testOffsetWriteOnly, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testOffsetTooSmall, clogs::Error);
     CPPUNIT_TEST_SUITE_END();
 public:
     /// Adds tests dynamically
@@ -231,15 +231,24 @@ static void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount)
     (*static_cast<int *>(eventCount))++;
 }
 
+static void CL_CALLBACK eventCallbackFree(void *eventCount)
+{
+    *static_cast<int *>(eventCount) = -1;
+}
+
 void TestScan::testEventCallback()
 {
     int events = 0;
-    clogs::Scan scan(context, device, clogs::TYPE_UINT);
-    cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
-    scan.setEventCallback(eventCallback, &events);
-    scan.enqueue(queue, buffer, 4);
-    queue.finish();
-    CPPUNIT_ASSERT(events > 0);
+    {
+        clogs::Scan scan(context, device, clogs::TYPE_UINT);
+        cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
+        scan.setEventCallback(eventCallback, &events, eventCallbackFree);
+        scan.enqueue(queue, buffer, 4);
+        queue.finish();
+        CPPUNIT_ASSERT(events > 0);
+    }
+    // Check that the free function was called in destructor
+    CPPUNIT_ASSERT_EQUAL(-1, events);
 }
 
 void TestScan::testReadOnly()

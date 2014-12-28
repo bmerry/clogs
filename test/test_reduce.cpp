@@ -53,13 +53,13 @@ class TestReduce : public clogs::Test::TestFixture
     CPPUNIT_TEST_SUITE(TestReduce);
     CPPUNIT_TEST_SUITE_ADD_CUSTOM_TESTS(addCustomTests);
     CPPUNIT_TEST(testEventCallback);
-    CPPUNIT_TEST_EXCEPTION(testUnreadable, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testUnwriteable, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testBadBuffer, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testZero, cl::Error);
+    CPPUNIT_TEST_EXCEPTION(testUnreadable, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testUnwriteable, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testBadBuffer, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testZero, clogs::Error);
     CPPUNIT_TEST_EXCEPTION(testNull, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testInputOverflow, cl::Error);
-    CPPUNIT_TEST_EXCEPTION(testOutputOverflow, cl::Error);
+    CPPUNIT_TEST_EXCEPTION(testInputOverflow, clogs::Error);
+    CPPUNIT_TEST_EXCEPTION(testOutputOverflow, clogs::Error);
     CPPUNIT_TEST_EXCEPTION(testUninitializedProblem, std::invalid_argument);
     CPPUNIT_TEST_SUITE_END();
 
@@ -168,25 +168,33 @@ static void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount)
     (*static_cast<int *>(eventCount))++;
 }
 
+static void CL_CALLBACK eventCallbackFree(void *eventCount)
+{
+    *static_cast<int *>(eventCount) = -1;
+}
+
 void TestReduce::testEventCallback()
 {
     int events = 0;
+    {
+        clogs::ReduceProblem problem;
+        problem.setType(clogs::TYPE_UINT);
+        clogs::Reduce reduce(context, device, problem);
+        cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
+        cl::Buffer out(context, CL_MEM_READ_WRITE, 4);
+        reduce.setEventCallback(eventCallback, &events, eventCallbackFree);
+        reduce.enqueue(queue, buffer, out, 0, 4, 0);
+        queue.finish();
+        CPPUNIT_ASSERT_EQUAL(1, events);
 
-    clogs::ReduceProblem problem;
-    problem.setType(clogs::TYPE_UINT);
-    clogs::Reduce reduce(context, device, problem);
-    cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
-    cl::Buffer out(context, CL_MEM_READ_WRITE, 4);
-    reduce.setEventCallback(eventCallback, &events);
-    reduce.enqueue(queue, buffer, out, 0, 4, 0);
-    queue.finish();
-    CPPUNIT_ASSERT_EQUAL(1, events);
-
-    events = 0;
-    cl_uint out2;
-    reduce.enqueue(queue, true, buffer, &out2, 0, 4);
-    queue.finish();
-    CPPUNIT_ASSERT_EQUAL(2, events);
+        events = 0;
+        cl_uint out2;
+        reduce.enqueue(queue, true, buffer, &out2, 0, 4);
+        queue.finish();
+        CPPUNIT_ASSERT_EQUAL(2, events);
+    }
+    // Check that the free function was called in destructor
+    CPPUNIT_ASSERT_EQUAL(-1, events);
 }
 
 void TestReduce::testUnreadable()

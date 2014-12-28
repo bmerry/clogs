@@ -359,9 +359,21 @@ void ReduceProblem::setType(const Type &type)
     detail_->setType(type);
 }
 
-Reduce::Reduce(const cl::Context &context, const cl::Device &device, const ReduceProblem &problem)
+void Reduce::construct(cl_context context, cl_device_id device, const ReduceProblem &problem,
+                       cl_int &err, const char *&errStr)
 {
-    detail_ = new detail::Reduce(context, device, *problem.detail_);
+    try
+    {
+        detail_ = new detail::Reduce(
+            detail::retainWrap<cl::Context>(context),
+            detail::retainWrap<cl::Device>(device),
+            *problem.detail_);
+        detail::clearError(err, errStr);
+    }
+    catch (cl::Error &e)
+    {
+        detail::setError(err, errStr, e);
+    }
 }
 
 Reduce::~Reduce()
@@ -369,33 +381,76 @@ Reduce::~Reduce()
     delete detail_;
 }
 
-void Reduce::setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData)
+void Reduce::setEventCallback(
+    void (CL_CALLBACK *callback)(cl_event, void *),
+    void *userData,
+    void (CL_CALLBACK *free)(void *))
 {
-    detail_->setEventCallback(callback, userData);
+    detail_->setEventCallback(callback, userData, free);
 }
 
-void Reduce::enqueue(const cl::CommandQueue &commandQueue,
-                     const cl::Buffer &inBuffer,
-                     const cl::Buffer &outBuffer,
+void Reduce::enqueue(cl_command_queue commandQueue,
+                     cl_mem inBuffer,
+                     cl_mem outBuffer,
                      ::size_t first,
                      ::size_t elements,
                      ::size_t outPosition,
-                     const VECTOR_CLASS<cl::Event> *events,
-                     cl::Event *event)
+                     cl_uint numEvents,
+                     const cl_event *events,
+                     cl_event *event,
+                     cl_int &err,
+                     const char *&errStr)
 {
-    detail_->enqueue(commandQueue, inBuffer, outBuffer, first, elements, outPosition, events, event);
+    try
+    {
+        VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
+        cl::Event event_;
+        detail_->enqueue(
+            detail::retainWrap<cl::CommandQueue>(commandQueue),
+            detail::retainWrap<cl::Buffer>(inBuffer),
+            detail::retainWrap<cl::Buffer>(outBuffer),
+            first, elements, outPosition,
+            events ? &events_ : NULL,
+            event ? &event_ : NULL);
+        detail::clearError(err, errStr);
+        detail::unwrap(event_, event);
+    }
+    catch (cl::Error &e)
+    {
+        detail::setError(err, errStr, e);
+    }
 }
 
-void Reduce::enqueue(const cl::CommandQueue &commandQueue,
+void Reduce::enqueue(cl_command_queue commandQueue,
                      bool blocking,
-                     const cl::Buffer &inBuffer,
+                     cl_mem inBuffer,
                      void *out,
                      ::size_t first,
                      ::size_t elements,
-                     const VECTOR_CLASS<cl::Event> *events,
-                     cl::Event *event)
+                     cl_uint numEvents,
+                     const cl_event *events,
+                     cl_event *event,
+                     cl_int &err,
+                     const char *&errStr)
 {
-    detail_->enqueue(commandQueue, blocking, inBuffer, out, first, elements, events, event);
+    try
+    {
+        VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
+        cl::Event event_;
+        detail_->enqueue(
+            detail::retainWrap<cl::CommandQueue>(commandQueue),
+            blocking,
+            detail::retainWrap<cl::Buffer>(inBuffer),
+            out, first, elements,
+            events ? &events_ : NULL,
+            event ? &event_ : NULL);
+        detail::clearError(err, errStr);
+        detail::unwrap(event_, event);
+    }
+    catch (cl::Error &e)
+    {
+        detail::setError(err, errStr, e);
+    }
 }
 
 } // namespace clogs
