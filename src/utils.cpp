@@ -53,18 +53,30 @@ namespace detail
 void Algorithm::doEventCallback(const cl::Event &event)
 {
     if (eventCallback != NULL)
-        (*eventCallback)(event, eventCallbackUserData);
+        (*eventCallback)(event(), eventCallbackUserData);
 }
 
-void Algorithm::setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData)
+void Algorithm::setEventCallback(
+    void (CL_CALLBACK *callback)(cl_event, void *),
+    void *userData,
+    void (CL_CALLBACK *free)(void *))
 {
+    if (eventCallbackFree != NULL)
+        eventCallbackFree(eventCallbackUserData);
     eventCallback = callback;
     eventCallbackUserData = userData;
+    eventCallbackFree = free;
 }
 
 Algorithm::Algorithm()
-    : eventCallback(NULL), eventCallbackUserData(NULL)
+    : eventCallback(NULL), eventCallbackFree(NULL), eventCallbackUserData(NULL)
 {
+}
+
+Algorithm::~Algorithm()
+{
+    if (eventCallbackFree != NULL)
+        eventCallbackFree(eventCallbackUserData);
 }
 
 bool deviceHasExtension(const cl::Device &device, const std::string &extension)

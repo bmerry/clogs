@@ -590,9 +590,12 @@ Scan::~Scan()
     delete detail_;
 }
 
-void Scan::setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData)
+void Scan::setEventCallback(
+    void (CL_CALLBACK *callback)(cl_event, void *),
+    void *userData,
+    void (CL_CALLBACK *free)(void *))
 {
-    detail_->setEventCallback(callback, userData);
+    detail_->setEventCallback(callback, userData, free);
 }
 
 void Scan::enqueue(cl_command_queue commandQueue,

@@ -180,8 +180,38 @@ public:
      *
      * @param callback The callback function.
      * @param userData Arbitrary data to be passed to the callback.
+     * @param free     Passed @a userData when this object is destroyed.
      */
-    void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
+    void setEventCallback(
+        void (CL_CALLBACK *callback)(const cl::Event &, void *),
+        void *userData,
+        void (CL_CALLBACK *free)(void *) = NULL)
+    {
+        setEventCallback(
+            detail::callbackWrapperCall,
+            detail::makeCallbackWrapper(callback, userData, free),
+            detail::callbackWrapperFree);
+    }
+
+    /**
+     * Set a callback function that will receive a list of all underlying events.
+     * The callback will be called multiple times during each enqueue, because
+     * the implementation uses multiple commands. This allows profiling information
+     * to be extracted from the events once they complete.
+     *
+     * The callback may also be set to @c NULL to disable it.
+     *
+     * @note This is not an event completion callback: it is called during
+     * @c enqueue, generally before the events complete.
+     *
+     * @param callback The callback function.
+     * @param userData Arbitrary data to be passed to the callback.
+     * @param free     Passed @a userData when this object is destroyed.
+     */
+    void setEventCallback(
+        void (CL_CALLBACK *callback)(cl_event, void *),
+        void *userData,
+        void (CL_CALLBACK *free)(void *) = NULL);
 
     /**
      * Enqueue a scan operation on a command queue (in-place).

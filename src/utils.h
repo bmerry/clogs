@@ -65,7 +65,8 @@ struct CLOGS_LOCAL Source
 class CLOGS_LOCAL Algorithm : public boost::noncopyable
 {
 private:
-    void (CL_CALLBACK *eventCallback)(const cl::Event &event, void *);
+    void (CL_CALLBACK *eventCallback)(cl_event event, void *);
+    void (CL_CALLBACK *eventCallbackFree)(void *);
     void *eventCallbackUserData;
 
 protected:
@@ -79,9 +80,13 @@ public:
      * Set a callback to be notified of enqueued commands.
      * @see @ref clogs::Scan::setEventCallback
      */
-    void setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData);
+    void setEventCallback(
+        void (CL_CALLBACK *callback)(cl_event, void *),
+        void *userData,
+        void (CL_CALLBACK *free)(void *));
 
     Algorithm();
+    ~Algorithm();
 };
 
 /**

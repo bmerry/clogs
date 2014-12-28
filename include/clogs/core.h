@@ -234,6 +234,40 @@ public:
     const typename T::cl_type *data() const { return data_; }
 };
 
+struct CallbackWrapper
+{
+    void (CL_CALLBACK *callback)(const cl::Event &, void *);
+    void (CL_CALLBACK *free)(void *);
+    void *userData;
+};
+
+static inline void CL_CALLBACK callbackWrapperCall(cl_event event, void *userData)
+{
+    CallbackWrapper *wrapper = reinterpret_cast<CallbackWrapper *>(userData);
+    clRetainEvent(event); // because cl::Event constructor steals a ref
+    wrapper->callback(cl::Event(event), wrapper->userData);
+}
+
+static inline void CL_CALLBACK callbackWrapperFree(void *userData)
+{
+    CallbackWrapper *wrapper = reinterpret_cast<CallbackWrapper *>(userData);
+    if (wrapper->free)
+        wrapper->free(wrapper->userData);
+    delete wrapper;
+}
+
+static inline CallbackWrapper *makeCallbackWrapper(
+    void (CL_CALLBACK *callback)(const cl::Event &, void *),
+    void *userData,
+    void (CL_CALLBACK *free)(void *))
+{
+    CallbackWrapper *wrapper = new CallbackWrapper();
+    wrapper->callback = callback;
+    wrapper->userData = userData;
+    wrapper->free = free;
+    return wrapper;
+}
+
 } // namespace detail
 
 } // namespace clogs

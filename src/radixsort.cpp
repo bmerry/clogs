@@ -787,10 +787,11 @@ void Radixsort::construct(
 }
 
 void Radixsort::setEventCallback(
-    void (CL_CALLBACK *callback)(const cl::Event &event, void *),
-    void *userData)
+    void (CL_CALLBACK *callback)(cl_event, void *),
+    void *userData,
+    void (CL_CALLBACK *free)(void *))
 {
-    detail_->setEventCallback(callback, userData);
+    detail_->setEventCallback(callback, userData, free);
 }
 
 void Radixsort::enqueue(

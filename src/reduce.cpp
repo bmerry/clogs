@@ -381,9 +381,12 @@ Reduce::~Reduce()
     delete detail_;
 }
 
-void Reduce::setEventCallback(void (CL_CALLBACK *callback)(const cl::Event &, void *), void *userData)
+void Reduce::setEventCallback(
+    void (CL_CALLBACK *callback)(cl_event, void *),
+    void *userData,
+    void (CL_CALLBACK *free)(void *))
 {
-    detail_->setEventCallback(callback, userData);
+    detail_->setEventCallback(callback, userData, free);
 }
 
 void Reduce::enqueue(cl_command_queue commandQueue,
