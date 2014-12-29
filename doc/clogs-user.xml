@@ -68,7 +68,7 @@
             <title>Requirements</title>
             <para>
                 At present CLOGS is only supported with GCC on GNU/Linux and
-                with Visual C++ 2010 on Windows. The code for the library
+                with Visual C++ on Windows. The code for the library
                 itself is portable, but some aspects of the build system and
                 test suite require porting.
             </para>
@@ -80,7 +80,9 @@
                 untested and unlikely to have optimal performance.
             </para>
             <para>
-                The following dependencies are required to build CLOGS:
+                The following dependencies are required to build CLOGS. Where a
+                minimum version is given, this is just the minimum version that
+                is tested; older versions may still work.
             </para>
             <itemizedlist>
                 <listitem><para>
@@ -96,8 +98,7 @@
                 </para></listitem>
                 <listitem><para>
                         A C++ compiler. GCC 4.8 and Visual C++ 2010 have been
-                        tested. Older versions should work fine too, but it is
-                        not tested regularly.
+                        tested.
                 </para></listitem>
                 <listitem><para>
                         The Boost headers. No dynamic libraries are needed to
@@ -120,7 +121,7 @@
                         which can be extremely slow.
                 </para></listitem>
                 <listitem><para>
-                        <application>Python</application> 2.6 or later.
+                        <application>Python</application> 2.7.
                 </para></listitem>
                 <listitem><para>
                         <application>CppUnit</application> is required to
@@ -431,8 +432,9 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
             </para>
             <para>
                 The algorithm objects are non-copyable, to avoid
-                accidently triggering expensive copies of OpenCL objects. They
-                need to be passed by reference.
+                accidently triggering expensive copies of OpenCL objects.
+                However, they are default-constructible, swappable, and (if a
+                C++11 compiler is used) movable.
             </para>
         </section>
         <section id="using.profile">
