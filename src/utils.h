@@ -39,6 +39,7 @@
 #include <vector>
 #include <sstream>
 #include <locale>
+#include <stdexcept>
 #include <CL/cl.hpp>
 #include <boost/noncopyable.hpp>
 #include <clogs/visibility_pop.h>
@@ -166,6 +167,12 @@ template<typename T>
 static inline T roundUp(T x, T y)
 {
     return (x + y - 1) / y * y;
+}
+
+static inline void checkNull(void *ptr)
+{
+    if (!ptr)
+        throw std::logic_error("Uninitialized object");
 }
 
 /**

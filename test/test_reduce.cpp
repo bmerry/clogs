@@ -43,14 +43,16 @@
 #include "../src/tr1_random.h"
 #include <sstream>
 #include <clogs/reduce.h>
+#include <clogs/platform.h>
 #include "clogs_test.h"
+#include "test_common.h"
 #include "../src/reduce.h"
 
 using namespace RANDOM_NAMESPACE;
 
-class TestReduce : public clogs::Test::TestFixture
+class TestReduce : public clogs::Test::TestCommon<clogs::Reduce>
 {
-    CPPUNIT_TEST_SUITE(TestReduce);
+    CPPUNIT_TEST_SUB_SUITE(TestReduce, clogs::Test::TestCommon<clogs::Reduce>);
     CPPUNIT_TEST_SUITE_ADD_CUSTOM_TESTS(addCustomTests);
     CPPUNIT_TEST(testEventCallback);
     CPPUNIT_TEST_EXCEPTION(testUnreadable, clogs::Error);
@@ -62,6 +64,9 @@ class TestReduce : public clogs::Test::TestFixture
     CPPUNIT_TEST_EXCEPTION(testOutputOverflow, clogs::Error);
     CPPUNIT_TEST_EXCEPTION(testUninitializedProblem, std::invalid_argument);
     CPPUNIT_TEST_SUITE_END();
+
+protected:
+    virtual clogs::Reduce *factory();
 
 private:
     /// Add tests dynamically
@@ -84,6 +89,13 @@ private:
     void testUninitializedProblem(); ///< Test error handling when problem is uninitialized
 };
 CPPUNIT_TEST_SUITE_REGISTRATION(TestReduce);
+
+clogs::Reduce *TestReduce::factory()
+{
+    clogs::ReduceProblem problem;
+    problem.setType(clogs::TYPE_UINT);
+    return new clogs::Reduce(context, device, problem);
+}
 
 void TestReduce::addCustomTests(TestSuiteBuilderContextType &context)
 {
@@ -136,7 +148,7 @@ void TestReduce::testNormal(size_t start, size_t elements, bool toHost)
     problem.setType(type);
     clogs::Reduce reduce(context, device, problem);
 
-    mt19937 engine;
+    RANDOM_NAMESPACE::mt19937 engine;
     cl_ulong limit = (type.getBaseSize() == 8) ? 0x1234567890LL : 100;
     clogs::Test::Array<Tag> inputHost(engine, start + elements, 5, limit);
     cl::Buffer input = inputHost.upload(context, CL_MEM_READ_ONLY);
@@ -161,18 +173,6 @@ void TestReduce::testNormal(size_t start, size_t elements, bool toHost)
     CPPUNIT_ASSERT(Tag::equal(ref, outputHost));
 }
 
-static void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount)
-{
-    CPPUNIT_ASSERT(event() != NULL);
-    CPPUNIT_ASSERT(eventCount != NULL);
-    (*static_cast<int *>(eventCount))++;
-}
-
-static void CL_CALLBACK eventCallbackFree(void *eventCount)
-{
-    *static_cast<int *>(eventCount) = -1;
-}
-
 void TestReduce::testEventCallback()
 {
     int events = 0;
@@ -182,7 +182,7 @@ void TestReduce::testEventCallback()
         clogs::Reduce reduce(context, device, problem);
         cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
         cl::Buffer out(context, CL_MEM_READ_WRITE, 4);
-        reduce.setEventCallback(eventCallback, &events, eventCallbackFree);
+        reduce.setEventCallback(clogs::Test::eventCallback, &events, clogs::Test::eventCallbackFree);
         reduce.enqueue(queue, buffer, out, 0, 4, 0);
         queue.finish();
         CPPUNIT_ASSERT_EQUAL(1, events);

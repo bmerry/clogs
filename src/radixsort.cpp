@@ -769,6 +769,11 @@ void RadixsortProblem::setValueType(const Type &valueType)
     detail_->setValueType(valueType);
 }
 
+
+Radixsort::Radixsort() : detail_(NULL)
+{
+}
+
 void Radixsort::construct(
     cl_context context, cl_device_id device,
     const RadixsortProblem &problem,
@@ -788,11 +793,29 @@ void Radixsort::construct(
     }
 }
 
+void Radixsort::moveConstruct(Radixsort &other)
+{
+    detail_ = other.detail_;
+    other.detail_ = NULL;
+}
+
+Radixsort &Radixsort::moveAssign(Radixsort &other)
+{
+    if (this != &other)
+    {
+        delete detail_;
+        detail_ = other.detail_;
+        other.detail_ = NULL;
+    }
+    return *this;
+}
+
 void Radixsort::setEventCallback(
     void (CL_CALLBACK *callback)(cl_event, void *),
     void *userData,
     void (CL_CALLBACK *free)(void *))
 {
+    checkNull(detail_);
     detail_->setEventCallback(callback, userData, free);
 }
 
@@ -806,6 +829,7 @@ void Radixsort::enqueue(
     cl_int &err,
     const char *&errStr)
 {
+    checkNull(detail_);
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
@@ -829,6 +853,7 @@ void Radixsort::enqueue(
 void Radixsort::setTemporaryBuffers(cl_mem keys, cl_mem values,
                                     cl_int &err, const char *&errStr)
 {
+    checkNull(detail_);
     try
     {
         detail_->setTemporaryBuffers(
@@ -845,6 +870,11 @@ void Radixsort::setTemporaryBuffers(cl_mem keys, cl_mem values,
 Radixsort::~Radixsort()
 {
     delete detail_;
+}
+
+void swap(Radixsort &a, Radixsort &b)
+{
+    std::swap(a.detail_, b.detail_);
 }
 
 } // namespace clogs

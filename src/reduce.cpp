@@ -46,6 +46,7 @@
 #include <string>
 #include <cassert>
 #include <vector>
+#include <algorithm>
 #include <utility>
 #include <clogs/visibility_pop.h>
 
@@ -359,6 +360,11 @@ void ReduceProblem::setType(const Type &type)
     detail_->setType(type);
 }
 
+
+Reduce::Reduce() : detail_(NULL)
+{
+}
+
 void Reduce::construct(cl_context context, cl_device_id device, const ReduceProblem &problem,
                        cl_int &err, const char *&errStr)
 {
@@ -376,6 +382,23 @@ void Reduce::construct(cl_context context, cl_device_id device, const ReduceProb
     }
 }
 
+void Reduce::moveConstruct(Reduce &other)
+{
+    detail_ = other.detail_;
+    other.detail_ = NULL;
+}
+
+Reduce &Reduce::moveAssign(Reduce &other)
+{
+    if (this != &other)
+    {
+        delete detail_;
+        detail_ = other.detail_;
+        other.detail_ = NULL;
+    }
+    return *this;
+}
+
 Reduce::~Reduce()
 {
     delete detail_;
@@ -386,6 +409,7 @@ void Reduce::setEventCallback(
     void *userData,
     void (CL_CALLBACK *free)(void *))
 {
+    checkNull(detail_);
     detail_->setEventCallback(callback, userData, free);
 }
 
@@ -401,6 +425,7 @@ void Reduce::enqueue(cl_command_queue commandQueue,
                      cl_int &err,
                      const char *&errStr)
 {
+    checkNull(detail_);
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
@@ -433,6 +458,7 @@ void Reduce::enqueue(cl_command_queue commandQueue,
                      cl_int &err,
                      const char *&errStr)
 {
+    checkNull(detail_);
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
@@ -451,6 +477,11 @@ void Reduce::enqueue(cl_command_queue commandQueue,
     {
         detail::setError(err, errStr, e);
     }
+}
+
+void swap(Reduce &a, Reduce &b)
+{
+    std::swap(a.detail_, b.detail_);
 }
 
 } // namespace clogs

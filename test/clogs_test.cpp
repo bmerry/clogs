@@ -73,6 +73,19 @@ void TestFixture::tearDown()
     CppUnit::TestFixture::tearDown();
 }
 
+void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount)
+{
+    CPPUNIT_ASSERT(event() != NULL);
+    CPPUNIT_ASSERT(eventCount != NULL);
+    (*static_cast<int *>(eventCount))++;
+}
+
+void CL_CALLBACK eventCallbackFree(void *eventCount)
+{
+    CPPUNIT_ASSERT(eventCount != NULL);
+    *static_cast<int *>(eventCount) = -1;
+}
+
 } // namespace clogs::Test
 } // namespace clogs
 

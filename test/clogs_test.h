@@ -53,7 +53,7 @@ namespace Test
 {
 
 /**
- * A compile-time encapsulation of an CL C that can be stored in buffers.
+ * A compile-time encapsulation of an CL C type that can be stored in buffers.
  *
  * Note that the C API types are not unique (@c cl_half is the same C++ type as
  * @c cl_ushort, and @c cl_uint3 is the same as @c cl_uint4), so the actual
@@ -383,6 +383,11 @@ public:
     void setUp();                  ///< Create context, etc.
     void tearDown();               ///< Release context, etc.
 };
+
+/// Callback that sanity-checks parameters and increments @a *eventCount
+void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount);
+/// Callback that sets @a *eventCount to -1
+void CL_CALLBACK eventCallbackFree(void *eventCount);
 
 } // namespace Test
 } // namespace clogs

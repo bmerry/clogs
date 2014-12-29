@@ -35,6 +35,7 @@
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
+#include <clogs/platform.h>
 
 namespace clogs
 {
@@ -106,6 +107,9 @@ private:
 
     void construct(cl_context context, cl_device_id device, const RadixsortProblem &problem,
                    cl_int &err, const char *&errStr);
+    void moveConstruct(Radixsort &other);
+    Radixsort &moveAssign(Radixsort &other);
+    friend void swap(Radixsort &, Radixsort &);
 
 protected:
     void enqueue(cl_command_queue command_queue,
@@ -121,6 +125,23 @@ protected:
                              cl_int &err, const char *&errStr);
 
 public:
+    /**
+     * Default constructor. The object cannot be used in this state.
+     */
+    Radixsort();
+
+#ifdef CLOGS_HAVE_RVALUE_REFERENCES
+    Radixsort(Radixsort &&other) CLOGS_NOEXCEPT
+    {
+        moveConstruct(other);
+    }
+
+    Radixsort &operator=(Radixsort &&other) CLOGS_NOEXCEPT
+    {
+        return moveAssign(other);
+    }
+#endif
+
     /**
      * Constructor.
      *
@@ -297,6 +318,8 @@ public:
         detail::handleError(err, errStr);
     }
 };
+
+void swap(Radixsort &a, Radixsort &b);
 
 } // namespace clogs
 

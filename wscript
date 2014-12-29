@@ -96,6 +96,8 @@ def configure_variant_gcc(conf):
     if conf.env['CC_VERSION'][0] >= 4:
         ccflags.extend(['-fvisibility=hidden'])
         cxxflags.extend(['-fvisibility-inlines-hidden'])
+        if conf.env['CC_VERSION'][0] > 4 or conf.env['CC_VERSION'][1] >= 8:
+            cxxflags.extend(['-std=c++11'])
     if conf.env['optimize']:
         ccflags.append('-O2')
     if conf.env['debuginfo']:

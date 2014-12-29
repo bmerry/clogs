@@ -45,6 +45,7 @@
 #include <sstream>
 #include <clogs/radixsort.h>
 #include "clogs_test.h"
+#include "test_common.h"
 #include "../src/radixsort.h"
 
 using namespace std;
@@ -56,7 +57,7 @@ using namespace RANDOM_NAMESPACE;
  */
 static boost::scoped_ptr<clogs::detail::Radixsort> g_sort;
 
-class TestRadixsort : public clogs::Test::TestFixture
+class TestRadixsort : public clogs::Test::TestCommon<clogs::Radixsort>
 {
     CPPUNIT_TEST_SUITE(TestRadixsort);
     CPPUNIT_TEST_SUITE_ADD_CUSTOM_TESTS(addUpsweepTests);
@@ -100,6 +101,9 @@ private:
     void testUpsweepN(unsigned int factor, const char *kernelName, unsigned int sumsSize, unsigned int threads);
     void testDownsweepCase(unsigned int dataSize, unsigned int sumsSize, const char *kernelName, unsigned int threads, bool forceZero);
     void testDownsweepN(unsigned int factor, const char *kernelName, unsigned int sumsSize, unsigned int threads, bool forceZero);
+
+protected:
+    virtual clogs::Radixsort *factory();
 
 public:
     void testUpsweep2(unsigned int sumsSize, unsigned int threads);
@@ -148,6 +152,14 @@ public:
     virtual void setUp();
 };
 CPPUNIT_TEST_SUITE_REGISTRATION(TestRadixsort);
+
+clogs::Radixsort *TestRadixsort::factory()
+{
+    clogs::RadixsortProblem problem;
+    problem.setKeyType(clogs::TYPE_UINT);
+    problem.setValueType(clogs::TYPE_UINT);
+    return new clogs::Radixsort(context, device, problem);
+}
 
 void TestRadixsort::addUpsweepTests(TestSuiteBuilderContextType &context)
 {
@@ -278,8 +290,9 @@ void TestRadixsort::testUpsweepCase(unsigned int dataSize, unsigned int sumsSize
 
     const unsigned int factor = dataSize / sumsSize;
     const unsigned int maxValue = 0xFF / factor;
-    mt19937 engine;
-    variate_generator<mt19937 &, uniform_int<cl_uint> > gen(engine, uniform_int<cl_uint>(0x0, maxValue));
+    RANDOM_NAMESPACE::mt19937 engine;
+    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<cl_uint> > gen(
+        engine, RANDOM_NAMESPACE::uniform_int<cl_uint>(0x0, maxValue));
 
     vector<cl_uchar> hostData(dataSize);
     vector<cl_uchar> hostSums(sumsSize, 0);
@@ -306,8 +319,9 @@ void TestRadixsort::testDownsweepCase(unsigned int dataSize, unsigned int sumsSi
     const unsigned int factor = dataSize / sumsSize;
     const unsigned int maxValue = 0xFF / factor;
 
-    mt19937 engine;
-    variate_generator<mt19937 &, uniform_int<cl_uint> > gen(engine, uniform_int<cl_uint>(0x1, maxValue));
+    RANDOM_NAMESPACE::mt19937 engine;
+    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<cl_uint> > gen(
+        engine, RANDOM_NAMESPACE::uniform_int<cl_uint>(0x1, maxValue));
     cl::Kernel kernel(sort->program, kernelName);
 
     vector<cl_uchar> hostData(dataSize);
@@ -387,7 +401,7 @@ void TestRadixsort::testReduce(const size_t size)
     clogs::detail::RadixsortProblem problem;
     problem.setKeyType(KeyTag::makeType());
     clogs::detail::Radixsort sort(context, device, problem);
-    mt19937 engine;
+    RANDOM_NAMESPACE::mt19937 engine;
 
     const size_t tileSize = sort.scatterWorkGroupSize * sort.scatterWorkScale;
     const unsigned int radix = sort.radix;
@@ -416,8 +430,9 @@ void TestRadixsort::testReduce(const size_t size)
 
 void TestRadixsort::testScan(size_t blocks)
 {
-    mt19937 engine;
-    variate_generator<mt19937 &, uniform_int<cl_uint> > gen(engine, uniform_int<cl_uint>(1, 1000));
+    RANDOM_NAMESPACE::mt19937 engine;
+    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<cl_uint> > gen(
+        engine, RANDOM_NAMESPACE::uniform_int<cl_uint>(1, 1000));
 
     if (blocks > sort->scanBlocks)
         return;
@@ -486,7 +501,7 @@ void TestRadixsort::testScatter(size_t size)
     problem.setKeyType(KeyTag::makeType());
     problem.setValueType(ValueTag::makeType());
     clogs::detail::Radixsort sort(context, device, problem);
-    mt19937 engine;
+    RANDOM_NAMESPACE::mt19937 engine;
 
     const size_t tileSize = sort.scatterWorkGroupSize * sort.scatterWorkScale;
     const unsigned int radix = sort.radix;
@@ -576,7 +591,7 @@ void TestRadixsort::testSort(size_t size, unsigned int bits, size_t tmpKeysSize,
         tmpValues = cl::Buffer(context, CL_MEM_READ_WRITE, tmpValuesSize * valueType.getSize());
     if (tmpKeys() || tmpValues())
         sort.setTemporaryBuffers(tmpKeys, tmpValues);
-    mt19937 engine;
+    RANDOM_NAMESPACE::mt19937 engine;
 
     Key minKey = 0;
     Key maxKey;
@@ -626,25 +641,13 @@ void TestRadixsort::testTmpSmall()
     testSort<clogs::Test::TypeTag<clogs::TYPE_UINT>, clogs::Test::TypeTag<clogs::TYPE_FLOAT, 4> >(128, 0, 127, 127);
 }
 
-static void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount)
-{
-    CPPUNIT_ASSERT(event() != NULL);
-    CPPUNIT_ASSERT(eventCount != NULL);
-    (*static_cast<int *>(eventCount))++;
-}
-
-static void CL_CALLBACK eventCallbackFree(void *eventCount)
-{
-    *static_cast<int *>(eventCount) = -1;
-}
-
 void TestRadixsort::testEventCallback()
 {
     int events = 0;
     {
         clogs::Radixsort sort(context, device, clogs::TYPE_UINT);
         cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
-        sort.setEventCallback(eventCallback, &events, eventCallbackFree);
+        sort.setEventCallback(clogs::Test::eventCallback, &events, clogs::Test::eventCallbackFree);
         sort.enqueue(queue, buffer, cl::Buffer(), 4, 32);
         queue.finish();
         CPPUNIT_ASSERT(events > 0);
@@ -682,8 +685,9 @@ void BenchmarkRadixsort::benchmark(const char *name, bool useValues, cl_uint min
     const unsigned int elements = 40000000;
     const unsigned int passes = 10;
     clogs::Radixsort sort(context, device, clogs::TYPE_UINT, useValues ? clogs::TYPE_UINT : clogs::Type());
-    mt19937 engine;
-    variate_generator<mt19937 &, uniform_int<cl_uint> > gen(engine, uniform_int<cl_uint>(min, max));
+    RANDOM_NAMESPACE::mt19937 engine;
+    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<cl_uint> > gen(
+        engine, RANDOM_NAMESPACE::uniform_int<cl_uint>(min, max));
     vector<cl_uint> hostKeys;
     hostKeys.reserve(elements);
     for (unsigned int i = 0; i < elements; i++)

@@ -43,7 +43,9 @@
 #include "../src/tr1_random.h"
 #include <sstream>
 #include <clogs/scan.h>
+#include <clogs/platform.h>
 #include "clogs_test.h"
+#include "test_common.h"
 
 using namespace std;
 using namespace RANDOM_NAMESPACE;
@@ -55,9 +57,9 @@ enum OffsetType
     OFFSET_BUFFER = 2
 };
 
-class TestScan : public clogs::Test::TestFixture
+class TestScan : public clogs::Test::TestCommon<clogs::Scan>
 {
-    CPPUNIT_TEST_SUITE(TestScan);
+    CPPUNIT_TEST_SUB_SUITE(TestScan, clogs::Test::TestCommon<clogs::Scan>);
     CPPUNIT_TEST_SUITE_ADD_CUSTOM_TESTS(addCustomTests);
     CLOGS_TEST_BIND_NAME(testVector<cl_uint2>, "12345", clogs::Type(clogs::TYPE_UINT, 2), 12345, OFFSET_NONE);
     CLOGS_TEST_BIND_NAME(testVector<cl_ulong4>, "12345", clogs::Type(clogs::TYPE_ULONG, 4), 12345, OFFSET_HOST);
@@ -72,6 +74,10 @@ class TestScan : public clogs::Test::TestFixture
     CPPUNIT_TEST_EXCEPTION(testOffsetWriteOnly, clogs::Error);
     CPPUNIT_TEST_EXCEPTION(testOffsetTooSmall, clogs::Error);
     CPPUNIT_TEST_SUITE_END();
+
+protected:
+    virtual clogs::Scan *factory();
+
 public:
     /// Adds tests dynamically
     static void addCustomTests(TestSuiteBuilderContextType &context);
@@ -87,6 +93,12 @@ public:
     /// Test that the event callback is called at least once
     void testEventCallback();
 
+#ifdef CLOGS_HAVE_RVALUE_REFERENCES
+    void testMoveConstruct();      ///< Test move constructor
+    void testMoveAssign();         ///< Test move assignment operator
+#endif
+    void testSwap();               ///< Test swapping of two scans
+
     void testReadOnly();           ///< Test error handling with a read-only buffer
     void testTooSmallBuffer();     ///< Test error handling when length exceeds the buffer
     void testBadBuffer();          ///< Test error handling when the buffer is invalid
@@ -95,8 +107,14 @@ public:
     void testFloat();              ///< Test error handling when passing a non-integral type
     void testOffsetWriteOnly();    ///< Test error handling when offset buffer not readable
     void testOffsetTooSmall();     ///< Test error handling when offset index is too large
+    void testUninitialized();      ///< Test error handling when an uninitialized object is used
 };
 CPPUNIT_TEST_SUITE_REGISTRATION(TestScan);
+
+clogs::Scan *TestScan::factory()
+{
+    return new clogs::Scan(context, device, clogs::TYPE_UINT);
+}
 
 void TestScan::addCustomTests(TestSuiteBuilderContextType &context)
 {
@@ -128,9 +146,10 @@ void TestScan::testSimple(const clogs::Type &type, size_t size, OffsetType useOf
     if (!type.isComputable(device) || !type.isStorable(device))
         return; // allows us to skip char3 test on pre-CL 1.1
 
-    mt19937 engine;
+    RANDOM_NAMESPACE::mt19937 engine;
     cl_ulong limit = (type.getBaseSize() == 8) ? 0x1234567890LL : 100;
-    variate_generator<mt19937 &, uniform_int<T> > gen(engine, uniform_int<T>(5, T(limit)));
+    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<T> > gen(
+        engine, RANDOM_NAMESPACE::uniform_int<T>(5, T(limit)));
     clogs::Scan scan(context, device, type);
 
     vector<T> hValues;
@@ -170,9 +189,10 @@ void TestScan::testSimple(const clogs::Type &type, size_t size, OffsetType useOf
 template<typename T>
 void TestScan::testVector(const clogs::Type &type, size_t size, OffsetType useOffset)
 {
-    mt19937 engine;
+    RANDOM_NAMESPACE::mt19937 engine;
     cl_ulong limit = (type.getBaseSize() == 8) ? 0x1234567890LL : 100;
-    variate_generator<mt19937 &, uniform_int<cl_ulong> > gen(engine, uniform_int<cl_ulong>(5, limit));
+    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<cl_ulong> > gen(
+        engine, RANDOM_NAMESPACE::uniform_int<cl_ulong>(5, limit));
     clogs::Scan scan(context, device, type);
 
     vector<T> hValues;
@@ -224,25 +244,13 @@ void TestScan::testVector(const clogs::Type &type, size_t size, OffsetType useOf
             CPPUNIT_ASSERT_EQUAL(hValues[i].s[j], result[i].s[j]);
 }
 
-static void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount)
-{
-    CPPUNIT_ASSERT(event() != NULL);
-    CPPUNIT_ASSERT(eventCount != NULL);
-    (*static_cast<int *>(eventCount))++;
-}
-
-static void CL_CALLBACK eventCallbackFree(void *eventCount)
-{
-    *static_cast<int *>(eventCount) = -1;
-}
-
 void TestScan::testEventCallback()
 {
     int events = 0;
     {
         clogs::Scan scan(context, device, clogs::TYPE_UINT);
         cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
-        scan.setEventCallback(eventCallback, &events, eventCallbackFree);
+        scan.setEventCallback(clogs::Test::eventCallback, &events, clogs::Test::eventCallbackFree);
         scan.enqueue(queue, buffer, 4);
         queue.finish();
         CPPUNIT_ASSERT(events > 0);

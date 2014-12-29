@@ -35,6 +35,7 @@
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
+#include <clogs/platform.h>
 
 namespace clogs
 {
@@ -97,6 +98,9 @@ private:
 
     void construct(cl_context context, cl_device_id device, const ScanProblem &problem,
                    cl_int &err, const char *&errStr);
+    void moveConstruct(Scan &other);
+    Scan &moveAssign(Scan &other);
+    friend void swap(Scan &, Scan &);
 
 protected:
     void enqueue(cl_command_queue commandQueue,
@@ -124,6 +128,23 @@ protected:
                  const char *&errStr);
 
 public:
+    /**
+     * Default constructor. The object cannot be used in this state.
+     */
+    Scan();
+
+#ifdef CLOGS_HAVE_RVALUE_REFERENCES
+    Scan(Scan &&other) CLOGS_NOEXCEPT
+    {
+        moveConstruct(other);
+    }
+
+    Scan &operator=(Scan &&other) CLOGS_NOEXCEPT
+    {
+        return moveAssign(other);
+    }
+#endif
+
     /**
      * Constructor.
      *
@@ -374,6 +395,8 @@ public:
         detail::handleError(err, errStr);
     }
 };
+
+void swap(Scan &a, Scan &b);
 
 } // namespace clogs
 

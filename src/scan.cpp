@@ -41,6 +41,7 @@
 #include <string>
 #include <cassert>
 #include <vector>
+#include <algorithm>
 #include <utility>
 #include <clogs/visibility_pop.h>
 
@@ -568,6 +569,11 @@ void ScanProblem::setType(const Type &type)
     detail_->setType(type);
 }
 
+
+Scan::Scan() : detail_(NULL)
+{
+}
+
 void Scan::construct(cl_context context, cl_device_id device, const ScanProblem &problem,
                      cl_int &err, const char *&errStr)
 {
@@ -585,6 +591,23 @@ void Scan::construct(cl_context context, cl_device_id device, const ScanProblem 
     }
 }
 
+void Scan::moveConstruct(Scan &other)
+{
+    detail_ = other.detail_;
+    other.detail_ = NULL;
+}
+
+Scan &Scan::moveAssign(Scan &other)
+{
+    if (this != &other)
+    {
+        delete detail_;
+        detail_ = other.detail_;
+        other.detail_ = NULL;
+    }
+    return *this;
+}
+
 Scan::~Scan()
 {
     delete detail_;
@@ -595,6 +618,7 @@ void Scan::setEventCallback(
     void *userData,
     void (CL_CALLBACK *free)(void *))
 {
+    checkNull(detail_);
     detail_->setEventCallback(callback, userData, free);
 }
 
@@ -609,6 +633,7 @@ void Scan::enqueue(cl_command_queue commandQueue,
                    cl_int &err,
                    const char *&errStr)
 {
+    checkNull(detail_);
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
@@ -641,6 +666,7 @@ void Scan::enqueue(cl_command_queue commandQueue,
                    cl_int &err,
                    const char *&errStr)
 {
+    checkNull(detail_);
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
@@ -660,6 +686,11 @@ void Scan::enqueue(cl_command_queue commandQueue,
     {
         detail::setError(err, errStr, e);
     }
+}
+
+void swap(Scan &a, Scan &b)
+{
+    std::swap(a.detail_, b.detail_);
 }
 
 } // namespace clogs
