@@ -65,6 +65,7 @@ class TestScan : public clogs::Test::TestCommon<clogs::Scan>
     CLOGS_TEST_BIND_NAME(testVector<cl_ulong4>, "12345", clogs::Type(clogs::TYPE_ULONG, 4), 12345, OFFSET_HOST);
     CLOGS_TEST_BIND_NAME(testVector<cl_char3>, "12345", clogs::Type(clogs::TYPE_CHAR, 3), 12345, OFFSET_BUFFER);
     CPPUNIT_TEST(testEventCallback);
+    CPPUNIT_TEST(testEventCallbackGeneric);
     CPPUNIT_TEST_EXCEPTION(testReadOnly, clogs::Error);
     CPPUNIT_TEST_EXCEPTION(testTooSmallBuffer, clogs::Error);
     CPPUNIT_TEST_EXCEPTION(testBadBuffer, clogs::Error);
@@ -92,6 +93,8 @@ public:
 
     /// Test that the event callback is called at least once
     void testEventCallback();
+    /// Test that generic callbacks work
+    void testEventCallbackGeneric();
 
 #ifdef CLOGS_HAVE_RVALUE_REFERENCES
     void testMoveConstruct();      ///< Test move constructor
@@ -251,6 +254,23 @@ void TestScan::testEventCallback()
         clogs::Scan scan(context, device, clogs::TYPE_UINT);
         cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
         scan.setEventCallback(clogs::Test::eventCallback, &events, clogs::Test::eventCallbackFree);
+        scan.enqueue(queue, buffer, 4);
+        queue.finish();
+        CPPUNIT_ASSERT(events > 0);
+    }
+    // Check that the free function was called in destructor
+    CPPUNIT_ASSERT_EQUAL(-1, events);
+}
+
+void TestScan::testEventCallbackGeneric()
+{
+    int events;
+    clogs::Test::EventCallback callback(events);
+    {
+        clogs::Scan scan(context, device, clogs::TYPE_UINT);
+        cl::Buffer buffer(context, CL_MEM_READ_WRITE, 16);
+        scan.setEventCallback(clogs::Test::EventCallback(events));
+        events = 0;
         scan.enqueue(queue, buffer, 4);
         queue.finish();
         CPPUNIT_ASSERT(events > 0);

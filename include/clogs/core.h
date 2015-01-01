@@ -236,7 +236,7 @@ public:
     const typename T::cl_type *data() const { return data_; }
 };
 
-struct CallbackWrapper
+struct CLOGS_LOCAL CallbackWrapper
 {
     void (CL_CALLBACK *callback)(const cl::Event &, void *);
     void (CL_CALLBACK *free)(void *);
@@ -268,6 +268,21 @@ static inline CallbackWrapper *makeCallbackWrapper(
     wrapper->userData = userData;
     wrapper->free = free;
     return wrapper;
+}
+
+template<typename T>
+static inline void CL_CALLBACK genericCallbackCall(cl_event event, void *userData)
+{
+    T *self = reinterpret_cast<T *>(userData);
+    clRetainEvent(event); // because cl::Event constructor steals a ref
+    (*self)(cl::Event(event));
+}
+
+template<typename T>
+static inline void CL_CALLBACK genericCallbackFree(void *userData)
+{
+    T *self = reinterpret_cast<T *>(userData);
+    delete self;
 }
 
 class Algorithm;
@@ -336,6 +351,21 @@ public:
             detail::callbackWrapperCall,
             detail::makeCallbackWrapper(callback, userData, free),
             detail::callbackWrapperFree);
+    }
+
+    /**
+     * @overload
+     *
+     * The provided function object will be passed a cl::Event. The function
+     * object type must be copyable.
+     */
+    template<typename T>
+    void setEventCallback(const T &callback)
+    {
+        setEventCallback(
+            detail::genericCallbackCall<T>,
+            new T(callback),
+            detail::genericCallbackFree<T>);
     }
 
     /// @overload

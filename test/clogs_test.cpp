@@ -86,6 +86,20 @@ void CL_CALLBACK eventCallbackFree(void *eventCount)
     *static_cast<int *>(eventCount) = -1;
 }
 
+EventCallback::EventCallback(int &eventCount) : eventCount(eventCount)
+{
+}
+
+void EventCallback::operator()(const cl::Event &)
+{
+    eventCount++;
+}
+
+EventCallback::~EventCallback()
+{
+    eventCount = -1;
+}
+
 } // namespace clogs::Test
 } // namespace clogs
 

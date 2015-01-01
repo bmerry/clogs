@@ -1,6 +1,7 @@
 * Make the ABI robust against changes to OpenCL C++ bindings
 * Add method overloads that take OpenCL C API handles
 * Add free callback to setEventCallback functions
+* Add support for arbitrary function objects to setEventCallback functions
 
 1.4.0
 -----

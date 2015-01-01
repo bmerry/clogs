@@ -384,10 +384,22 @@ public:
     void tearDown();               ///< Release context, etc.
 };
 
-/// Callback that sanity-checks parameters and increments @a *eventCount
+/// Callback that sanity-checks parameters and increments @a *eventCount (an int)
 void CL_CALLBACK eventCallback(const cl::Event &event, void *eventCount);
 /// Callback that sets @a *eventCount to -1
 void CL_CALLBACK eventCallbackFree(void *eventCount);
+
+/// Function object that does the same as @ref eventCallback and @ref eventCallbackFree
+class EventCallback
+{
+private:
+    int &eventCount;
+
+public:
+    explicit EventCallback(int &eventCount);
+    void operator()(const cl::Event &);
+    ~EventCallback();
+};
 
 } // namespace Test
 } // namespace clogs
