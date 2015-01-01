@@ -36,6 +36,8 @@
 #include <stdexcept>
 #include <string>
 #include <locale>
+#include <algorithm>
+#include <utility>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -252,6 +254,67 @@ std::vector<Type> Type::allTypes()
             ans.push_back(Type(BaseType(i), sizes[j]));
         }
     return ans;
+}
+
+Algorithm::Algorithm() : detail_(NULL)
+{
+}
+
+Algorithm::~Algorithm()
+{
+    /* The subclass is responsible for deleting detail_, because only the
+     * subclass knows the actual type (detail::Algorithm is not virtual).
+     * We do nothing here. The destructor must still exist so that it can
+     * be declared protected.
+     */
+}
+
+void Algorithm::moveConstruct(Algorithm &other)
+{
+    detail_ = other.detail_;
+    other.detail_ = NULL;
+}
+
+detail::Algorithm *Algorithm::moveAssign(Algorithm &other)
+{
+    detail::Algorithm *old = NULL;
+    if (this != &other)
+    {
+        old = detail_;
+        detail_ = other.detail_;
+        other.detail_ = NULL;
+    }
+    return old;
+}
+
+void Algorithm::swap(Algorithm &other)
+{
+    std::swap(detail_, other.detail_);
+}
+
+detail::Algorithm *Algorithm::getDetail() const
+{
+    return detail_;
+}
+
+detail::Algorithm *Algorithm::getDetailNonNull() const
+{
+    checkNull(detail_);
+    return detail_;
+}
+
+void Algorithm::setDetail(detail::Algorithm *ptr)
+{
+    detail_ = ptr;
+}
+
+void Algorithm::setEventCallback(
+    void (CL_CALLBACK *callback)(cl_event, void *),
+    void *userData,
+    void (CL_CALLBACK *free)(void *))
+{
+    checkNull(detail_);
+    detail_->setEventCallback(callback, userData, free);
 }
 
 } // namespace clogs

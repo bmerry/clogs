@@ -53,4 +53,21 @@
 # define CLOGS_NOEXCEPT
 #endif
 
+#if __cplusplus >= 201103L
+# define CLOGS_HAVE_DELETED_FUNCTIONS 1
+#elif defined(_MSC_VER)
+# if _MSC_VER >= 1800
+#  define CLOGS_HAVE_DELETED_FUNCTIONS 1
+# endif
+#elif defined(__has_extension)
+# if __has_extension(cxx_deleted_functions)
+#  define CLOGS_HAVE_DELETED_FUNCTIONS 1
+# endif
+#endif
+#ifdef CLOGS_HAVE_DELETED_FUNCTION
+# define CLOGS_DELETE_FUNCTION = delete
+#else
+# define CLOGS_DELETE_FUNCTION
+#endif
+
 #endif /* !CLOGS_PLATFORM_H */

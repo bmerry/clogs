@@ -85,21 +85,13 @@ public:
  * The implementation divides the data into a number of blocks, each of which
  * is reduced by a work-group. The last work-group handles the final reduction.
  */
-class CLOGS_API Reduce
+class CLOGS_API Reduce : public Algorithm
 {
-private:
-    detail::Reduce *detail_;
-
-    /* Prevent copying */
-    Reduce(const Reduce &);
-    Reduce &operator=(const Reduce &);
-
 private:
     void construct(
         cl_context context, cl_device_id device, const ReduceProblem &problem,
         cl_int &err, const char *&errStr);
-    void moveConstruct(Reduce &other);
-    Reduce &moveAssign(Reduce &other);
+    void moveAssign(Reduce &other);
     friend void swap(Reduce &, Reduce &);
 
 protected:
@@ -141,7 +133,8 @@ public:
 
     Reduce &operator=(Reduce &&other) CLOGS_NOEXCEPT
     {
-        return moveAssign(other);
+        moveAssign(other);
+        return *this;
     }
 #endif
 
@@ -182,38 +175,6 @@ public:
     }
 
     ~Reduce(); ///< Destructor
-
-    /**
-     * Set a callback function that will receive a list of all underlying events.
-     * The callback may be called multiple times during each enqueue, if
-     * the implementation uses multiple commands. This allows profiling information
-     * to be extracted from the events once they complete.
-     *
-     * The callback may also be set to @c NULL to disable it.
-     *
-     * @note This is not an event completion callback: it is called during
-     * @c enqueue, generally before the events complete.
-     *
-     * @param callback The callback function.
-     * @param userData Arbitrary data to be passed to the callback.
-     * @param free     Passed @a userData when this object is destroyed.
-     */
-    void setEventCallback(
-        void (CL_CALLBACK *callback)(const cl::Event &, void *),
-        void *userData,
-        void (CL_CALLBACK *free)(void *) = NULL)
-    {
-        setEventCallback(
-            detail::callbackWrapperCall,
-            detail::makeCallbackWrapper(callback, userData, free),
-            detail::callbackWrapperFree);
-    }
-
-    /// @overload
-    void setEventCallback(
-        void (CL_CALLBACK *callback)(cl_event, void *),
-        void *userData,
-        void (CL_CALLBACK *free)(void *) = NULL);
 
     /**
      * Enqueue a reduction operation on a command queue.

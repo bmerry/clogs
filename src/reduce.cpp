@@ -361,7 +361,7 @@ void ReduceProblem::setType(const Type &type)
 }
 
 
-Reduce::Reduce() : detail_(NULL)
+Reduce::Reduce()
 {
 }
 
@@ -370,10 +370,10 @@ void Reduce::construct(cl_context context, cl_device_id device, const ReduceProb
 {
     try
     {
-        detail_ = new detail::Reduce(
+        setDetail(new detail::Reduce(
             detail::retainWrap<cl::Context>(context),
             detail::retainWrap<cl::Device>(device),
-            *problem.detail_);
+            *problem.detail_));
         detail::clearError(err, errStr);
     }
     catch (cl::Error &e)
@@ -382,35 +382,14 @@ void Reduce::construct(cl_context context, cl_device_id device, const ReduceProb
     }
 }
 
-void Reduce::moveConstruct(Reduce &other)
+void Reduce::moveAssign(Reduce &other)
 {
-    detail_ = other.detail_;
-    other.detail_ = NULL;
-}
-
-Reduce &Reduce::moveAssign(Reduce &other)
-{
-    if (this != &other)
-    {
-        delete detail_;
-        detail_ = other.detail_;
-        other.detail_ = NULL;
-    }
-    return *this;
+    delete static_cast<detail::Reduce *>(Algorithm::moveAssign(other));
 }
 
 Reduce::~Reduce()
 {
-    delete detail_;
-}
-
-void Reduce::setEventCallback(
-    void (CL_CALLBACK *callback)(cl_event, void *),
-    void *userData,
-    void (CL_CALLBACK *free)(void *))
-{
-    checkNull(detail_);
-    detail_->setEventCallback(callback, userData, free);
+    delete static_cast<detail::Reduce *>(getDetail());
 }
 
 void Reduce::enqueue(cl_command_queue commandQueue,
@@ -425,12 +404,12 @@ void Reduce::enqueue(cl_command_queue commandQueue,
                      cl_int &err,
                      const char *&errStr)
 {
-    checkNull(detail_);
+    detail::Reduce *self = static_cast<detail::Reduce *>(getDetailNonNull());
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
         cl::Event event_;
-        detail_->enqueue(
+        self->enqueue(
             detail::retainWrap<cl::CommandQueue>(commandQueue),
             detail::retainWrap<cl::Buffer>(inBuffer),
             detail::retainWrap<cl::Buffer>(outBuffer),
@@ -458,12 +437,12 @@ void Reduce::enqueue(cl_command_queue commandQueue,
                      cl_int &err,
                      const char *&errStr)
 {
-    checkNull(detail_);
+    detail::Reduce *self = static_cast<detail::Reduce *>(getDetailNonNull());
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
         cl::Event event_;
-        detail_->enqueue(
+        self->enqueue(
             detail::retainWrap<cl::CommandQueue>(commandQueue),
             blocking,
             detail::retainWrap<cl::Buffer>(inBuffer),
@@ -481,7 +460,7 @@ void Reduce::enqueue(cl_command_queue commandQueue,
 
 void swap(Reduce &a, Reduce &b)
 {
-    std::swap(a.detail_, b.detail_);
+    a.swap(b);
 }
 
 } // namespace clogs

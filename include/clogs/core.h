@@ -35,12 +35,14 @@
 #include <string>
 #include <vector>
 #include <clogs/visibility_pop.h>
+#include <clogs/platform.h>
 
 /**
  * OpenCL primitives.
  *
- * The primary classes of interest are @ref Scan and @ref Radixsort, which
- * provide the algorithms. The other classes are utilities and helpers.
+ * The primary classes of interest are @ref Scan, @ref Radixsort, and @ref
+ * Reduce, which provide the algorithms. The other classes are utilities and
+ * helpers.
  */
 namespace clogs
 {
@@ -268,7 +270,80 @@ static inline CallbackWrapper *makeCallbackWrapper(
     return wrapper;
 }
 
+class Algorithm;
+
 } // namespace detail
+
+/**
+ * Base class for all algorithm classes.
+ */
+class CLOGS_API Algorithm
+{
+private:
+    detail::Algorithm *detail_;
+
+    /* Prevent copying */
+    Algorithm(const Algorithm &) CLOGS_DELETE_FUNCTION;
+    Algorithm &operator=(const Algorithm &) CLOGS_DELETE_FUNCTION;
+
+protected:
+    Algorithm();
+    ~Algorithm();
+
+    /// Constructs this by stealing the pointer from @a other
+    void moveConstruct(Algorithm &other);
+    /// Sets this by stealing the pointer from @a other, and returning the previous value
+    detail::Algorithm *moveAssign(Algorithm &other);
+    /// Swaps the pointers between this and @a other
+    void swap(Algorithm &other);
+
+    /// Returns the embedded pointer
+    detail::Algorithm *getDetail() const;
+    /**
+     * Returns the embedded pointer.
+     *
+     * @throw std::logic_error if the pointer is null.
+     */
+    detail::Algorithm *getDetailNonNull() const;
+    /**
+     * Set the value of the embedded pointer. Note that this overwrites the
+     * previous value without freeing it.
+     */
+    void setDetail(detail::Algorithm *ptr);
+
+public:
+    /**
+     * Set a callback function that will receive a list of all underlying events.
+     * The callback will be called multiple times during each enqueue, because
+     * the implementation uses multiple commands. This allows profiling information
+     * to be extracted from the events once they complete.
+     *
+     * The callback may also be set to @c NULL to disable it.
+     *
+     * @note This is not an event completion callback: it is called during
+     * @c enqueue, generally before the events complete.
+     *
+     * @param callback The callback function.
+     * @param userData Arbitrary data to be passed to the callback.
+     * @param free     Passed @a userData when this object is destroyed.
+     */
+    void setEventCallback(
+        void (CL_CALLBACK *callback)(const cl::Event &, void *),
+        void *userData,
+        void (CL_CALLBACK *free)(void *) = NULL)
+    {
+        setEventCallback(
+            detail::callbackWrapperCall,
+            detail::makeCallbackWrapper(callback, userData, free),
+            detail::callbackWrapperFree);
+    }
+
+    /// @overload
+    void setEventCallback(
+        void (CL_CALLBACK *callback)(cl_event, void *),
+        void *userData,
+        void (CL_CALLBACK *free)(void *) = NULL);
+};
 
 } // namespace clogs
 

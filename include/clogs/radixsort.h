@@ -96,19 +96,12 @@ public:
  * described at http://code.google.com/p/back40computing/wiki/RadixSorting,
  * but does not appear to be as efficient.
  */
-class CLOGS_API Radixsort
+class CLOGS_API Radixsort : public Algorithm
 {
 private:
-    detail::Radixsort *detail_;
-
-    /* Prevent copying */
-    Radixsort(const Radixsort &);
-    Radixsort &operator=(const Radixsort &);
-
     void construct(cl_context context, cl_device_id device, const RadixsortProblem &problem,
                    cl_int &err, const char *&errStr);
-    void moveConstruct(Radixsort &other);
-    Radixsort &moveAssign(Radixsort &other);
+    void moveAssign(Radixsort &other);
     friend void swap(Radixsort &, Radixsort &);
 
 protected:
@@ -138,7 +131,8 @@ public:
 
     Radixsort &operator=(Radixsort &&other) CLOGS_NOEXCEPT
     {
-        return moveAssign(other);
+        moveAssign(other);
+        return *this;
     }
 #endif
 
@@ -190,38 +184,6 @@ public:
     }
 
     ~Radixsort(); ///< Destructor
-
-    /**
-     * Set a callback function that will receive a list of all underlying events.
-     * The callback will be called multiple times during each enqueue, because
-     * the implementation uses multiple commands. This allows profiling information
-     * to be extracted from the events once they complete.
-     *
-     * The callback may also be set to @c NULL to disable it.
-     *
-     * @note This is not an event completion callback: it is called during
-     * @c enqueue, generally before the events complete.
-     *
-     * @param callback The callback function.
-     * @param userData Arbitrary data to be passed to the callback.
-     * @param free     Passed @a userData when this object is destroyed.
-     */
-    void setEventCallback(
-        void (CL_CALLBACK *callback)(const cl::Event &, void *),
-        void *userData,
-        void (CL_CALLBACK *free)(void *) = NULL)
-    {
-        setEventCallback(
-            detail::callbackWrapperCall,
-            detail::makeCallbackWrapper(callback, userData, free),
-            detail::callbackWrapperFree);
-    }
-
-    /// @overload
-    void setEventCallback(
-        void (CL_CALLBACK *callback)(cl_event, void *),
-        void *userData,
-        void (CL_CALLBACK *free)(void *) = NULL);
 
     /**
      * Enqueue a sort operation on a command queue.

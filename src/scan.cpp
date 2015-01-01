@@ -570,7 +570,7 @@ void ScanProblem::setType(const Type &type)
 }
 
 
-Scan::Scan() : detail_(NULL)
+Scan::Scan()
 {
 }
 
@@ -579,10 +579,10 @@ void Scan::construct(cl_context context, cl_device_id device, const ScanProblem 
 {
     try
     {
-        detail_ = new detail::Scan(
+        setDetail(new detail::Scan(
             detail::retainWrap<cl::Context>(context),
             detail::retainWrap<cl::Device>(device),
-            *problem.detail_);
+            *problem.detail_));
         detail::clearError(err, errStr);
     }
     catch (cl::Error &e)
@@ -591,35 +591,14 @@ void Scan::construct(cl_context context, cl_device_id device, const ScanProblem 
     }
 }
 
-void Scan::moveConstruct(Scan &other)
+void Scan::moveAssign(Scan &other)
 {
-    detail_ = other.detail_;
-    other.detail_ = NULL;
-}
-
-Scan &Scan::moveAssign(Scan &other)
-{
-    if (this != &other)
-    {
-        delete detail_;
-        detail_ = other.detail_;
-        other.detail_ = NULL;
-    }
-    return *this;
+    delete static_cast<detail::Scan *>(Algorithm::moveAssign(other));
 }
 
 Scan::~Scan()
 {
-    delete detail_;
-}
-
-void Scan::setEventCallback(
-    void (CL_CALLBACK *callback)(cl_event, void *),
-    void *userData,
-    void (CL_CALLBACK *free)(void *))
-{
-    checkNull(detail_);
-    detail_->setEventCallback(callback, userData, free);
+    delete static_cast<detail::Scan *>(getDetail());
 }
 
 void Scan::enqueue(cl_command_queue commandQueue,
@@ -633,12 +612,12 @@ void Scan::enqueue(cl_command_queue commandQueue,
                    cl_int &err,
                    const char *&errStr)
 {
-    checkNull(detail_);
+    detail::Scan *self = static_cast<detail::Scan *>(getDetailNonNull());
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
         cl::Event event_;
-        detail_->enqueue(
+        self->enqueue(
             detail::retainWrap<cl::CommandQueue>(commandQueue),
             detail::retainWrap<cl::Buffer>(inBuffer),
             detail::retainWrap<cl::Buffer>(outBuffer),
@@ -666,12 +645,12 @@ void Scan::enqueue(cl_command_queue commandQueue,
                    cl_int &err,
                    const char *&errStr)
 {
-    checkNull(detail_);
+    detail::Scan *self = static_cast<detail::Scan *>(getDetailNonNull());
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
         cl::Event event_;
-        detail_->enqueue(
+        self->enqueue(
             detail::retainWrap<cl::CommandQueue>(commandQueue),
             detail::retainWrap<cl::Buffer>(inBuffer),
             detail::retainWrap<cl::Buffer>(outBuffer),
@@ -690,7 +669,7 @@ void Scan::enqueue(cl_command_queue commandQueue,
 
 void swap(Scan &a, Scan &b)
 {
-    std::swap(a.detail_, b.detail_);
+    a.swap(b);
 }
 
 } // namespace clogs

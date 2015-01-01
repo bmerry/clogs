@@ -770,7 +770,7 @@ void RadixsortProblem::setValueType(const Type &valueType)
 }
 
 
-Radixsort::Radixsort() : detail_(NULL)
+Radixsort::Radixsort()
 {
 }
 
@@ -781,10 +781,10 @@ void Radixsort::construct(
 {
     try
     {
-        detail_ = new detail::Radixsort(
+        setDetail(new detail::Radixsort(
             detail::retainWrap<cl::Context>(context),
             detail::retainWrap<cl::Device>(device),
-            *problem.detail_);
+            *problem.detail_));
         detail::clearError(err, errStr);
     }
     catch (cl::Error &e)
@@ -793,30 +793,9 @@ void Radixsort::construct(
     }
 }
 
-void Radixsort::moveConstruct(Radixsort &other)
+void Radixsort::moveAssign(Radixsort &other)
 {
-    detail_ = other.detail_;
-    other.detail_ = NULL;
-}
-
-Radixsort &Radixsort::moveAssign(Radixsort &other)
-{
-    if (this != &other)
-    {
-        delete detail_;
-        detail_ = other.detail_;
-        other.detail_ = NULL;
-    }
-    return *this;
-}
-
-void Radixsort::setEventCallback(
-    void (CL_CALLBACK *callback)(cl_event, void *),
-    void *userData,
-    void (CL_CALLBACK *free)(void *))
-{
-    checkNull(detail_);
-    detail_->setEventCallback(callback, userData, free);
+    delete static_cast<detail::Radixsort *>(Algorithm::moveAssign(other));
 }
 
 void Radixsort::enqueue(
@@ -829,12 +808,12 @@ void Radixsort::enqueue(
     cl_int &err,
     const char *&errStr)
 {
-    checkNull(detail_);
+    detail::Radixsort *self = static_cast<detail::Radixsort *>(getDetailNonNull());
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
         cl::Event event_;
-        detail_->enqueue(
+        self->enqueue(
             detail::retainWrap<cl::CommandQueue>(commandQueue),
             detail::retainWrap<cl::Buffer>(keys),
             detail::retainWrap<cl::Buffer>(values),
@@ -853,10 +832,10 @@ void Radixsort::enqueue(
 void Radixsort::setTemporaryBuffers(cl_mem keys, cl_mem values,
                                     cl_int &err, const char *&errStr)
 {
-    checkNull(detail_);
+    detail::Radixsort *self = static_cast<detail::Radixsort *>(getDetailNonNull());
     try
     {
-        detail_->setTemporaryBuffers(
+        self->setTemporaryBuffers(
             detail::retainWrap<cl::Buffer>(keys),
             detail::retainWrap<cl::Buffer>(values));
         detail::clearError(err, errStr);
@@ -869,12 +848,12 @@ void Radixsort::setTemporaryBuffers(cl_mem keys, cl_mem values,
 
 Radixsort::~Radixsort()
 {
-    delete detail_;
+    delete static_cast<detail::Radixsort *>(getDetail());
 }
 
 void swap(Radixsort &a, Radixsort &b)
 {
-    std::swap(a.detail_, b.detail_);
+    a.swap(b);
 }
 
 } // namespace clogs
