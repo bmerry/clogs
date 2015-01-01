@@ -305,8 +305,4 @@ def build(bld):
             source = ['tools/options.cpp', 'tools/timer.cpp', 'tools/clogs-benchmark.cpp'],
             target = 'clogs-benchmark',
             use = 'PROGRAM_OPTIONS OPENCL CLOGS-SH TIMER')
-    bld.program(
-            source = ['tools/clogs-tune.cpp', 'tools/options.cpp'],
-            target = 'clogs-tune',
-            use = 'PROGRAM_OPTIONS OPENCL CLOGS-SH')
     bld.install_files('${INCLUDEDIR}/clogs', bld.path.ant_glob('include/clogs/*.h'))

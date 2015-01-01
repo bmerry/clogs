@@ -115,14 +115,6 @@ public:
      * @return whether the record was found
      */
     bool lookup(const K &key, V &value) const;
-
-    /**
-     * Find a record in the table, throwing if not found.
-     *
-     * @param key         Lookup key
-     * @throw clogs::CacheError if the key could not be found
-     */
-    V lookup(const K &key) const;
 };
 
 /**

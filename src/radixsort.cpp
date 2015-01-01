@@ -417,7 +417,13 @@ Radixsort::Radixsort(
         throw std::invalid_argument("valueType is not valid");
 
     RadixsortParameters::Key key = makeKey(device, problem);
-    RadixsortParameters::Value params = getDB().radixsort.lookup(key);
+    RadixsortParameters::Value params;
+    if (!getDB().radixsort.lookup(key, params))
+    {
+        TunerBase tuner;
+        params = tune(tuner, device, problem);
+        getDB().radixsort.add(key, params);
+    }
     initialize(context, device, problem, params);
 }
 

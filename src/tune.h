@@ -54,29 +54,9 @@ namespace detail
 {
 
 /**
- * Exception thrown when a configuration could not be tuned at all.
- */
-class CLOGS_API TuneError : public std::runtime_error
-{
-public:
-    TuneError(const std::string &msg) : std::runtime_error(msg) {}
-};
-
-/**
  * Create a key with fields uniquely describing @a device.
  */
 CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device);
-
-/**
- * Generate the tuning parameters for all algorithms. This should not be called
- * from concurrently: there are no race conditions, but it could skew the
- * tuning results by creating extra load on the system.
- *
- * @param devices   Devices to tune on.
- * @param force     Whether to re-tune configurations that have already been tuned.
- * @param keepGoing Whether to carry on after encounting an otherwise fatal error.
- */
-CLOGS_API void tuneAll(const std::vector<cl::Device> &devices, bool force, bool keepGoing);
 
 /**
  * Base class for @ref Tuner, which is independent of any particular algorithm.

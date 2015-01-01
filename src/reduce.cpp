@@ -204,7 +204,13 @@ Reduce::Reduce(const cl::Context &context, const cl::Device &device, const Reduc
         throw std::invalid_argument("type is not a supported format on this device");
 
     ReduceParameters::Key key = makeKey(device, problem);
-    ReduceParameters::Value params = getDB().reduce.lookup(key);
+    ReduceParameters::Value params;
+    if (!getDB().reduce.lookup(key, params))
+    {
+        TunerBase tuner;
+        params = tune(tuner, device, problem);
+        getDB().reduce.add(key, params);
+    }
     initialize(context, device, problem, params);
 }
 

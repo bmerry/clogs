@@ -54,6 +54,10 @@ CacheError::CacheError(const std::string &msg) : InternalError(msg)
 {
 }
 
+TuneError::TuneError(const std::string &msg) : InternalError(msg)
+{
+}
+
 Type::Type() : baseType(TYPE_VOID), length(0) {}
 
 Type::Type(BaseType baseType, unsigned int length) : baseType(baseType), length(length)

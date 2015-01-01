@@ -105,6 +105,22 @@ private:
         std::size_t elements, const boost::any &parameters,
         const ReduceProblem &problem);
 
+    /**
+     * Returns key for looking up autotuning parameters.
+     */
+    static ReduceParameters::Key makeKey(const cl::Device &device, const ReduceProblem &problem);
+
+    /**
+     * Perform autotuning.
+     *
+     * @param tuner       Tuner for reporting results
+     * @param device      Device to tune for
+     * @param problem     Problem parameters
+     */
+    static ReduceParameters::Value tune(
+        TunerBase &tuner,
+        const cl::Device &device, const ReduceProblem &problem);
+
 public:
     /**
      * Constructor.
@@ -137,22 +153,6 @@ public:
                  ::size_t elements,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
                  cl::Event *event = NULL);
-
-    /**
-     * Returns key for looking up autotuning parameters.
-     */
-    static ReduceParameters::Key makeKey(const cl::Device &device, const ReduceProblem &problem);
-
-    /**
-     * Perform autotuning.
-     *
-     * @param tuner       Tuner for reporting results
-     * @param device      Device to tune for
-     * @param problem     Problem parameters
-     */
-    static ReduceParameters::Value tune(
-        TunerBase &tuner,
-        const cl::Device &device, const ReduceProblem &problem);
 
     /**
      * Return whether a type is supported on a device.

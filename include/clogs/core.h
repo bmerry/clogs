@@ -70,6 +70,16 @@ public:
     CacheError(const std::string &msg);
 };
 
+/**
+ * Exception thrown when a configuration could not be tuned at all.
+ */
+class CLOGS_API TuneError : public InternalError
+{
+public:
+    TuneError(const std::string &msg);
+};
+
+
 #ifdef __CL_ENABLE_EXCEPTIONS
 typedef cl::Error Error;
 #else

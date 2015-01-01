@@ -366,7 +366,13 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProbl
         throw std::invalid_argument("type is not a supported integral format on this device");
 
     ScanParameters::Key key = makeKey(device, problem);
-    ScanParameters::Value params = getDB().scan.lookup(key);
+    ScanParameters::Value params;
+    if (!getDB().scan.lookup(key, params))
+    {
+        TunerBase tuner;
+        params = tune(tuner, device, problem);
+        getDB().scan.add(key, params);
+    }
     initialize(context, device, problem, params);
 }
 

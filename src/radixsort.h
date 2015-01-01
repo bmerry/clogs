@@ -177,6 +177,25 @@ private:
         const cl::Context &context, const cl::Device &device,
         std::size_t elements, const boost::any &params,
         const RadixsortProblem &problem);
+
+    /**
+     * Returns key for looking up autotuning parameters.
+     *
+     * @param device, problem  Constructor parameters.
+     */
+    static RadixsortParameters::Key makeKey(const cl::Device &device, const RadixsortProblem &problem);
+
+    /**
+     * Perform autotuning.
+     *
+     * @param tuner           Tuner for reporting progress
+     * @param device, problem Constructor parameters
+     */
+    static RadixsortParameters::Value tune(
+        TunerBase &tuner,
+        const cl::Device &device,
+        const RadixsortProblem &problem);
+
 public:
     /**
      * Constructor.
@@ -199,24 +218,6 @@ public:
      * @see #clogs::Radixsort::setTemporaryBuffers.
      */
     void setTemporaryBuffers(const cl::Buffer &keys, const cl::Buffer &values);
-
-    /**
-     * Returns key for looking up autotuning parameters.
-     *
-     * @param device, problem  Constructor parameters.
-     */
-    static RadixsortParameters::Key makeKey(const cl::Device &device, const RadixsortProblem &problem);
-
-    /**
-     * Perform autotuning.
-     *
-     * @param tuner           Tuner for reporting progress
-     * @param device, problem Constructor parameters
-     */
-    static RadixsortParameters::Value tune(
-        TunerBase &tuner,
-        const cl::Device &device,
-        const RadixsortProblem &problem);
 
     /**
      * Return whether a type is supported as a key type on a device.

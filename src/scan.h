@@ -135,6 +135,25 @@ private:
         const cl::Context &context, const cl::Device &device,
         std::size_t elements, const boost::any &parameters,
         const ScanProblem &problem);
+
+    /**
+     * Returns key for looking up autotuning parameters.
+     *
+     * @param device, problem  Constructor parameters.
+     */
+    static ScanParameters::Key makeKey(const cl::Device &device, const ScanProblem &problem);
+
+    /**
+     * Perform autotuning.
+     *
+     * @param tuner       Tuner for reporting results
+     * @param device      Device to tune for
+     * @param problem     Scan parameters
+     */
+    static ScanParameters::Value tune(
+        TunerBase &tuner,
+        const cl::Device &device, const ScanProblem &problem);
+
 public:
     /**
      * Constructor.
@@ -166,24 +185,6 @@ public:
                  cl_uint offsetIndex,
                  const VECTOR_CLASS<cl::Event> *events = NULL,
                  cl::Event *event = NULL);
-
-    /**
-     * Returns key for looking up autotuning parameters.
-     *
-     * @param device, problem  Constructor parameters.
-     */
-    static ScanParameters::Key makeKey(const cl::Device &device, const ScanProblem &problem);
-
-    /**
-     * Perform autotuning.
-     *
-     * @param tuner       Tuner for reporting results
-     * @param device      Device to tune for
-     * @param problem     Scan parameters
-     */
-    static ScanParameters::Value tune(
-        TunerBase &tuner,
-        const cl::Device &device, const ScanProblem &problem);
 
     /**
      * Return whether a type is supported for scanning on a device.

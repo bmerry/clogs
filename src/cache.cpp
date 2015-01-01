@@ -328,15 +328,6 @@ bool Table<K, V>::lookup(const K &key, V &value) const
 }
 
 template<typename K, typename V>
-V Table<K, V>::lookup(const K &key) const
-{
-    V out;
-    if (!lookup(key, out))
-        throw CacheError("No cache entry found");
-    return out;
-}
-
-template<typename K, typename V>
 Table<K, V>::Table(sqlite3 *con, const char *name)
     : con(con)
 {
