@@ -63,14 +63,7 @@ CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device);
  */
 class CLOGS_LOCAL TunerBase
 {
-protected:
-    bool force;
-    bool keepGoing;
-
 public:
-    void setForce(bool force);
-    void setKeepGoing(bool keepGoing);
-
     TunerBase();
 
     /**

@@ -204,25 +204,9 @@
             <title>Autotuning</title>
             <para>
                 CLOGS uses autotuning to choose good tuning parameters for each
-                device. This helps with performance, but unfortunately also
-                means that you need to run the autotuner before using CLOGS.
-                This is done simply by running
-                <command>clogs-tune</command>. You should do this on a
-                system that is otherwise idle, to avoid skewing the results.
-            </para>
-            <para>This can take a long time,
-                particularly for CPU devices. If you have OpenCL CPU devices
-                but don't intend to use them with CLOGS, you can save time by
-                passing <option>--cl-gpu</option> to
-                <command>clogs-tune</command> to only tune for GPU devices.
-            </para>
-            <para>
-                You need to do autotuning when you first install CLOGS or when
-                you do an upgrade. You will also need to do autotuning when
-                adding a new OpenCL device. The previous tuning is remembered,
-                so this will only cause new configurations to be tuned. If for
-                some reason you need to re-do tuning, you can pass
-                <option>--force</option> to <command>clogs-tune</command>.
+                device. In previous versions of CLOGS one had to run a separate
+                <command>clogs-tune</command> command to do autotuning in
+                advance, but current versions do autotuning on-demand.
             </para>
             <para>
                 On UNIX-like systems, the results of autotuning are stored in
@@ -230,7 +214,10 @@
                 by default. On Windows, they are stored in the local
                 application data directory. You can override the setting by
                 setting <envar>CLOGS_CACHE_DIR</envar>, or on UNIX-like systems
-                by setting <envar>XDG_CACHE_HOME</envar>.
+                by setting <envar>XDG_CACHE_HOME</envar>. You can delete this
+                database to force retuning, or to clean out stale tuning
+                results (for example, for older versions of drivers) that are
+                taking up space.
             </para>
         </section>
     </chapter>

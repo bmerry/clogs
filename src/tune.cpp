@@ -56,18 +56,8 @@ namespace clogs
 namespace detail
 {
 
-TunerBase::TunerBase() : force(true), keepGoing(false)
+TunerBase::TunerBase()
 {
-}
-
-void TunerBase::setForce(bool force)
-{
-    this->force = force;
-}
-
-void TunerBase::setKeepGoing(bool keepGoing)
-{
-    this->keepGoing = keepGoing;
 }
 
 void TunerBase::logStartGroup()
