@@ -420,8 +420,7 @@ Radixsort::Radixsort(
     RadixsortParameters::Value params;
     if (!getDB().radixsort.lookup(key, params))
     {
-        TunerBase tuner;
-        params = tune(tuner, device, problem);
+        params = tune(TunePolicy(), device, problem);
         getDB().radixsort.add(key, params);
     }
     initialize(context, device, problem, params);
@@ -599,10 +598,16 @@ std::pair<double, double> Radixsort::tuneBlocksCallback(
 }
 
 RadixsortParameters::Value Radixsort::tune(
-    TunerBase &tuner,
+    const TunePolicy &policy,
     const cl::Device &device,
     const RadixsortProblem &problem)
 {
+    policy.assertEnabled();
+    std::ostringstream description;
+    description << "radixsort for " << problem.keyType.getName() << " keys and "
+        << problem.valueType.getSize() << " byte values";
+    policy.logStartAlgorithm(description.str(), device);
+
     /* Limit memory usage, otherwise devices with lots of RAM will take a long
      * time to tune. For GPUs we need a large problem size to get accurate
      * statistics, but for CPUs we use less to keep tuning time down.
@@ -659,8 +664,8 @@ RadixsortParameters::Value Radixsort::tune(
                 sets.push_back(params);
             }
             using namespace FUNCTIONAL_NAMESPACE::placeholders;
-            cand = boost::any_cast<RadixsortParameters::Value>(tuner.tuneOne(
-                device, sets, problemSizes,
+            cand = boost::any_cast<RadixsortParameters::Value>(tuneOne(
+                policy, device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneReduceCallback, _1, _2, _3, _4, problem)));
         }
 
@@ -681,8 +686,8 @@ RadixsortParameters::Value Radixsort::tune(
                 }
             }
             using namespace FUNCTIONAL_NAMESPACE::placeholders;
-            cand = boost::any_cast<RadixsortParameters::Value>(tuner.tuneOne(
-                device, sets, problemSizes,
+            cand = boost::any_cast<RadixsortParameters::Value>(tuneOne(
+                policy, device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneScatterCallback, _1, _2, _3, _4, problem)));
         }
 
@@ -723,8 +728,8 @@ RadixsortParameters::Value Radixsort::tune(
             }
 
             using namespace FUNCTIONAL_NAMESPACE::placeholders;
-            cand = boost::any_cast<RadixsortParameters::Value>(tuner.tuneOne(
-                device, sets, problemSizes,
+            cand = boost::any_cast<RadixsortParameters::Value>(tuneOne(
+                policy, device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneBlocksCallback, _1, _2, _3, _4, problem)));
         }
 
@@ -732,7 +737,7 @@ RadixsortParameters::Value Radixsort::tune(
         out = cand;
     }
 
-    tuner.logResult();
+    policy.logEndAlgorithm();
     return out;
 }
 

@@ -56,34 +56,46 @@ namespace clogs
 namespace detail
 {
 
-TunerBase::TunerBase()
+TunePolicy::TunePolicy() : enabled(true), verbosity(TUNE_VERBOSITY_NORMAL), out(&std::cout)
 {
 }
 
-void TunerBase::logStartGroup()
+void TunePolicy::assertEnabled() const
+{
+    if (!enabled)
+        throw CacheError("no cache entry found and tuning is disabled");
+}
+
+void TunePolicy::logStartAlgorithm(const std::string &description, const cl::Device &device) const
+{
+    *out << "Tuning " << description << " on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
+}
+
+void TunePolicy::logEndAlgorithm() const
 {
 }
 
-void TunerBase::logEndGroup()
-{
-    std::cout << std::endl;
-}
-
-void TunerBase::logStartTest()
+void TunePolicy::logStartGroup() const
 {
 }
 
-void TunerBase::logEndTest(bool success, double rate)
+void TunePolicy::logEndGroup() const
+{
+    *out << std::endl;
+}
+
+void TunePolicy::logStartTest() const
+{
+}
+
+void TunePolicy::logEndTest(bool success, double rate) const
 {
     (void) rate;
-    std::cout << "!."[success] << std::flush;
+    *out << "!."[success] << std::flush;
 }
 
-void TunerBase::logResult()
-{
-}
-
-boost::any TunerBase::tuneOne(
+boost::any tuneOne(
+    const TunePolicy &policy,
     const cl::Device &device,
     const std::vector<boost::any> &parameterSets,
     const std::vector<std::size_t> &problemSizes,
@@ -98,7 +110,7 @@ boost::any TunerBase::tuneOne(
     std::vector<boost::any> retained = parameterSets;
     for (std::size_t pass = 0; pass < problemSizes.size(); pass++)
     {
-        logStartGroup();
+        policy.logStartGroup();
         const std::size_t problemSize = problemSizes[pass];
         std::vector<std::pair<double, double> > results;
         results.reserve(retained.size());
@@ -107,7 +119,7 @@ boost::any TunerBase::tuneOne(
         for (std::size_t i = 0; i < retained.size(); i++)
         {
             boost::any &params = retained[i];
-            logStartTest();
+            policy.logStartTest();
             bool valid = false;
             try
             {
@@ -120,7 +132,7 @@ boost::any TunerBase::tuneOne(
                     results.push_back(r);
                     if (r.first > maxA)
                         maxA = r.first;
-                    logEndTest(true, r.first);
+                    policy.logEndTest(true, r.first);
                     valid = true;
                 }
             }
@@ -131,7 +143,7 @@ boost::any TunerBase::tuneOne(
             {
             }
             if (!valid)
-                logEndTest(false, 0.0);
+                policy.logEndTest(false, 0.0);
         }
         retained.swap(retained2);
         retained2.clear();
@@ -139,7 +151,7 @@ boost::any TunerBase::tuneOne(
         {
             throw TuneError("no suitable kernel found");
         }
-        logEndGroup();
+        policy.logEndGroup();
 
         if (pass < problemSizes.size() - 1)
         {

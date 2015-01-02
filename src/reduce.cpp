@@ -143,8 +143,13 @@ std::pair<double, double> Reduce::tuneReduceCallback(
 }
 
 ReduceParameters::Value Reduce::tune(
-    TunerBase &tuner, const cl::Device &device, const ReduceProblem &problem)
+    const TunePolicy &policy, const cl::Device &device, const ReduceProblem &problem)
 {
+    policy.assertEnabled();
+    std::ostringstream description;
+    description << "reduce for " << problem.type.getName() << " elements";
+    policy.logStartAlgorithm(description.str(), device);
+
     const ::size_t elementSize = problem.type.getSize();
     const ::size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
     const ::size_t maxWorkGroupSize = std::min(device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>(), localMemElements);
@@ -168,8 +173,8 @@ ReduceParameters::Value Reduce::tune(
         }
 
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
-        cand = boost::any_cast<ReduceParameters::Value>(tuner.tuneOne(
-                device, sets, problemSizes,
+        cand = boost::any_cast<ReduceParameters::Value>(tuneOne(
+                policy, device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Reduce::tuneReduceCallback, _1, _2, _3, _4, problem)));
     }
 
@@ -184,12 +189,12 @@ ReduceParameters::Value Reduce::tune(
         }
 
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
-        cand = boost::any_cast<ReduceParameters::Value>(tuner.tuneOne(
-                device, sets, problemSizes,
+        cand = boost::any_cast<ReduceParameters::Value>(tuneOne(
+                policy, device, sets, problemSizes,
                 FUNCTIONAL_NAMESPACE::bind(&Reduce::tuneReduceCallback, _1, _2, _3, _4, problem)));
     }
 
-    tuner.logResult();
+    policy.logEndAlgorithm();
     return cand;
 }
 
@@ -207,8 +212,7 @@ Reduce::Reduce(const cl::Context &context, const cl::Device &device, const Reduc
     ReduceParameters::Value params;
     if (!getDB().reduce.lookup(key, params))
     {
-        TunerBase tuner;
-        params = tune(tuner, device, problem);
+        params = tune(TunePolicy(), device, problem);
         getDB().reduce.add(key, params);
     }
     initialize(context, device, problem, params);

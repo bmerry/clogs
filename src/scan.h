@@ -52,7 +52,7 @@ namespace clogs
 namespace detail
 {
 
-class TunerBase;
+class TunePolicy;
 class Scan;
 
 /**
@@ -146,12 +146,12 @@ private:
     /**
      * Perform autotuning.
      *
-     * @param tuner       Tuner for reporting results
+     * @param policy      Tuning policy
      * @param device      Device to tune for
      * @param problem     Scan parameters
      */
     static ScanParameters::Value tune(
-        TunerBase &tuner,
+        const TunePolicy &policy,
         const cl::Device &device, const ScanProblem &problem);
 
 public:

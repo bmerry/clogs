@@ -51,7 +51,7 @@ namespace clogs
 namespace detail
 {
 
-class TunerBase;
+class TunePolicy;
 class Reduce;
 
 /**
@@ -113,12 +113,12 @@ private:
     /**
      * Perform autotuning.
      *
-     * @param tuner       Tuner for reporting results
+     * @param policy      Tuning policy
      * @param device      Device to tune for
      * @param problem     Problem parameters
      */
     static ReduceParameters::Value tune(
-        TunerBase &tuner,
+        const TunePolicy &policy,
         const cl::Device &device, const ReduceProblem &problem);
 
 public:

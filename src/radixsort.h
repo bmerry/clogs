@@ -48,7 +48,7 @@ namespace clogs
 namespace detail
 {
 
-class TunerBase;
+class TunePolicy;
 class Radixsort;
 
 class CLOGS_LOCAL RadixsortProblem
@@ -188,11 +188,11 @@ private:
     /**
      * Perform autotuning.
      *
-     * @param tuner           Tuner for reporting progress
+     * @param policy  Tuning policy
      * @param device, problem Constructor parameters
      */
     static RadixsortParameters::Value tune(
-        TunerBase &tuner,
+        const TunePolicy &policy,
         const cl::Device &device,
         const RadixsortProblem &problem);
 

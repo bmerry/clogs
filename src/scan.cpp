@@ -240,8 +240,13 @@ std::pair<double, double> Scan::tuneBlocksCallback(
 }
 
 ScanParameters::Value Scan::tune(
-    TunerBase &tuner, const cl::Device &device, const ScanProblem &problem)
+    const TunePolicy &policy, const cl::Device &device, const ScanProblem &problem)
 {
+    policy.assertEnabled();
+    std::ostringstream description;
+    description << "scan for " << problem.type.getName() << " elements";
+    policy.logStartAlgorithm(description.str(), device);
+
     const size_t elementSize = problem.type.getSize();
     const size_t maxWorkGroupSize = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
     const size_t localMemElements = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() / elementSize;
@@ -279,8 +284,8 @@ ScanParameters::Value Scan::tune(
         }
 
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
-        ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuner.tuneOne(
-            device, sets, problemSizes,
+        ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuneOne(
+            policy, device, sets, problemSizes,
             FUNCTIONAL_NAMESPACE::bind(&Scan::tuneReduceCallback, _1, _2, _3, _4, problem)));
         bestReduceWorkGroupSize = params.reduceWorkGroupSize;
     }
@@ -307,8 +312,8 @@ ScanParameters::Value Scan::tune(
         }
 
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
-        ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuner.tuneOne(
-            device, sets, problemSizes,
+        ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuneOne(
+            policy, device, sets, problemSizes,
             FUNCTIONAL_NAMESPACE::bind(&Scan::tuneScanCallback, _1, _2, _3, _4, problem)));
         bestScanWorkGroupSize = params.scanWorkGroupSize;
         bestScanWorkScale = params.scanWorkScale;
@@ -330,8 +335,8 @@ ScanParameters::Value Scan::tune(
             sets.push_back(params);
         }
         using namespace FUNCTIONAL_NAMESPACE::placeholders;
-        ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuner.tuneOne(
-            device, sets, problemSizes,
+        ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuneOne(
+            policy, device, sets, problemSizes,
             FUNCTIONAL_NAMESPACE::bind(&Scan::tuneBlocksCallback, _1, _2, _3, _4, problem)));
         bestBlocks = params.scanBlocks;
     }
@@ -351,7 +356,7 @@ ScanParameters::Value Scan::tune(
     params.scanWorkScale = bestScanWorkScale;
     params.scanBlocks = bestBlocks;
 
-    tuner.logResult();
+    policy.logEndAlgorithm();
     return params;
 }
 
@@ -369,8 +374,7 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProbl
     ScanParameters::Value params;
     if (!getDB().scan.lookup(key, params))
     {
-        TunerBase tuner;
-        params = tune(tuner, device, problem);
+        params = tune(TunePolicy(), device, problem);
         getDB().scan.add(key, params);
     }
     initialize(context, device, problem, params);
