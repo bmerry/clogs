@@ -27,6 +27,7 @@
 #include "../src/clhpp11.h"
 #include <clogs/clogs.h>
 #include <boost/program_options.hpp>
+#include <boost/bind.hpp>
 #include <iostream>
 #include <algorithm>
 #include <limits>
@@ -146,13 +147,12 @@ static cl::Buffer randomBuffer(
     }
 
     typename uniform<T>::type dist(minValue, maxValue);
-    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, typename uniform<T>::type> gen(engine, dist);
 
     elements *= length;
     std::size_t size = elements * sizeof(T);
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, size);
     T *data = static_cast<T *>(queue.enqueueMapBuffer(buffer, CL_TRUE, CL_MAP_WRITE, 0, size));
-    std::generate(data, data + elements, gen);
+    std::generate(data, data + elements, boost::bind(dist, engine));
     queue.enqueueUnmapMemObject(buffer, data);
     return buffer;
 }
