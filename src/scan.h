@@ -46,13 +46,13 @@
 #include "parameters.h"
 #include "cache_types.h"
 #include "utils.h"
+#include "tune.h"
 
 namespace clogs
 {
 namespace detail
 {
 
-class TunePolicy;
 class Scan;
 
 /**
@@ -63,9 +63,11 @@ class CLOGS_LOCAL ScanProblem
 private:
     friend class Scan;
     Type type;
+    TunePolicy tunePolicy;
 
 public:
     void setType(const Type &type);
+    void setTunePolicy(const TunePolicy &tunePolicy);
 };
 
 /**
@@ -146,12 +148,10 @@ private:
     /**
      * Perform autotuning.
      *
-     * @param policy      Tuning policy
      * @param device      Device to tune for
      * @param problem     Scan parameters
      */
     static ScanParameters::Value tune(
-        const TunePolicy &policy,
         const cl::Device &device, const ScanProblem &problem);
 
 public:

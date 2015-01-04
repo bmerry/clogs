@@ -1,4 +1,4 @@
-/* Copyright (c) 2014 Bruce Merry
+/* Copyright (c) 2014, 2015 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -70,6 +70,12 @@ void ReduceProblem::setType(const Type &type)
         throw std::invalid_argument("type must not be void");
     this->type = type;
 }
+
+void ReduceProblem::setTunePolicy(const TunePolicy &tunePolicy)
+{
+    this->tunePolicy = tunePolicy;
+}
+
 
 void Reduce::initialize(
     const cl::Context &context, const cl::Device &device,
@@ -143,8 +149,9 @@ std::pair<double, double> Reduce::tuneReduceCallback(
 }
 
 ReduceParameters::Value Reduce::tune(
-    const TunePolicy &policy, const cl::Device &device, const ReduceProblem &problem)
+    const cl::Device &device, const ReduceProblem &problem)
 {
+    const TunePolicy &policy = problem.tunePolicy;
     policy.assertEnabled();
     std::ostringstream description;
     description << "reduce for " << problem.type.getName() << " elements";
@@ -212,7 +219,7 @@ Reduce::Reduce(const cl::Context &context, const cl::Device &device, const Reduc
     ReduceParameters::Value params;
     if (!getDB().reduce.lookup(key, params))
     {
-        params = tune(TunePolicy(), device, problem);
+        params = tune(device, problem);
         getDB().reduce.add(key, params);
     }
     initialize(context, device, problem, params);
@@ -337,6 +344,11 @@ void Reduce::enqueue(
         *event = readEvent;
 }
 
+const ReduceProblem &getDetail(const clogs::ReduceProblem &problem)
+{
+    return *problem.detail_;
+}
+
 } // namespace detail
 
 ReduceProblem::ReduceProblem() : detail_(new detail::ReduceProblem())
@@ -370,9 +382,25 @@ void ReduceProblem::setType(const Type &type)
     detail_->setType(type);
 }
 
+void ReduceProblem::setTunePolicy(const TunePolicy &tunePolicy)
+{
+    assert(detail_ != NULL);
+    detail_->setTunePolicy(detail::getDetail(tunePolicy));
+}
+
 
 Reduce::Reduce()
 {
+}
+
+detail::Reduce *Reduce::getDetail() const
+{
+    return static_cast<detail::Reduce *>(Algorithm::getDetail());
+}
+
+detail::Reduce *Reduce::getDetailNonNull() const
+{
+    return static_cast<detail::Reduce *>(Algorithm::getDetailNonNull());
 }
 
 void Reduce::construct(cl_context context, cl_device_id device, const ReduceProblem &problem,
@@ -383,7 +411,7 @@ void Reduce::construct(cl_context context, cl_device_id device, const ReduceProb
         setDetail(new detail::Reduce(
             detail::retainWrap<cl::Context>(context),
             detail::retainWrap<cl::Device>(device),
-            *problem.detail_));
+            detail::getDetail(problem)));
         detail::clearError(err, errStr);
     }
     catch (cl::Error &e)
@@ -399,7 +427,7 @@ void Reduce::moveAssign(Reduce &other)
 
 Reduce::~Reduce()
 {
-    delete static_cast<detail::Reduce *>(getDetail());
+    delete getDetail();
 }
 
 void Reduce::enqueue(cl_command_queue commandQueue,
@@ -414,12 +442,11 @@ void Reduce::enqueue(cl_command_queue commandQueue,
                      cl_int &err,
                      const char *&errStr)
 {
-    detail::Reduce *self = static_cast<detail::Reduce *>(getDetailNonNull());
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
         cl::Event event_;
-        self->enqueue(
+        getDetailNonNull()->enqueue(
             detail::retainWrap<cl::CommandQueue>(commandQueue),
             detail::retainWrap<cl::Buffer>(inBuffer),
             detail::retainWrap<cl::Buffer>(outBuffer),
@@ -447,12 +474,11 @@ void Reduce::enqueue(cl_command_queue commandQueue,
                      cl_int &err,
                      const char *&errStr)
 {
-    detail::Reduce *self = static_cast<detail::Reduce *>(getDetailNonNull());
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
         cl::Event event_;
-        self->enqueue(
+        getDetailNonNull()->enqueue(
             detail::retainWrap<cl::CommandQueue>(commandQueue),
             blocking,
             detail::retainWrap<cl::Buffer>(inBuffer),

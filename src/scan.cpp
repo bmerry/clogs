@@ -66,6 +66,11 @@ void ScanProblem::setType(const Type &type)
     this->type = type;
 }
 
+void ScanProblem::setTunePolicy(const TunePolicy &tunePolicy)
+{
+    this->tunePolicy = tunePolicy;
+}
+
 void Scan::initialize(
     const cl::Context &context, const cl::Device &device, const ScanProblem &problem,
     const ScanParameters::Value &params)
@@ -240,8 +245,9 @@ std::pair<double, double> Scan::tuneBlocksCallback(
 }
 
 ScanParameters::Value Scan::tune(
-    const TunePolicy &policy, const cl::Device &device, const ScanProblem &problem)
+    const cl::Device &device, const ScanProblem &problem)
 {
+    const TunePolicy &policy = problem.tunePolicy;
     policy.assertEnabled();
     std::ostringstream description;
     description << "scan for " << problem.type.getName() << " elements";
@@ -374,7 +380,7 @@ Scan::Scan(const cl::Context &context, const cl::Device &device, const ScanProbl
     ScanParameters::Value params;
     if (!getDB().scan.lookup(key, params))
     {
-        params = tune(TunePolicy(), device, problem);
+        params = tune(device, problem);
         getDB().scan.add(key, params);
     }
     initialize(context, device, problem, params);
@@ -546,6 +552,11 @@ void Scan::enqueue(const cl::CommandQueue &commandQueue,
     enqueueInternal(commandQueue, inBuffer, outBuffer, elements, NULL, &offsetBuffer, offsetIndex, events, event);
 }
 
+const ScanProblem &getDetail(const clogs::ScanProblem &problem)
+{
+    return *problem.detail_;
+}
+
 } // namespace detail
 
 ScanProblem::ScanProblem() : detail_(new detail::ScanProblem())
@@ -579,9 +590,25 @@ void ScanProblem::setType(const Type &type)
     detail_->setType(type);
 }
 
+void ScanProblem::setTunePolicy(const TunePolicy &tunePolicy)
+{
+    assert(detail_ != NULL);
+    detail_->setTunePolicy(detail::getDetail(tunePolicy));
+}
+
 
 Scan::Scan()
 {
+}
+
+detail::Scan *Scan::getDetail() const
+{
+    return static_cast<detail::Scan *>(Algorithm::getDetail());
+}
+
+detail::Scan *Scan::getDetailNonNull() const
+{
+    return static_cast<detail::Scan *>(Algorithm::getDetailNonNull());
 }
 
 void Scan::construct(cl_context context, cl_device_id device, const ScanProblem &problem,
@@ -592,7 +619,7 @@ void Scan::construct(cl_context context, cl_device_id device, const ScanProblem 
         setDetail(new detail::Scan(
             detail::retainWrap<cl::Context>(context),
             detail::retainWrap<cl::Device>(device),
-            *problem.detail_));
+            detail::getDetail(problem)));
         detail::clearError(err, errStr);
     }
     catch (cl::Error &e)
@@ -608,7 +635,7 @@ void Scan::moveAssign(Scan &other)
 
 Scan::~Scan()
 {
-    delete static_cast<detail::Scan *>(getDetail());
+    delete getDetail();
 }
 
 void Scan::enqueue(cl_command_queue commandQueue,
@@ -622,12 +649,11 @@ void Scan::enqueue(cl_command_queue commandQueue,
                    cl_int &err,
                    const char *&errStr)
 {
-    detail::Scan *self = static_cast<detail::Scan *>(getDetailNonNull());
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
         cl::Event event_;
-        self->enqueue(
+        getDetailNonNull()->enqueue(
             detail::retainWrap<cl::CommandQueue>(commandQueue),
             detail::retainWrap<cl::Buffer>(inBuffer),
             detail::retainWrap<cl::Buffer>(outBuffer),
@@ -655,12 +681,11 @@ void Scan::enqueue(cl_command_queue commandQueue,
                    cl_int &err,
                    const char *&errStr)
 {
-    detail::Scan *self = static_cast<detail::Scan *>(getDetailNonNull());
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
         cl::Event event_;
-        self->enqueue(
+        getDetailNonNull()->enqueue(
             detail::retainWrap<cl::CommandQueue>(commandQueue),
             detail::retainWrap<cl::Buffer>(inBuffer),
             detail::retainWrap<cl::Buffer>(outBuffer),

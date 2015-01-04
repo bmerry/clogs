@@ -1,4 +1,4 @@
-/* Copyright (c) 2014 Bruce Merry
+/* Copyright (c) 2014, 2015 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,13 +45,13 @@
 #include "parameters.h"
 #include "cache_types.h"
 #include "utils.h"
+#include "tune.h"
 
 namespace clogs
 {
 namespace detail
 {
 
-class TunePolicy;
 class Reduce;
 
 /**
@@ -62,9 +62,11 @@ class CLOGS_LOCAL ReduceProblem
 private:
     friend class Reduce;
     Type type;
+    TunePolicy tunePolicy;
 
 public:
     void setType(const Type &type);
+    void setTunePolicy(const TunePolicy &tunePolicy);
 };
 
 /**
@@ -113,12 +115,10 @@ private:
     /**
      * Perform autotuning.
      *
-     * @param policy      Tuning policy
      * @param device      Device to tune for
      * @param problem     Problem parameters
      */
     static ReduceParameters::Value tune(
-        const TunePolicy &policy,
         const cl::Device &device, const ReduceProblem &problem);
 
 public:

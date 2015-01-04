@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, Bruce Merry
+/* Copyright (c) 2014, 2015 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,14 +35,19 @@
 
 #include <clogs/core.h>
 #include <clogs/platform.h>
+#include <clogs/tune.h>
 
 namespace clogs
 {
+
+class ReduceProblem;
 
 namespace detail
 {
     class Reduce;
     class ReduceProblem;
+
+    const ReduceProblem &getDetail(const clogs::ReduceProblem &);
 } // namespace detail
 
 class Reduce;
@@ -54,8 +59,8 @@ class Reduce;
 class CLOGS_API ReduceProblem
 {
 private:
-    friend class Reduce;
     detail::ReduceProblem *detail_;
+    friend const detail::ReduceProblem &detail::getDetail(const clogs::ReduceProblem &);
 
 public:
     ReduceProblem();
@@ -69,6 +74,11 @@ public:
      * @param type      The element type
      */
     void setType(const Type &type);
+
+    /**
+     * Set the autotuning policy.
+     */
+    void setTunePolicy(const TunePolicy &tunePolicy);
 };
 
 /**
@@ -88,6 +98,8 @@ public:
 class CLOGS_API Reduce : public Algorithm
 {
 private:
+    detail::Reduce *getDetail() const;
+    detail::Reduce *getDetailNonNull() const;
     void construct(
         cl_context context, cl_device_id device, const ReduceProblem &problem,
         cl_int &err, const char *&errStr);

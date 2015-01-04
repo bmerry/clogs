@@ -35,6 +35,7 @@
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
+#include <clogs/tune.h>
 #include <clogs/scan.h>
 #include <clogs/reduce.h>
 #include <clogs/radixsort.h>

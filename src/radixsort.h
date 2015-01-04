@@ -1,5 +1,5 @@
 /* Copyright (c) 2012-2014 University of Cape Town
- * Copyright (c) 2014 Bruce Merry
+ * Copyright (c) 2014, 2015 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,8 +38,9 @@
 
 #include <clogs/core.h>
 #include "parameters.h"
-#include "utils.h"
 #include "cache_types.h"
+#include "utils.h"
+#include "tune.h"
 
 class TestRadixsort;
 
@@ -48,7 +49,6 @@ namespace clogs
 namespace detail
 {
 
-class TunePolicy;
 class Radixsort;
 
 class CLOGS_LOCAL RadixsortProblem
@@ -58,10 +58,12 @@ private:
 
     Type keyType;
     Type valueType;
+    TunePolicy tunePolicy;
 
 public:
     void setKeyType(const Type &keyType);
     void setValueType(const Type &valueType);
+    void setTunePolicy(const TunePolicy &tunePolicy);
 };
 
 /**
@@ -188,11 +190,9 @@ private:
     /**
      * Perform autotuning.
      *
-     * @param policy  Tuning policy
      * @param device, problem Constructor parameters
      */
     static RadixsortParameters::Value tune(
-        const TunePolicy &policy,
         const cl::Device &device,
         const RadixsortProblem &problem);
 

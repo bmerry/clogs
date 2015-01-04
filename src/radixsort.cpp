@@ -72,6 +72,11 @@ void RadixsortProblem::setValueType(const Type &valueType)
     this->valueType = valueType;
 }
 
+void RadixsortProblem::setTunePolicy(const TunePolicy &tunePolicy)
+{
+    this->tunePolicy = tunePolicy;
+}
+
 
 ::size_t Radixsort::getTileSize() const
 {
@@ -420,7 +425,7 @@ Radixsort::Radixsort(
     RadixsortParameters::Value params;
     if (!getDB().radixsort.lookup(key, params))
     {
-        params = tune(TunePolicy(), device, problem);
+        params = tune(device, problem);
         getDB().radixsort.add(key, params);
     }
     initialize(context, device, problem, params);
@@ -598,10 +603,10 @@ std::pair<double, double> Radixsort::tuneBlocksCallback(
 }
 
 RadixsortParameters::Value Radixsort::tune(
-    const TunePolicy &policy,
     const cl::Device &device,
     const RadixsortProblem &problem)
 {
+    const TunePolicy &policy = problem.tunePolicy;
     policy.assertEnabled();
     std::ostringstream description;
     description << "radixsort for " << problem.keyType.getName() << " keys and "
@@ -741,6 +746,11 @@ RadixsortParameters::Value Radixsort::tune(
     return out;
 }
 
+const RadixsortProblem &getDetail(const clogs::RadixsortProblem &problem)
+{
+    return *problem.detail_;
+}
+
 } // namespace detail
 
 RadixsortProblem::RadixsortProblem() : detail_(new detail::RadixsortProblem())
@@ -780,9 +790,25 @@ void RadixsortProblem::setValueType(const Type &valueType)
     detail_->setValueType(valueType);
 }
 
+void RadixsortProblem::setTunePolicy(const TunePolicy &tunePolicy)
+{
+    assert(detail_ != NULL);
+    detail_->setTunePolicy(detail::getDetail(tunePolicy));
+}
+
 
 Radixsort::Radixsort()
 {
+}
+
+detail::Radixsort *Radixsort::getDetail() const
+{
+    return static_cast<detail::Radixsort *>(Algorithm::getDetail());
+}
+
+detail::Radixsort *Radixsort::getDetailNonNull() const
+{
+    return static_cast<detail::Radixsort *>(Algorithm::getDetailNonNull());
 }
 
 void Radixsort::construct(
@@ -795,7 +821,7 @@ void Radixsort::construct(
         setDetail(new detail::Radixsort(
             detail::retainWrap<cl::Context>(context),
             detail::retainWrap<cl::Device>(device),
-            *problem.detail_));
+            detail::getDetail(problem)));
         detail::clearError(err, errStr);
     }
     catch (cl::Error &e)
@@ -819,12 +845,11 @@ void Radixsort::enqueue(
     cl_int &err,
     const char *&errStr)
 {
-    detail::Radixsort *self = static_cast<detail::Radixsort *>(getDetailNonNull());
     try
     {
         VECTOR_CLASS<cl::Event> events_ = detail::retainWrap<cl::Event>(numEvents, events);
         cl::Event event_;
-        self->enqueue(
+        getDetailNonNull()->enqueue(
             detail::retainWrap<cl::CommandQueue>(commandQueue),
             detail::retainWrap<cl::Buffer>(keys),
             detail::retainWrap<cl::Buffer>(values),
@@ -843,10 +868,9 @@ void Radixsort::enqueue(
 void Radixsort::setTemporaryBuffers(cl_mem keys, cl_mem values,
                                     cl_int &err, const char *&errStr)
 {
-    detail::Radixsort *self = static_cast<detail::Radixsort *>(getDetailNonNull());
     try
     {
-        self->setTemporaryBuffers(
+        getDetailNonNull()->setTemporaryBuffers(
             detail::retainWrap<cl::Buffer>(keys),
             detail::retainWrap<cl::Buffer>(values));
         detail::clearError(err, errStr);
@@ -859,7 +883,7 @@ void Radixsort::setTemporaryBuffers(cl_mem keys, cl_mem values,
 
 Radixsort::~Radixsort()
 {
-    delete static_cast<detail::Radixsort *>(getDetail());
+    delete getDetail();
 }
 
 void swap(Radixsort &a, Radixsort &b)

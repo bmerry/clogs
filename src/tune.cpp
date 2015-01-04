@@ -68,11 +68,14 @@ void TunePolicy::assertEnabled() const
 
 void TunePolicy::logStartAlgorithm(const std::string &description, const cl::Device &device) const
 {
-    *out << "Tuning " << description << " on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
+    if (verbosity >= TUNE_VERBOSITY_TERSE)
+        *out << "Tuning " << description << " on " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 }
 
 void TunePolicy::logEndAlgorithm() const
 {
+    if (verbosity >= TUNE_VERBOSITY_DEBUG)
+        *out << "Finished tuning" << std::endl;
 }
 
 void TunePolicy::logStartGroup() const
@@ -81,7 +84,8 @@ void TunePolicy::logStartGroup() const
 
 void TunePolicy::logEndGroup() const
 {
-    *out << std::endl;
+    if (verbosity >= TUNE_VERBOSITY_NORMAL)
+        *out << std::endl;
 }
 
 void TunePolicy::logStartTest() const
@@ -90,8 +94,15 @@ void TunePolicy::logStartTest() const
 
 void TunePolicy::logEndTest(bool success, double rate) const
 {
-    (void) rate;
-    *out << "!."[success] << std::flush;
+    if (verbosity >= TUNE_VERBOSITY_DEBUG)
+    {
+        if (success)
+            *out << rate << std::endl;
+        else
+            *out << "failed" << std::endl;
+    }
+    else if (verbosity >= TUNE_VERBOSITY_NORMAL)
+        *out << "!."[success] << std::flush;
 }
 
 boost::any tuneOne(
@@ -107,6 +118,7 @@ boost::any tuneOne(
         const boost::any &)> callback,
     double ratio)
 {
+    policy.assertEnabled();
     std::vector<boost::any> retained = parameterSets;
     for (std::size_t pass = 0; pass < problemSizes.size(); pass++)
     {
@@ -172,5 +184,52 @@ boost::any tuneOne(
     return boost::any();
 }
 
+CLOGS_LOCAL const TunePolicy &getDetail(const clogs::TunePolicy &tunePolicy)
+{
+    assert(tunePolicy.detail_ != NULL);
+    return *tunePolicy.detail_;
+}
+
 } // namespace detail
+
+TunePolicy::TunePolicy() : detail_(new detail::TunePolicy())
+{
+}
+
+TunePolicy::~TunePolicy()
+{
+    delete detail_;
+}
+
+TunePolicy::TunePolicy(const TunePolicy &other)
+    : detail_(new detail::TunePolicy(*other.detail_))
+{
+}
+
+TunePolicy &TunePolicy::operator=(const TunePolicy &other)
+{
+    if (detail_ != other.detail_)
+    {
+        detail::TunePolicy *tmp = new detail::TunePolicy(*other.detail_);
+        delete detail_;
+        detail_ = tmp;
+    }
+    return *this;
+}
+
+void TunePolicy::setEnabled(bool enable)
+{
+    detail_->setEnabled(enable);
+}
+
+void TunePolicy::setVerbosity(TuneVerbosity verbosity)
+{
+    detail_->setVerbosity(verbosity);
+}
+
+void TunePolicy::setOutput(std::ostream &out)
+{
+    detail_->setOutput(out);
+}
+
 } // namespace clogs

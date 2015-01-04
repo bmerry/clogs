@@ -37,6 +37,7 @@
 #include "tr1_functional.h"
 #include <clogs/visibility_pop.h>
 
+#include <clogs/tune.h>
 #include "cache_types.h"
 
 namespace cl
@@ -56,14 +57,6 @@ namespace detail
  * Create a key with fields uniquely describing @a device.
  */
 CLOGS_LOCAL DeviceKey deviceKey(const cl::Device &device);
-
-enum TuneVerbosity
-{
-    TUNE_VERBOSITY_SILENT = 0,
-    TUNE_VERBOSITY_QUIET = 1,
-    TUNE_VERBOSITY_NORMAL = 2,
-    TUNE_VERBOSITY_DEBUG = 3
-};
 
 class CLOGS_LOCAL TunePolicy
 {
@@ -150,9 +143,6 @@ public:
  *
  * Each call will be made with a fresh context. It is advisable for the
  * callback function to execute a warmup pass to obtain reliable results.
- *
- * @note This function does not check whether tuning is enabled. The caller
- * must do so.
  */
 boost::any tuneOne(
     const TunePolicy &policy,

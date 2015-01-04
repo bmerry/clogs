@@ -1,5 +1,5 @@
 /* Copyright (c) 2012, 2014 University of Cape Town
- * Copyright (c) 2014, Bruce Merry
+ * Copyright (c) 2014, 2015 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,17 +36,20 @@
 
 #include <clogs/core.h>
 #include <clogs/platform.h>
+#include <clogs/tune.h>
 
 namespace clogs
 {
 
+class ScanProblem;
+
 namespace detail
 {
-    class Scan;
     class ScanProblem;
-} // namespace detail
+    class Scan;
 
-class Scan;
+    const ScanProblem &getDetail(const clogs::ScanProblem &);
+} // namespace detail
 
 /**
  * Encapsulates the specifics of a scan problem. After construction, use
@@ -55,8 +58,8 @@ class Scan;
 class CLOGS_API ScanProblem
 {
 private:
-    friend class Scan;
     detail::ScanProblem *detail_;
+    friend const detail::ScanProblem &detail::getDetail(const clogs::ScanProblem &);
 
 public:
     ScanProblem();
@@ -71,6 +74,11 @@ public:
      * @throw std::invalid_argument if @a type is not an integral scalar or vector type
      */
     void setType(const Type &type);
+
+    /**
+     * Set the autotuning policy.
+     */
+    void setTunePolicy(const TunePolicy &tunePolicy);
 };
 
 /**
@@ -90,6 +98,8 @@ public:
 class CLOGS_API Scan : public Algorithm
 {
 private:
+    detail::Scan *getDetail() const;
+    detail::Scan *getDetailNonNull() const;
     void construct(cl_context context, cl_device_id device, const ScanProblem &problem,
                    cl_int &err, const char *&errStr);
     friend void swap(Scan &, Scan &);

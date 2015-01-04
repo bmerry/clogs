@@ -1,5 +1,5 @@
 /* Copyright (c) 2012 University of Cape Town
- * Copyright (c) 2014, Bruce Merry
+ * Copyright (c) 2014, 2015 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,14 +36,19 @@
 
 #include <clogs/core.h>
 #include <clogs/platform.h>
+#include <clogs/tune.h>
 
 namespace clogs
 {
+
+class RadixsortProblem;
 
 namespace detail
 {
     class Radixsort;
     class RadixsortProblem;
+
+    const RadixsortProblem &getDetail(const clogs::RadixsortProblem &);
 } // namespace detail
 
 class Radixsort;
@@ -56,8 +61,8 @@ class Radixsort;
 class CLOGS_API RadixsortProblem
 {
 private:
-    friend class Radixsort;
     detail::RadixsortProblem *detail_;
+    friend const detail::RadixsortProblem &detail::getDetail(const clogs::RadixsortProblem &);
 
 public:
     RadixsortProblem();
@@ -78,6 +83,11 @@ public:
      * that no values will be sorted.
      */
     void setValueType(const Type &valueType);
+
+    /**
+     * Set the autotuning policy.
+     */
+    void setTunePolicy(const TunePolicy &tunePolicy);
 };
 
 /**
@@ -99,6 +109,8 @@ public:
 class CLOGS_API Radixsort : public Algorithm
 {
 private:
+    detail::Radixsort *getDetail() const;
+    detail::Radixsort *getDetailNonNull() const;
     void construct(cl_context context, cl_device_id device, const RadixsortProblem &problem,
                    cl_int &err, const char *&errStr);
     void moveAssign(Radixsort &other);
