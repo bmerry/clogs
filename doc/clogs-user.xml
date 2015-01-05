@@ -2,7 +2,7 @@
 <!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.3//EN" "http://www.oasis-open.org/docbook/xml/4.3/docbookx.dtd">
 <!--
    Copyright (c) 2012-2014 University of Cape Town
-   Copyright (c) 2014 Bruce Merry
+   Copyright (c) 2014, 2015 Bruce Merry
 
    Permission is hereby granted, free of charge, to any person obtaining a copy
    of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,7 @@
         </copyright>
         <copyright>
             <year>2014</year>
+            <year>2015</year>
             <holder>Bruce Merry</holder>
         </copyright>
         <!-- The releaseinfo element is replaced by the stylesheet to inject
@@ -395,9 +396,10 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
                 The other type of exception that may occur is
                 <type>clogs::InternalError</type>. This is only thrown for
                 unexpected errors with the implementation, such as when
-                the source for one of the kernels fails to compile. If
-                autotuning has not been done, a <type>clogs::CacheError</type>
-                (a subclass of <type>clogs::InternalError</type>) is thrown.
+                the source for one of the kernels fails to compile. Errors
+                related to the tuning cache are reported as
+                <type>clogs::CacheError</type> (a subclass of
+                <type>clogs::InternalError</type>).
             </para>
         </section>
         <section id="using.memory">
@@ -439,6 +441,39 @@ sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
                 call, rather than when the event completes; it is up to you to
                 defer querying the profiling information until the event is
                 complete.
+            </para>
+        </section>
+        <section id="using.tunepolicy">
+            <title>Tuning policy</title>
+            <para>
+                By default, tuning progress is reported to standard output. In some
+                cases one might want to redirect the output (for example, to a log
+                file) or suppress it entirely. One can control the output stream
+                and the verbosity using a <type>clogs::TunePolicy</type>. Here is
+                an example:
+            </para>
+            <programlisting language="c++">
+#include &lt;clogs/clogs.h&gt;
+...
+clogs::TunePolicy policy;
+policy.setOutput(std::cerr);
+policy.setVerbosity(clogs::TUNE_VERBOSITY_TERSE);
+clogs::RadixsortProblem problem;
+problem.setTunePolicy(policy);
+...
+</programlisting>
+            <para>
+                Refer to the reference manual for the possible verbosity
+                levels. If more control is required over how the progress
+                report is handled, you can implement a custom output stream
+                type (Boost.Iostreams greatly simplifies this).
+            </para>
+            <para>
+                It is also possible to disable on-the-fly tuning, by calling
+                <function>setEnable</function> on the policy. If the problem
+                configuration has not already been tuned, attempting to
+                construct the algorithm object will throw a
+                <type>clogs::CacheError</type> instead of doing tuning.
             </para>
         </section>
     </chapter>
