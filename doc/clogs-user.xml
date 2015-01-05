@@ -98,7 +98,7 @@
                         OpenCL version.
                 </para></listitem>
                 <listitem><para>
-                        A C++ compiler. GCC 4.8 and Visual C++ 2010 have been
+                        A C++ compiler. GCC 4.8 and Visual C++ 2013 have been
                         tested.
                 </para></listitem>
                 <listitem><para>
