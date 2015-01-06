@@ -85,9 +85,6 @@ private:
     cl::Kernel scanKernel;           ///< Final scan kernel
     cl::Buffer sums;                 ///< Reductions of the blocks for middle phase
 
-    void (CL_CALLBACK *eventCallback)(const cl::Event &event, void *);
-    void *eventCallbackUserData;
-
     /**
      * Implementation of @ref enqueue, supporting both offsetting and
      * non-offsetting. If @a offsetBuffer is not @c NULL, we are doing offseting.
