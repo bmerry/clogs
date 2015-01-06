@@ -55,7 +55,7 @@ enum TuneVerbosity
 class CLOGS_API TunePolicy
 {
 private:
-    friend const detail::TunePolicy &detail::getDetail(const TunePolicy &);
+    friend const detail::TunePolicy &detail::getDetail(const clogs::TunePolicy &);
     detail::TunePolicy *detail_;
 
 public:
