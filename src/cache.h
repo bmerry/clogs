@@ -33,8 +33,8 @@
 #include <boost/noncopyable.hpp>
 #include <clogs/visibility_pop.h>
 
-#include "parameters.h"
 #include "cache_types.h"
+#include "parameters.h"
 
 struct sqlite3;
 struct sqlite3_stmt;

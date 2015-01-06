@@ -29,9 +29,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#ifndef __CL_ENABLE_EXCEPTIONS
-# define __CL_ENABLE_EXCEPTIONS
-#endif
+#include "clhpp11.h"
 
 #include <clogs/visibility_push.h>
 #include <string>
@@ -40,7 +38,6 @@
 #include <sstream>
 #include <locale>
 #include <stdexcept>
-#include <CL/cl.hpp>
 #include <boost/noncopyable.hpp>
 #include <clogs/visibility_pop.h>
 

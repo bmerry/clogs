@@ -33,10 +33,10 @@
 #include <sstream>
 #include <locale>
 #include <memory>
-#include <clogs/core.h>
 #include "clogs_test.h"
 #include "../src/sqlite3.h"
 #include "../src/parameters.h"
+#include <clogs/core.h>
 
 using namespace clogs::detail;
 

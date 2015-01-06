@@ -1,5 +1,6 @@
 - Build and run the test suite
 - Update the version number in wscript
+- Update the API version number in include/clogs/core.h
 - Update the Changelog
 - Nuke old versions: rm -rf /usr/local/share/doc/clogs /usr/local/lib/libclogs*
 - On machines with 480 GTX and R9 270

@@ -29,8 +29,9 @@
 #ifndef RADIXSORT_H
 #define RADIXSORT_H
 
+#include "clhpp11.h"
+
 #include <clogs/visibility_push.h>
-#include <CL/cl.hpp>
 #include <cstddef>
 #include <utility>
 #include <boost/any.hpp>

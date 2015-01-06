@@ -32,12 +32,12 @@
 # include <config.h>
 #endif
 #include <cppunit/extensions/HelperMacros.h>
+#include "../src/clhpp11.h"
 #include "../src/tr1_functional.h"
 #include "../src/tr1_random.h"
 #include <string>
 #include <vector>
 #include <cstddef>
-#include <CL/cl.hpp>
 #include <clogs/clogs.h>
 #ifdef min
  #undef min

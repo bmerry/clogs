@@ -25,10 +25,6 @@
  * Test code for tuning infrastructure.
  */
 
-#ifndef __CL_ENABLE_EXCEPTIONS
-# define __CL_ENABLE_EXCEPTIONS
-#endif
-
 #include "../src/clhpp11.h"
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <cppunit/extensions/HelperMacros.h>

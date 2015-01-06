@@ -29,15 +29,11 @@
 # include <config.h>
 #endif
 
-#ifndef __CL_ENABLE_EXCEPTIONS
-# define __CL_ENABLE_EXCEPTIONS
-#endif
+#include "clhpp11.h"
 
 #include <clogs/visibility_push.h>
-#include "clhpp11.h"
 #include <string>
 #include <vector>
-#include <CL/cl.hpp>
 #include <clogs/visibility_pop.h>
 
 #include "parameters.h"

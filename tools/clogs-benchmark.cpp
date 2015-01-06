@@ -20,10 +20,6 @@
  * SOFTWARE.
  */
 
-#ifndef __CL_ENABLE_EXCEPTIONS
-# define __CL_ENABLE_EXCEPTIONS
-#endif
-
 #include "../src/clhpp11.h"
 #include <clogs/clogs.h>
 #include <boost/program_options.hpp>

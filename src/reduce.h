@@ -28,16 +28,13 @@
 #ifndef REDUCE_H
 #define REDUCE_H
 
-#ifndef __CL_ENABLE_EXCEPTIONS
-# define __CL_ENABLE_EXCEPTIONS
-#endif
+#include "clhpp11.h"
 
 #include <clogs/visibility_push.h>
 #include <cstddef>
 #include <cassert>
 #include <vector>
 #include <string>
-#include <CL/cl.hpp>
 #include <boost/any.hpp>
 #include <clogs/visibility_pop.h>
 

@@ -29,7 +29,7 @@
 #ifndef CLOGS_OPTIONS_H
 #define CLOGS_OPTIONS_H
 
-#include <CL/cl.hpp>
+#include "../src/clhpp11.h"
 #include <vector>
 #include <boost/program_options.hpp>
 

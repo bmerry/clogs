@@ -26,10 +26,6 @@
  * between the test frontend and clogs-benchmark.
  */
 
-#ifndef __CL_ENABLE_EXCEPTIONS
-# define __CL_ENABLE_EXCEPTIONS
-#endif
-
 #include "../src/clhpp11.h"
 #include <boost/program_options.hpp>
 #include <boost/foreach.hpp>

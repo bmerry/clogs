@@ -28,10 +28,11 @@
 #ifndef CACHE_TYPES_H
 #define CACHE_TYPES_H
 
+#include "clhpp11.h"
+
 #include <clogs/visibility_push.h>
 #include <string>
 #include <vector>
-#include <CL/cl.hpp>
 #include <clogs/visibility_pop.h>
 
 #include "parameters.h"

@@ -30,12 +30,9 @@
 # include <config.h>
 #endif
 
-#ifndef __CL_ENABLE_EXCEPTIONS
-# define __CL_ENABLE_EXCEPTIONS
-#endif
+#include "clhpp11.h"
 
 #include <clogs/visibility_push.h>
-#include "clhpp11.h"
 #include <cstddef>
 #include <map>
 #include <string>

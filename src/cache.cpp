@@ -50,9 +50,9 @@
 
 #include <clogs/visibility_pop.h>
 
-#include <clogs/core.h>
 #include "cache.h"
 #include "sqlite3.h"
+#include <clogs/core.h>
 
 namespace clogs
 {

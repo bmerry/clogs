@@ -19,10 +19,7 @@
  * SOFTWARE.
  */
 
-#ifndef __CL_ENABLE_EXCEPTIONS
-# define __CL_ENABLE_EXCEPTIONS
-#endif
-
+#include "../src/clhpp11.h"
 #include <iostream>
 #include <cppunit/Test.h>
 #include <cppunit/TestCase.h>
@@ -36,7 +33,6 @@
 #include <string>
 #include <stdexcept>
 #include <typeinfo>
-#include "../src/clhpp11.h"
 #include "clogs_test.h"
 #include "../tools/options.h"
 #include "../src/utils.h"
