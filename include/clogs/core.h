@@ -50,7 +50,7 @@ namespace clogs
 /// API major version number.
 #define CLOGS_VERSION_MAJOR 1
 /// API minor version number.
-#define CLOGS_VERSION_MINOR 0
+#define CLOGS_VERSION_MINOR 5
 
 /**
  * Exception thrown on internal errors that are not the user's fault.

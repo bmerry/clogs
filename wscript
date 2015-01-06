@@ -1,5 +1,5 @@
 # Copyright (c) 2012, 2013 University of Cape Town
-# Copyright (c) 2014 Bruce Merry
+# Copyright (c) 2014, 2015 Bruce Merry
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,8 @@ from waflib.TaskGen import feature, after_method
 from waflib import Task
 
 APPNAME = 'clogs'
-VERSION = '1.4.0'
+VERSION = '1.5.0'
+ABI_VERSION = '2.0.0'
 out = 'build'
 
 variants = {
@@ -293,7 +294,7 @@ def build(bld):
             export_includes = 'include',
             name = 'CLOGS-SH',
             use = 'OPENCL OS',
-            vnum = VERSION)
+            vnum = ABI_VERSION)
     if 'HAVE_CPPUNIT_TEST_H=1' in bld.env['DEFINES']:
         bld.program(
                 source = bld.path.ant_glob('test/*.cpp') + ['tools/options.cpp', 'tools/timer.cpp'],
