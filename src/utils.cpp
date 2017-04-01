@@ -245,16 +245,26 @@ cl::Program build(
      * not exception-safe, so we do things at the C API level.
      */
     VECTOR_CLASS< ::size_t> binarySizes = program.getInfo<CL_PROGRAM_BINARY_SIZES>();
-    assert(binarySizes.size() == 1);
+    VECTOR_CLASS<cl::Device> programDevices = program.getInfo<CL_PROGRAM_DEVICES>();
+    assert(binarySizes.size() == programDevices.size());
+    ::size_t numDevices = binarySizes.size();
+    std::vector<unsigned char *> dataPtrs(numDevices, NULL);
+    for (::size_t i = 0; i < programDevices.size(); i++)
+    {
+        if (programDevices[i]() == device())
+        {
+            value.binary.resize(binarySizes[i]);
+            dataPtrs[i] = &value.binary[0];
 
-    value.binary.resize(binarySizes[0]);
-    std::vector<unsigned char *> dataPtrs(1, &value.binary[0]);
-
-    int err = clGetProgramInfo(program(), CL_PROGRAM_BINARIES,
-                               sizeof(unsigned char *), &dataPtrs[0], NULL);
-    if (err != CL_SUCCESS)
-        throw cl::Error(err, "clGetProgramInfo");
-    getDB().kernel.add(key, value);
+            int err = clGetProgramInfo(program(), CL_PROGRAM_BINARIES,
+                                       numDevices * sizeof(unsigned char *),
+                                       &dataPtrs[0], NULL);
+            if (err != CL_SUCCESS)
+                throw cl::Error(err, "clGetProgramInfo");
+            getDB().kernel.add(key, value);
+            break;
+        }
+    }
 
     return program;
 }
