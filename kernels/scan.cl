@@ -311,19 +311,16 @@ void scanExclusive(
      * Finally, the coarse scan results are transferred back to the per-thread data to
      * adjust them, before they're written back to global memory.
      */
-    __local union
-    {
-        /* Used as a staging area for load and store, to allow memory
-         * transactions to be contiguous.
-         */
-        SCAN_T raw[SCAN_WORK_GROUP_SIZE * SCAN_WORK_SCALE];
 
-        /* At the end of upsweep, [ 2^n, 2^(n+1) ) contains a reduced form of the
-         * full sequence. Downsweep turns each such range into its exclusive
-         * prefix sum.
-         */
-        SCAN_T reduced[2 * SCAN_WORK_GROUP_SIZE];
-    } x;
+    /* raw and reduced have non-overlapping lifetimes, so we alias them using
+     * raw_reduced as backing store (OpenCL compilers seem to be bad at doing
+     * this optimisation themselves). This used to be done with a union, but
+     * NVIDIA drivers (as of 375.39) have a bug that leads to misaligned
+     * accesses on Pascal GPUs in this case.
+     */
+    __local SCAN_T raw_reduced[(SCAN_WORK_SCALE < 2 ? 2 : SCAN_WORK_SCALE) * SCAN_WORK_GROUP_SIZE];
+    __local SCAN_T * const raw = raw_reduced;
+    __local SCAN_T * const reduced = raw_reduced;
     SCAN_T priv[SCAN_WORK_SCALE];
 
     const uint lid = get_local_id(0);
@@ -340,14 +337,14 @@ void scanExclusive(
         for (uint i = 0; i < SCAN_WORK_SCALE; i++)
         {
             uint addr = start + lid + i * SCAN_WORK_GROUP_SIZE;
-            x.raw[lid + i * SCAN_WORK_GROUP_SIZE] = (addr < total) ? in[addr] : (SCAN_T) 0;
+            raw[lid + i * SCAN_WORK_GROUP_SIZE] = (addr < total) ? in[addr] : (SCAN_T) 0;
         }
         barrier(CLK_LOCAL_MEM_FENCE);
 
         /* Read the relevant data into registers */
         for (uint i = 0; i < SCAN_WORK_SCALE; i++)
         {
-            priv[i] = x.raw[lid * SCAN_WORK_SCALE + i];
+            priv[i] = raw[lid * SCAN_WORK_SCALE + i];
         }
 
         /* Scan the private range */
@@ -356,7 +353,7 @@ void scanExclusive(
 
         /* Write the reduced private ranges for shared upsweep */
         barrier(CLK_LOCAL_MEM_FENCE);
-        x.reduced[SCAN_WORK_GROUP_SIZE + lid] = priv[SCAN_WORK_SCALE - 1];
+        reduced[SCAN_WORK_GROUP_SIZE + lid] = priv[SCAN_WORK_SCALE - 1];
         barrier(CLK_LOCAL_MEM_FENCE);
 
         /* Upsweep, interwarp */
@@ -365,7 +362,7 @@ void scanExclusive(
             if (lid < scale)
             {
                 const uint pos = scale + lid;
-                x.reduced[pos] = x.reduced[2 * pos] + x.reduced[2 * pos + 1];
+                reduced[pos] = reduced[2 * pos] + reduced[2 * pos + 1];
             }
             if (scale > WARP_SIZE_MEM)
                 barrier(CLK_LOCAL_MEM_FENCE);
@@ -376,11 +373,11 @@ void scanExclusive(
         /* v[1] is the total of this range, but need to make it exclusive */
         if (lid == 0)
         {
-            SCAN_T nextOffset = offset + x.reduced[1];
-            x.reduced[1] = offset;
+            SCAN_T nextOffset = offset + reduced[1];
+            reduced[1] = offset;
             offset = nextOffset;
         }
-        /* No barrier needed here, because only thread 0 uses x.reduced[1] */
+        /* No barrier needed here, because only thread 0 uses reduced[1] */
 
         /* Downsweep */
         for (uint scale = 1; scale < SCAN_WORK_GROUP_SIZE; scale <<= 1)
@@ -388,10 +385,10 @@ void scanExclusive(
             if (lid < scale)
             {
                 const uint pos = scale + lid;
-                const SCAN_T in = x.reduced[pos];
-                const SCAN_T left = x.reduced[2 * pos];
-                x.reduced[2 * pos + 1] = in + left;
-                x.reduced[2 * pos] = in;
+                const SCAN_T in = reduced[pos];
+                const SCAN_T left = reduced[2 * pos];
+                reduced[2 * pos + 1] = in + left;
+                reduced[2 * pos] = in;
             }
             if (scale >= WARP_SIZE_MEM)
                 barrier(CLK_LOCAL_MEM_FENCE);
@@ -400,13 +397,13 @@ void scanExclusive(
         }
 
         /* Feed reduction back into private range, making it exclusive at the same time */
-        const SCAN_T add = x.reduced[SCAN_WORK_GROUP_SIZE + lid];
+        const SCAN_T add = reduced[SCAN_WORK_GROUP_SIZE + lid];
         barrier(CLK_LOCAL_MEM_FENCE);
         for (uint i = SCAN_WORK_SCALE - 1; i > 0; i--)
         {
-            x.raw[lid * SCAN_WORK_SCALE + i] = priv[i - 1] + add;
+            raw[lid * SCAN_WORK_SCALE + i] = priv[i - 1] + add;
         }
-        x.raw[lid * SCAN_WORK_SCALE] = add;
+        raw[lid * SCAN_WORK_SCALE] = add;
         barrier(CLK_LOCAL_MEM_FENCE);
 
         /* Writeback */
@@ -414,7 +411,7 @@ void scanExclusive(
         {
             uint addr = start + lid + i * SCAN_WORK_GROUP_SIZE;
             if (addr < total)
-                out[addr] = x.raw[lid + i * SCAN_WORK_GROUP_SIZE];
+                out[addr] = raw[lid + i * SCAN_WORK_GROUP_SIZE];
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }
