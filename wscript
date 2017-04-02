@@ -28,7 +28,7 @@ from waflib.TaskGen import feature, after_method
 from waflib import Task
 
 APPNAME = 'clogs'
-VERSION = '1.5.0'
+VERSION = '1.5.1'
 ABI_VERSION = '2.0.0'
 out = 'build'
 
