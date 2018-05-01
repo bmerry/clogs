@@ -1,5 +1,5 @@
 /* Copyright (c) 2012-2013 University of Cape Town
- * Copyright (c) 2014 Bruce Merry
+ * Copyright (c) 2014, 2018 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,6 @@
 #include "../src/clhpp11.h"
 #include <clogs/clogs.h>
 #include <boost/program_options.hpp>
-#include <boost/bind.hpp>
 #include <iostream>
 #include <algorithm>
 #include <limits>
@@ -31,10 +30,10 @@
 #include <string>
 #include <stdexcept>
 #include <locale>
+#include <random>
 #include "timer.h"
 #include "options.h"
 #include "../src/utils.h"
-#include "../src/tr1_random.h"
 
 namespace po = boost::program_options;
 
@@ -103,34 +102,34 @@ static po::variables_map processOptions(int argc, const char **argv)
 }
 
 /* Figures out which uniform distribution class we want to use.
- * We default to uniform_int, then override to uniform_real if
- * T is real.
+ * We default to uniform_int_distribution, then override to
+ * uniform_real_distribution if T is real.
  */
 template<typename T>
 class uniform
 {
 public:
-    typedef RANDOM_NAMESPACE::uniform_int<T> type;
+    typedef std::uniform_int_distribution<T> type;
 };
 
 template<>
 class uniform<float>
 {
 public:
-    typedef RANDOM_NAMESPACE::uniform_real<float> type;
+    typedef std::uniform_real_distribution<float> type;
 };
 
 template<>
 class uniform<double>
 {
 public:
-    typedef RANDOM_NAMESPACE::uniform_real<double> type;
+    typedef std::uniform_real_distribution<double> type;
 };
 
 template<typename T>
 static cl::Buffer randomBuffer(
     const cl::CommandQueue &queue,
-    RANDOM_NAMESPACE::mt19937 &engine,
+    std::mt19937 &engine,
     std::size_t elements, int length,
     T minValue, T maxValue)
 {
@@ -148,7 +147,7 @@ static cl::Buffer randomBuffer(
     std::size_t size = elements * sizeof(T);
     cl::Buffer buffer(context, CL_MEM_READ_WRITE, size);
     T *data = static_cast<T *>(queue.enqueueMapBuffer(buffer, CL_TRUE, CL_MAP_WRITE, 0, size));
-    std::generate(data, data + elements, boost::bind(dist, engine));
+    std::generate(data, data + elements, std::bind(dist, std::ref(engine)));
     queue.enqueueUnmapMemObject(buffer, data);
     return buffer;
 }
@@ -158,7 +157,7 @@ static cl::Buffer randomBuffer(
 template<typename T>
 static cl::Buffer randomBuffer(
     const cl::CommandQueue &queue,
-    RANDOM_NAMESPACE::mt19937 &engine,
+    std::mt19937 &engine,
     std::size_t elements, int length)
 {
     if (std::numeric_limits<T>::is_integer)
@@ -177,7 +176,7 @@ static cl::Buffer randomBuffer(
  */
 static cl::Buffer randomBuffer(
     const cl::CommandQueue &queue,
-    RANDOM_NAMESPACE::mt19937 &engine,
+    std::mt19937 &engine,
     std::size_t elements, const clogs::Type &type,
     cl_ulong minValue, cl_ulong maxValue)
 {
@@ -236,7 +235,7 @@ static cl::Buffer randomBuffer(
  */
 static cl::Buffer randomBuffer(
     const cl::CommandQueue &queue,
-    RANDOM_NAMESPACE::mt19937 &engine,
+    std::mt19937 &engine,
     std::size_t elements, const clogs::Type &type)
 {
     if (type.getBaseType() == clogs::TYPE_VOID)
@@ -392,7 +391,7 @@ static void runSort(const cl::CommandQueue &queue, const po::variables_map &vm)
     }
 
 
-    RANDOM_NAMESPACE::mt19937 engine;
+    std::mt19937 engine;
     cl::Buffer keyBuffer = randomBuffer(queue, engine, elements, keyType, minValue, maxValue);
     std::size_t keyBufferSize = keyBuffer.getInfo<CL_MEM_SIZE>();
     cl::Buffer tmpKeyBuffer1(context, CL_MEM_READ_WRITE, keyBufferSize);
@@ -463,7 +462,7 @@ static void runScan(const cl::CommandQueue &queue, const po::variables_map &vm)
         std::exit(1);
     }
 
-    RANDOM_NAMESPACE::mt19937 engine;
+    std::mt19937 engine;
     cl::Buffer buffer = randomBuffer<cl_uchar>(queue, engine, elements * valueType.getSize(), 1);
     clogs::ScanProblem problem;
     problem.setType(valueType);
@@ -511,7 +510,7 @@ static void runReduce(const cl::CommandQueue &queue, const po::variables_map &vm
         std::exit(1);
     }
 
-    RANDOM_NAMESPACE::mt19937 engine;
+    std::mt19937 engine;
     cl::Buffer buffer = randomBuffer(queue, engine, elements, valueType);
     cl::Buffer output(context, CL_MEM_READ_WRITE, valueType.getSize());
     clogs::ReduceProblem problem;

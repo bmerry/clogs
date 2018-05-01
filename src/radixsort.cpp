@@ -1,5 +1,5 @@
 /* Copyright (c) 2012-2014 University of Cape Town
- * Copyright (c) 2014 Bruce Merry
+ * Copyright (c) 2014, 2018 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,8 @@
 #include <algorithm>
 #include <vector>
 #include <utility>
+#include <random>
+#include <functional>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -47,8 +49,6 @@
 #include "parameters.h"
 #include "tune.h"
 #include "cache.h"
-#include "tr1_random.h"
-#include "tr1_functional.h"
 
 namespace clogs
 {
@@ -459,7 +459,7 @@ static cl::Buffer makeRandomBuffer(const cl::CommandQueue &queue, ::size_t size)
     cl::Buffer buffer(queue.getInfo<CL_QUEUE_CONTEXT>(), CL_MEM_READ_WRITE, size);
     cl_uchar *data = reinterpret_cast<cl_uchar *>(
         queue.enqueueMapBuffer(buffer, CL_TRUE, CL_MAP_WRITE, 0, size));
-    RANDOM_NAMESPACE::mt19937 engine;
+    std::mt19937 engine;
     for (::size_t i = 0; i < size; i++)
     {
         /* We take values directly from the engine rather than using a
@@ -665,10 +665,10 @@ RadixsortParameters::Value Radixsort::tune(
                 params.reduceWorkGroupSize = reduceWorkGroupSize;
                 sets.push_back(params);
             }
-            using namespace FUNCTIONAL_NAMESPACE::placeholders;
+            using namespace std::placeholders;
             cand = boost::any_cast<RadixsortParameters::Value>(tuneOne(
                 policy, device, sets, problemSizes,
-                FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneReduceCallback, _1, _2, _3, _4, problem)));
+                std::bind(&Radixsort::tuneReduceCallback, _1, _2, _3, _4, problem)));
         }
 
         // Tune the scatter kernel
@@ -687,10 +687,10 @@ RadixsortParameters::Value Radixsort::tune(
                     sets.push_back(params);
                 }
             }
-            using namespace FUNCTIONAL_NAMESPACE::placeholders;
+            using namespace std::placeholders;
             cand = boost::any_cast<RadixsortParameters::Value>(tuneOne(
                 policy, device, sets, problemSizes,
-                FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneScatterCallback, _1, _2, _3, _4, problem)));
+                std::bind(&Radixsort::tuneScatterCallback, _1, _2, _3, _4, problem)));
         }
 
         // Tune the block count
@@ -729,10 +729,10 @@ RadixsortParameters::Value Radixsort::tune(
                 sets.push_back(params);
             }
 
-            using namespace FUNCTIONAL_NAMESPACE::placeholders;
+            using namespace std::placeholders;
             cand = boost::any_cast<RadixsortParameters::Value>(tuneOne(
                 policy, device, sets, problemSizes,
-                FUNCTIONAL_NAMESPACE::bind(&Radixsort::tuneBlocksCallback, _1, _2, _3, _4, problem)));
+                std::bind(&Radixsort::tuneBlocksCallback, _1, _2, _3, _4, problem)));
         }
 
         // TODO: benchmark the whole combination

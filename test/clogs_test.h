@@ -1,4 +1,5 @@
 /* Copyright (c) 2012 University of Cape Town
+ * Copyright (c) 2018 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,11 +34,12 @@
 #endif
 #include <cppunit/extensions/HelperMacros.h>
 #include "../src/clhpp11.h"
-#include "../src/tr1_functional.h"
-#include "../src/tr1_random.h"
 #include <string>
 #include <vector>
 #include <cstddef>
+#include <functional>
+#include <random>
+#include <type_traits>
 #include <clogs/clogs.h>
 #ifdef min
  #undef min
@@ -202,20 +204,22 @@ public:
 
     /**
      * Constructor that populates with random values.
-     * @todo Currently this will only work with integral types.
+     * @todo Currently the default values only behave sensibly for integral types.
      */
-    Array(RANDOM_NAMESPACE::mt19937 &engine, size_t size,
+    Array(std::mt19937 &engine, size_t size,
           typename Tag::scalarType minValue = std::numeric_limits<typename Tag::scalarType>::min(),
           typename Tag::scalarType maxValue = std::numeric_limits<typename Tag::scalarType>::max())
         : std::vector<value_type>(size)
     {
         typedef typename Tag::scalarType T;
-        RANDOM_NAMESPACE::uniform_int<T> dist(minValue, maxValue);
-        RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<T> > gen(engine, dist);
+        typename std::conditional<
+            std::is_integral<T>::value,
+            std::uniform_int_distribution<T>,
+            std::uniform_real_distribution<T> >::type dist(minValue, maxValue);
         for (size_t i = 0; i < size; i++)
             for (size_t j = 0; j < Tag::length; j++)
             {
-                Tag::access((*this)[i], j) = gen();
+                Tag::access((*this)[i], j) = dist(engine);
             }
     }
 
@@ -274,7 +278,7 @@ public:
 
     Array() {}
     explicit Array(size_type) {}
-    Array(RANDOM_NAMESPACE::mt19937 &, size_t) {}
+    Array(std::mt19937 &, size_t) {}
     Array(cl::CommandQueue &, const cl::Buffer &, size_t) {}
     cl::Buffer upload(cl::Context &, cl_mem_flags) const { return cl::Buffer(); }
     void download(cl::CommandQueue &, const cl::Buffer &) {}
@@ -293,7 +297,7 @@ public:
 template<class Fixture>
 class TestCaller : public CppUnit::TestCaller<Fixture>
 {
-    typedef FUNCTIONAL_NAMESPACE::function<void(Fixture *)> TestFunction;
+    typedef std::function<void(Fixture *)> TestFunction;
 public:
     TestCaller(std::string name, TestFunction test, Fixture &fixture) :
         CppUnit::TestCaller<Fixture>(name, NULL, fixture), fixture(&fixture), test(test)
@@ -317,15 +321,15 @@ private:
 
 #define CLOGS_TEST_BIND(member, ...) \
     CPPUNIT_TEST_SUITE_ADD_TEST( (new clogs::Test::TestCaller<TestFixtureType>( \
-                context.getTestNameFor(#member) + "::" #__VA_ARGS__, boost::bind(&TestFixtureType::member, _1, __VA_ARGS__), context.makeFixture()) ) )
+                context.getTestNameFor(#member) + "::" #__VA_ARGS__, std::bind(&TestFixtureType::member, std::placeholders::_1, __VA_ARGS__), context.makeFixture()) ) )
 
 #define CLOGS_TEST_BIND_NAME(member, name, ...) \
     CPPUNIT_TEST_SUITE_ADD_TEST( (new clogs::Test::TestCaller<TestFixtureType>( \
-                context.getTestNameFor(#member) + "::" + (name), boost::bind(&TestFixtureType::member, _1, __VA_ARGS__), context.makeFixture()) ) )
+                context.getTestNameFor(#member) + "::" + (name), std::bind(&TestFixtureType::member, std::placeholders::_1, __VA_ARGS__), context.makeFixture()) ) )
 
 #define CLOGS_TEST_BIND_NAME_FULL(member, name, ...) \
     CPPUNIT_TEST_SUITE_ADD_TEST( (new clogs::Test::TestCaller<TestFixtureType>( \
-                context.getTestNameFor((name)), boost::bind(&TestFixtureType::member, _1, __VA_ARGS__), context.makeFixture()) ) )
+                context.getTestNameFor((name)), std::bind(&TestFixtureType::member, std::placeholders::_1, __VA_ARGS__), context.makeFixture()) ) )
 
 
 /**

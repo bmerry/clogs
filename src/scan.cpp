@@ -1,5 +1,5 @@
 /* Copyright (c) 2012-2014 University of Cape Town
- * Copyright (c) 2014 Bruce Merry
+ * Copyright (c) 2014, 2018 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -286,10 +286,10 @@ ScanParameters::Value Scan::tune(
             sets.push_back(params);
         }
 
-        using namespace FUNCTIONAL_NAMESPACE::placeholders;
+        using namespace std::placeholders;
         ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuneOne(
             policy, device, sets, problemSizes,
-            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneReduceCallback, _1, _2, _3, _4, problem)));
+            std::bind(&Scan::tuneReduceCallback, _1, _2, _3, _4, problem)));
         bestReduceWorkGroupSize = params.reduceWorkGroupSize;
     }
 
@@ -314,10 +314,10 @@ ScanParameters::Value Scan::tune(
             }
         }
 
-        using namespace FUNCTIONAL_NAMESPACE::placeholders;
+        using namespace std::placeholders;
         ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuneOne(
             policy, device, sets, problemSizes,
-            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneScanCallback, _1, _2, _3, _4, problem)));
+            std::bind(&Scan::tuneScanCallback, _1, _2, _3, _4, problem)));
         bestScanWorkGroupSize = params.scanWorkGroupSize;
         bestScanWorkScale = params.scanWorkScale;
     }
@@ -337,10 +337,10 @@ ScanParameters::Value Scan::tune(
             params.scanBlocks = blocks;
             sets.push_back(params);
         }
-        using namespace FUNCTIONAL_NAMESPACE::placeholders;
+        using namespace std::placeholders;
         ScanParameters::Value params = boost::any_cast<ScanParameters::Value>(tuneOne(
             policy, device, sets, problemSizes,
-            FUNCTIONAL_NAMESPACE::bind(&Scan::tuneBlocksCallback, _1, _2, _3, _4, problem)));
+            std::bind(&Scan::tuneBlocksCallback, _1, _2, _3, _4, problem)));
         bestBlocks = params.scanBlocks;
     }
 

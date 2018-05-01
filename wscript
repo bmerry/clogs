@@ -1,5 +1,5 @@
 # Copyright (c) 2012, 2013 University of Cape Town
-# Copyright (c) 2014, 2015 Bruce Merry
+# Copyright (c) 2014, 2015, 2018 Bruce Merry
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -173,8 +173,7 @@ def configure(conf):
         # Home-made builds of cppunit don't link against -ldl themselves
         conf.check_cxx(header_name = 'cppunit/Test.h', lib = ['cppunit', 'dl'], uselib_store = 'CPPUNIT', mandatory = False)
     for header in ['random', 'functional']:
-        conf.check_cxx(header_name = header, mandatory = False)
-        conf.check_cxx(header_name = 'tr1/' + header, mandatory = False)
+        conf.check_cxx(header_name = header)
 
     conf.check_cxx(
         function_name = 'QueryPerformanceCounter', header_name = 'windows.h',
