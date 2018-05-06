@@ -99,13 +99,8 @@ def configure_variant(conf):
 
 
 def configure_variant_gcc(conf):
-    ccflags = ['-Wall', '-Wextra']
-    cxxflags = []
-    if conf.env['CC_VERSION'][0] >= 4:
-        ccflags.extend(['-fvisibility=hidden'])
-        cxxflags.extend(['-fvisibility-inlines-hidden'])
-        if conf.env['CC_VERSION'][0] > 4 or conf.env['CC_VERSION'][1] >= 8:
-            cxxflags.extend(['-std=c++11'])
+    ccflags = ['-Wall', '-Wextra', '-fvisibility=hidden']
+    cxxflags = ['-fvisibility-inlines-hidden', '-std=c++11']
     if conf.env['optimize']:
         ccflags.append('-O2')
     if conf.env['debuginfo']:
@@ -172,6 +167,19 @@ def configure(conf):
         waflib.Logs.warn('Unable to identify platform, assuming UNIX')
         configure_platform_unix(conf)
 
+    conf.check_cxx(
+        msg='Checking for C++11 support',
+        fragment='''
+            #include <functional>
+            #include <random>
+            int main()
+            {
+                std::mt19937 engine;
+                std::uniform_int_distribution<int> foo;
+                std::function<int(int)> bar;
+            }
+            ''')
+
     if conf.options.cl_headers:
         conf.env.append_value('INCLUDES_OPENCL', [conf.options.cl_headers])
     conf.env.append_value('LIB_OPENCL', ['OpenCL'])
@@ -186,8 +194,6 @@ def configure(conf):
         conf.check_cxx(header_name='cppunit/Test.h',
                        lib=['cppunit', 'dl'], uselib_store='CPPUNIT',
                        mandatory=False)
-    for header in ['random', 'functional']:
-        conf.check_cxx(header_name=header)
 
     conf.check_cxx(
         function_name='QueryPerformanceCounter', header_name='windows.h',
