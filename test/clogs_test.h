@@ -109,7 +109,7 @@ public:
     static const unsigned int length = 1;
     static Type makeType() { return Type(Base); }
     static T &access(T &x, unsigned int) { return x; }
-    static const T &access(const T &x, unsigned int idx) { return x; }
+    static const T &access(const T &x, unsigned int) { return x; }
     static bool equal(const T &x, const T &y) { return x == y; }
     static T plus(const T &x, const T &y) { return x + y; }
     static std::ostream &format(std::ostream &o, const T &x) { return (o << x); }
