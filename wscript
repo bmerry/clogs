@@ -183,7 +183,7 @@ def configure(conf):
     if conf.options.cl_headers:
         conf.env.append_value('INCLUDES_OPENCL', [conf.options.cl_headers])
     conf.env.append_value('LIB_OPENCL', ['OpenCL'])
-    conf.check_cxx(header_name='boost/foreach.hpp')
+    conf.check_cxx(header_name='boost/any.hpp')
     conf.check_cxx(header_name='boost/program_options.hpp', use='PROGRAM_OPTIONS')
     conf.check_cxx(header_name='CL/cl.hpp', use='OPENCL')
     try:
@@ -205,7 +205,7 @@ def configure(conf):
         mandatory=False)
 
     # Don't care about the defines, just insist the headers are there
-    conf.undefine('HAVE_BOOST_FOREACH_HPP')
+    conf.undefine('HAVE_BOOST_ANY_HPP')
     conf.undefine('HAVE_BOOST_PROGRAM_OPTIONS_HPP')
     conf.undefine('HAVE_CL_CL_HPP')
 

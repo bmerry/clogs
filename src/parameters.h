@@ -38,9 +38,8 @@
 #include <cstddef>
 #include <locale>
 #include <cassert>
+#include <type_traits>
 #include <boost/preprocessor.hpp>
-#include <boost/type_traits/is_integral.hpp>
-#include <boost/utility/enable_if.hpp>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/core.h>
@@ -83,7 +82,7 @@ CLOGS_LOCAL int readFields(sqlite3_stmt *stmt, int pos, std::vector<unsigned cha
 
 /// @copydoc readFields(sqlite3_stmt *, int, std::string &)
 template<typename T>
-typename boost::enable_if<boost::is_integral<T>, int>::type
+typename std::enable_if<std::is_integral<T>::value, int>::type
 static inline readFields(sqlite3_stmt *stmt, int pos, T &value)
 {
     assert(pos >= 0 && pos < sqlite3_column_count(stmt));
@@ -130,7 +129,7 @@ static inline void fieldTypes(const std::vector<unsigned char> *, std::vector<co
 
 /// @copydoc fieldTypes(const std::string *, std::vector<const char *> &)
 template<typename T>
-static inline typename boost::enable_if<boost::is_integral<T> >::type
+static inline typename std::enable_if<std::is_integral<T>::value>::type
 fieldTypes(const T *, std::vector<const char *> &out)
 {
     out.push_back("INT");

@@ -29,7 +29,7 @@
 #include "../src/clhpp11.h"
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <cppunit/extensions/HelperMacros.h>
-#include <boost/scoped_ptr.hpp>
+#include <memory>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -50,7 +50,7 @@ using namespace std;
  * Recompiling the program for every test is slow, so we cheat slightly by keeping
  * one sorting object around across all tests that use UINT key/value pairs.
  */
-static boost::scoped_ptr<clogs::detail::Radixsort> g_sort;
+static std::unique_ptr<clogs::detail::Radixsort> g_sort;
 
 class TestRadixsort : public clogs::Test::TestCommon<clogs::Radixsort>
 {
@@ -269,7 +269,7 @@ static inline T roundUp(T a, T b)
 void TestRadixsort::setUp()
 {
     clogs::Test::TestFixture::setUp();
-    if (g_sort == NULL)
+    if (!g_sort)
     {
         clogs::detail::RadixsortProblem problem;
         problem.setKeyType(clogs::TYPE_UINT);

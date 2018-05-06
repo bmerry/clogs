@@ -28,7 +28,6 @@
 
 #include "../src/clhpp11.h"
 #include <boost/program_options.hpp>
-#include <boost/foreach.hpp>
 #include <vector>
 #include "options.h"
 
@@ -49,13 +48,13 @@ std::vector<cl::Device> findDevices(const boost::program_options::variables_map 
 
     vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
-    BOOST_FOREACH(const cl::Platform &platform, platforms)
+    for (const cl::Platform &platform : platforms)
     {
         vector<cl::Device> devices;
         cl_device_type type = CL_DEVICE_TYPE_ALL;
 
         platform.getDevices(type, &devices);
-        BOOST_FOREACH(const cl::Device &d, devices)
+        for (const cl::Device &d : devices)
         {
             bool good = true;
             /* Match name if given */

@@ -30,7 +30,6 @@
 #include <cppunit/TestResult.h>
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <boost/program_options.hpp>
-#include <boost/foreach.hpp>
 #include <string>
 #include <stdexcept>
 #include <typeinfo>

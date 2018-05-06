@@ -31,7 +31,7 @@
 #include <cstddef>
 #include <stdexcept>
 #include <utility>
-#include <boost/smart_ptr/scoped_ptr.hpp>
+#include <memory>
 #include <clogs/core.h>
 #include <clogs/platform.h>
 #include "clogs_test.h"
@@ -86,7 +86,7 @@ bool TestCommon<T>::initialized(const T &obj)
 template<typename T>
 void TestCommon<T>::testMoveConstruct()
 {
-    boost::scoped_ptr<T> s1((factory()));
+    std::unique_ptr<T> s1((factory()));
     T s2(std::move(*s1));
     CPPUNIT_ASSERT(initialized(s2));
     CPPUNIT_ASSERT(!initialized(*s1));
@@ -95,7 +95,7 @@ void TestCommon<T>::testMoveConstruct()
 template<typename T>
 void TestCommon<T>::testMoveAssign()
 {
-    boost::scoped_ptr<T> s1(factory());
+    std::unique_ptr<T> s1(factory());
     T s2;
     s2 = std::move(*s1);
     CPPUNIT_ASSERT(initialized(s2));
@@ -106,7 +106,7 @@ void TestCommon<T>::testMoveAssign()
 template<typename T>
 void TestCommon<T>::testSwap()
 {
-    boost::scoped_ptr<T> s1(factory());
+    std::unique_ptr<T> s1(factory());
     T s2;
     clogs::swap(*s1, s2);
     CPPUNIT_ASSERT(initialized(s2));
