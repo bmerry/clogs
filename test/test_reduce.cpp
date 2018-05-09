@@ -1,4 +1,4 @@
-/* Copyright (c) 2014 Bruce Merry
+/* Copyright (c) 2014, 2018 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,6 @@
 #include "../src/clhpp11.h"
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <cppunit/extensions/HelperMacros.h>
-#include <boost/bind/bind.hpp>
 #include <algorithm>
 #include <iterator>
 #include <iostream>
@@ -36,15 +35,13 @@
 #include <stdexcept>
 #include <vector>
 #include <cstddef>
-#include "../src/tr1_random.h"
+#include <random>
 #include <sstream>
 #include <clogs/reduce.h>
 #include <clogs/platform.h>
 #include "clogs_test.h"
 #include "test_common.h"
 #include "../src/reduce.h"
-
-using namespace RANDOM_NAMESPACE;
 
 class TestReduce : public clogs::Test::TestCommon<clogs::Reduce>
 {
@@ -144,7 +141,7 @@ void TestReduce::testNormal(size_t start, size_t elements, bool toHost)
     problem.setType(type);
     clogs::Reduce reduce(context, device, problem);
 
-    RANDOM_NAMESPACE::mt19937 engine;
+    std::mt19937 engine;
     cl_ulong limit = (type.getBaseSize() == 8) ? 0x1234567890LL : 100;
     clogs::Test::Array<Tag> inputHost(engine, start + elements, 5, limit);
     cl::Buffer input = inputHost.upload(context, CL_MEM_READ_ONLY);

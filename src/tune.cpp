@@ -107,12 +107,12 @@ boost::any tuneOne(
     const cl::Device &device,
     const std::vector<boost::any> &parameterSets,
     const std::vector<std::size_t> &problemSizes,
-    FUNCTIONAL_NAMESPACE::function<
-    std::pair<double, double>(
-        const cl::Context &,
-        const cl::Device &,
-        std::size_t,
-        const boost::any &)> callback,
+    std::function<
+        std::pair<double, double>(
+            const cl::Context &,
+            const cl::Device &,
+            std::size_t,
+            const boost::any &)> callback,
     double ratio)
 {
     policy.assertEnabled();

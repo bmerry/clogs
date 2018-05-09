@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, 2015 Bruce Merry
+/* Copyright (c) 2014, 2015, 2018 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -176,10 +176,10 @@ ReduceParameters::Value Reduce::tune(
             sets.push_back(params);
         }
 
-        using namespace FUNCTIONAL_NAMESPACE::placeholders;
+        using namespace std::placeholders;
         cand = boost::any_cast<ReduceParameters::Value>(tuneOne(
                 policy, device, sets, problemSizes,
-                FUNCTIONAL_NAMESPACE::bind(&Reduce::tuneReduceCallback, _1, _2, _3, _4, problem)));
+                std::bind(&Reduce::tuneReduceCallback, _1, _2, _3, _4, problem)));
     }
 
     {
@@ -192,10 +192,10 @@ ReduceParameters::Value Reduce::tune(
             sets.push_back(params);
         }
 
-        using namespace FUNCTIONAL_NAMESPACE::placeholders;
+        using namespace std::placeholders;
         cand = boost::any_cast<ReduceParameters::Value>(tuneOne(
                 policy, device, sets, problemSizes,
-                FUNCTIONAL_NAMESPACE::bind(&Reduce::tuneReduceCallback, _1, _2, _3, _4, problem)));
+                std::bind(&Reduce::tuneReduceCallback, _1, _2, _3, _4, problem)));
     }
 
     policy.logEndAlgorithm();

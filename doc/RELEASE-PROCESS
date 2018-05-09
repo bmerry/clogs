@@ -6,7 +6,6 @@
 - On machines with 480 GTX and R9 270
   - Install the new version
   - rm -rf ~/.cache/clogs
-  - clogs-tune --cl-gpu
   - Run benchmark
 - Update clogs-benchmark-plot.sh with new version and run it
 - Add the new benchmarks to git

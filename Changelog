@@ -1,3 +1,8 @@
+Development version
+-------------------
+* Remove some uses of TR1/Boost in favour of C++11
+* Make C++11 mandatory
+
 1.5.1
 -----
 * Workaround for NVIDIA driver bug that prevents scan from autotuning on Pascal hardware

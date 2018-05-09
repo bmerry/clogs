@@ -1,4 +1,5 @@
 /* Copyright (c) 2012 University of Cape Town
+ * Copyright (c) 2018 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +30,6 @@
 #include <cppunit/TestResult.h>
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <boost/program_options.hpp>
-#include <boost/foreach.hpp>
 #include <string>
 #include <stdexcept>
 #include <typeinfo>

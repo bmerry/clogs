@@ -1,5 +1,5 @@
 /* Copyright (c) 2012 University of Cape Town
- * Copyright (c) 2014, Bruce Merry
+ * Copyright (c) 2014, 2018 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,15 +29,15 @@
 #include "../src/clhpp11.h"
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <cppunit/extensions/HelperMacros.h>
-#include <boost/bind/bind.hpp>
-#include <boost/scoped_ptr.hpp>
+#include <memory>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
 #include <algorithm>
 #include <cstddef>
-#include "../src/tr1_random.h"
+#include <random>
+#include <functional>
 #include <sstream>
 #include <clogs/radixsort.h>
 #include "clogs_test.h"
@@ -45,13 +45,12 @@
 #include "../src/radixsort.h"
 
 using namespace std;
-using namespace RANDOM_NAMESPACE;
 
 /*
  * Recompiling the program for every test is slow, so we cheat slightly by keeping
  * one sorting object around across all tests that use UINT key/value pairs.
  */
-static boost::scoped_ptr<clogs::detail::Radixsort> g_sort;
+static std::unique_ptr<clogs::detail::Radixsort> g_sort;
 
 class TestRadixsort : public clogs::Test::TestCommon<clogs::Radixsort>
 {
@@ -270,7 +269,7 @@ static inline T roundUp(T a, T b)
 void TestRadixsort::setUp()
 {
     clogs::Test::TestFixture::setUp();
-    if (g_sort == NULL)
+    if (!g_sort)
     {
         clogs::detail::RadixsortProblem problem;
         problem.setKeyType(clogs::TYPE_UINT);
@@ -286,16 +285,15 @@ void TestRadixsort::testUpsweepCase(unsigned int dataSize, unsigned int sumsSize
 
     const unsigned int factor = dataSize / sumsSize;
     const unsigned int maxValue = 0xFF / factor;
-    RANDOM_NAMESPACE::mt19937 engine;
-    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<cl_uint> > gen(
-        engine, RANDOM_NAMESPACE::uniform_int<cl_uint>(0x0, maxValue));
+    mt19937 engine;
+    uniform_int_distribution<cl_uint> dist(0x0, maxValue);
 
     vector<cl_uchar> hostData(dataSize);
     vector<cl_uchar> hostSums(sumsSize, 0);
     vector<cl_uchar> result(sumsSize, 0);
     for (unsigned int i = 0; i < dataSize; i++)
     {
-        hostData[i] = gen();
+        hostData[i] = dist(engine);
         hostSums[i / factor] += hostData[i];
     }
 
@@ -315,9 +313,8 @@ void TestRadixsort::testDownsweepCase(unsigned int dataSize, unsigned int sumsSi
     const unsigned int factor = dataSize / sumsSize;
     const unsigned int maxValue = 0xFF / factor;
 
-    RANDOM_NAMESPACE::mt19937 engine;
-    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<cl_uint> > gen(
-        engine, RANDOM_NAMESPACE::uniform_int<cl_uint>(0x1, maxValue));
+    mt19937 engine;
+    uniform_int_distribution<cl_uint> dist(0x1, maxValue);
     cl::Kernel kernel(sort->program, kernelName);
 
     vector<cl_uchar> hostData(dataSize);
@@ -326,11 +323,11 @@ void TestRadixsort::testDownsweepCase(unsigned int dataSize, unsigned int sumsSi
     vector<cl_uchar> result(dataSize, 0);
     for (unsigned int i = 0; i < dataSize; i++)
     {
-        hostData[i] = gen();
+        hostData[i] = dist(engine);
     }
     for (unsigned int i = 0; i < sumsSize; i++)
     {
-        hostSums[i] = gen();
+        hostSums[i] = dist(engine);
         unsigned char s = forceZero ? 0 : hostSums[i];
         for (unsigned int j = 0; j < factor; j++)
         {
@@ -397,7 +394,7 @@ void TestRadixsort::testReduce(const size_t size)
     clogs::detail::RadixsortProblem problem;
     problem.setKeyType(KeyTag::makeType());
     clogs::detail::Radixsort sort(context, device, problem);
-    RANDOM_NAMESPACE::mt19937 engine;
+    mt19937 engine;
 
     const size_t tileSize = sort.scatterWorkGroupSize * sort.scatterWorkScale;
     const unsigned int radix = sort.radix;
@@ -426,9 +423,8 @@ void TestRadixsort::testReduce(const size_t size)
 
 void TestRadixsort::testScan(size_t blocks)
 {
-    RANDOM_NAMESPACE::mt19937 engine;
-    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<cl_uint> > gen(
-        engine, RANDOM_NAMESPACE::uniform_int<cl_uint>(1, 1000));
+    mt19937 engine;
+    uniform_int_distribution<cl_uint> dist(1, 1000);
 
     if (blocks > sort->scanBlocks)
         return;
@@ -437,7 +433,7 @@ void TestRadixsort::testScan(size_t blocks)
     vector<cl_uint> host(size);
     vector<cl_uint> result(size);
     for (size_t i = 0; i < size; i++)
-        host[i] = gen();
+        host[i] = dist(engine);
 
     cl::Buffer histogram(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, size * sizeof(cl_uint), &host[0]);
 
@@ -497,7 +493,7 @@ void TestRadixsort::testScatter(size_t size)
     problem.setKeyType(KeyTag::makeType());
     problem.setValueType(ValueTag::makeType());
     clogs::detail::Radixsort sort(context, device, problem);
-    RANDOM_NAMESPACE::mt19937 engine;
+    mt19937 engine;
 
     const size_t tileSize = sort.scatterWorkGroupSize * sort.scatterWorkScale;
     const unsigned int radix = sort.radix;
@@ -587,7 +583,7 @@ void TestRadixsort::testSort(size_t size, unsigned int bits, size_t tmpKeysSize,
         tmpValues = cl::Buffer(context, CL_MEM_READ_WRITE, tmpValuesSize * valueType.getSize());
     if (tmpKeys() || tmpValues())
         sort.setTemporaryBuffers(tmpKeys, tmpValues);
-    RANDOM_NAMESPACE::mt19937 engine;
+    mt19937 engine;
 
     Key minKey = 0;
     Key maxKey;
@@ -681,13 +677,12 @@ void BenchmarkRadixsort::benchmark(const char *name, bool useValues, cl_uint min
     const unsigned int elements = 40000000;
     const unsigned int passes = 10;
     clogs::Radixsort sort(context, device, clogs::TYPE_UINT, useValues ? clogs::TYPE_UINT : clogs::Type());
-    RANDOM_NAMESPACE::mt19937 engine;
-    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<cl_uint> > gen(
-        engine, RANDOM_NAMESPACE::uniform_int<cl_uint>(min, max));
+    mt19937 engine;
+    uniform_int_distribution<cl_uint> dist(min, max);
     vector<cl_uint> hostKeys;
     hostKeys.reserve(elements);
     for (unsigned int i = 0; i < elements; i++)
-        hostKeys.push_back(gen());
+        hostKeys.push_back(dist(engine));
 
     cl::Buffer keys(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, elements * sizeof(cl_uint), &hostKeys[0]);
     cl::Buffer values(context, CL_MEM_READ_WRITE, elements * sizeof(cl_uint));

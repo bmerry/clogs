@@ -1,5 +1,5 @@
 /* Copyright (c) 2012 University of Cape Town
- * Copyright (c) 2014 Bruce Merry
+ * Copyright (c) 2014, 2018 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,6 @@
 #include "../src/clhpp11.h"
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <cppunit/extensions/HelperMacros.h>
-#include <boost/bind/bind.hpp>
 #include <algorithm>
 #include <iterator>
 #include <iostream>
@@ -37,7 +36,7 @@
 #include <stdexcept>
 #include <vector>
 #include <cstddef>
-#include "../src/tr1_random.h"
+#include <random>
 #include <sstream>
 #include <clogs/scan.h>
 #include <clogs/platform.h>
@@ -45,7 +44,6 @@
 #include "test_common.h"
 
 using namespace std;
-using namespace RANDOM_NAMESPACE;
 
 enum OffsetType
 {
@@ -146,20 +144,20 @@ void TestScan::testSimple(const clogs::Type &type, size_t size, OffsetType useOf
     if (!type.isComputable(device) || !type.isStorable(device))
         return; // allows us to skip char3 test on pre-CL 1.1
 
-    RANDOM_NAMESPACE::mt19937 engine;
+    mt19937 engine;
     cl_ulong limit = (type.getBaseSize() == 8) ? 0x1234567890LL : 100;
-    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<T> > gen(
-        engine, RANDOM_NAMESPACE::uniform_int<T>(5, T(limit)));
+    uniform_int_distribution<T> dist(5, T(limit));
     clogs::Scan scan(context, device, type);
 
     vector<T> hValues;
     hValues.reserve(size + 1);
 
     /* Populate host with random data */
-    generate_n(back_inserter(hValues), size, gen);
+    for (size_t i = 0; i < size; i++)
+        hValues.push_back(dist(engine));
     hValues.push_back(T(0xDEADBEEF)); // sentinel for check for overrun
 
-    T hOffset[2] = {T(0), T(useOffset != OFFSET_NONE ? gen() : 0)}; // first element is just padding to test indexing
+    T hOffset[2] = {T(0), T(useOffset != OFFSET_NONE ? dist(engine) : 0)}; // first element is just padding to test indexing
 
     cl::Buffer dValues(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, (size + 1) * sizeof(T), &hValues[0]);
     cl::Buffer dOffset(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(T) * 2, &hOffset[0]);
@@ -189,10 +187,9 @@ void TestScan::testSimple(const clogs::Type &type, size_t size, OffsetType useOf
 template<typename T>
 void TestScan::testVector(const clogs::Type &type, size_t size, OffsetType useOffset)
 {
-    RANDOM_NAMESPACE::mt19937 engine;
+    mt19937 engine;
     cl_ulong limit = (type.getBaseSize() == 8) ? 0x1234567890LL : 100;
-    RANDOM_NAMESPACE::variate_generator<RANDOM_NAMESPACE::mt19937 &, RANDOM_NAMESPACE::uniform_int<cl_ulong> > gen(
-        engine, RANDOM_NAMESPACE::uniform_int<cl_ulong>(5, limit));
+    uniform_int_distribution<cl_ulong> dist(5, limit);
     clogs::Scan scan(context, device, type);
 
     vector<T> hValues;
@@ -203,7 +200,7 @@ void TestScan::testVector(const clogs::Type &type, size_t size, OffsetType useOf
     {
         T cur;
         for (unsigned int j = 0; j < type.getLength(); j++)
-            cur.s[j] = gen();
+            cur.s[j] = dist(engine);
         hValues.push_back(cur);
     }
 
@@ -212,7 +209,7 @@ void TestScan::testVector(const clogs::Type &type, size_t size, OffsetType useOf
     for (unsigned int j = 0; j < type.getLength(); j++)
     {
         sentinel.s[j] = 0xDE + j;
-        hOffset.s[j] = useOffset ? gen() : 0;
+        hOffset.s[j] = useOffset ? dist(engine) : 0;
     }
     hValues.push_back(sentinel); // sentinel for check for overrun
 

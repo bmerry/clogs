@@ -1,5 +1,5 @@
 /* Copyright (c) 2012-2014 University of Cape Town
- * Copyright (c) 2014 Bruce Merry
+ * Copyright (c) 2014, 2018 Bruce Merry
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,7 +34,7 @@
 #include <vector>
 #include <ostream>
 #include <boost/any.hpp>
-#include "tr1_functional.h"
+#include <functional>
 #include <clogs/visibility_pop.h>
 
 #include <clogs/tune.h>
@@ -149,12 +149,12 @@ boost::any tuneOne(
     const cl::Device &device,
     const std::vector<boost::any> &parameterSets,
     const std::vector<std::size_t> &problemSizes,
-    FUNCTIONAL_NAMESPACE::function<
-    std::pair<double, double>(
-        const cl::Context &,
-        const cl::Device &,
-        std::size_t,
-        const boost::any &)> callback,
+    std::function<
+        std::pair<double, double>(
+            const cl::Context &,
+            const cl::Device &,
+            std::size_t,
+            const boost::any &)> callback,
     double ratio = 0.5);
 
 } // namespace detail
