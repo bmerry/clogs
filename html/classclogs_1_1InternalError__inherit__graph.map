@@ -1,0 +1,4 @@
+<map id="clogs::InternalError" name="clogs::InternalError">
+<area shape="rect" id="node3" href="$classclogs_1_1CacheError.html" title="Exception thrown when the autotuning cache could not be read. " alt="" coords="5,155,132,181"/>
+<area shape="rect" id="node4" href="$classclogs_1_1TuneError.html" title="Exception thrown when a configuration could not be tuned at all. " alt="" coords="156,155,275,181"/>
+</map>

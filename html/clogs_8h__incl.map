@@ -1,0 +1,11 @@
+<map id="/home/bruce/devel/clogs/include/clogs/clogs.h" name="/home/bruce/devel/clogs/include/clogs/clogs.h">
+<area shape="rect" id="node2" href="$visibility__push_8h.html" title="Pushes default visibility if appropriate. " alt="" coords="337,244,488,271"/>
+<area shape="rect" id="node7" href="$visibility__pop_8h.html" title="Pops default visibility if appropriate. " alt="" coords="171,244,313,271"/>
+<area shape="rect" id="node8" href="$core_8h.html" title="Basic types shared by several primitives. " alt="" coords="702,169,795,196"/>
+<area shape="rect" id="node11" href="$tune_8h.html" title="Control over tuning policy. " alt="" coords="38,169,131,196"/>
+<area shape="rect" id="node13" href="$scan_8h.html" title="Scan primitive. " alt="" coords="578,95,674,121"/>
+<area shape="rect" id="node15" href="$reduce_8h.html" title="Reduce primitive. " alt="" coords="191,95,298,121"/>
+<area shape="rect" id="node16" href="$radixsort_8h.html" title="Radix&#45;sort interface. " alt="" coords="435,95,553,121"/>
+<area shape="rect" id="node3" href="$visibility_8h.html" title="Internal header file that provides macros to control symbol visibility. " alt="" coords="270,319,385,345"/>
+<area shape="rect" id="node10" href="$platform_8h.html" title="Detects compiler properties. " alt="" coords="539,244,654,271"/>
+</map>

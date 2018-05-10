@@ -1,0 +1,6 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" href="$classclogs_1_1Algorithm.html" title="Base class for all algorithm classes. " alt="" coords="5,56,121,83"/>
+<area shape="rect" id="node2" href="$classclogs_1_1Radixsort.html" title="Radix&#45;sort interface. " alt="" coords="169,5,287,32"/>
+<area shape="rect" id="node3" href="$classclogs_1_1Reduce.html" title="Reduction primitive. " alt="" coords="175,56,281,83"/>
+<area shape="rect" id="node4" href="$classclogs_1_1Scan.html" title="Exclusive scan (prefix sum) primitive. " alt="" coords="183,107,273,133"/>
+</map>

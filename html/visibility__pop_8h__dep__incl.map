@@ -1,0 +1,8 @@
+<map id="/home/bruce/devel/clogs/include/clogs/visibility_pop.h" name="/home/bruce/devel/clogs/include/clogs/visibility_pop.h">
+<area shape="rect" id="node2" href="$clogs_8h.html" title="OpenCL primitives. " alt="" coords="141,273,305,315"/>
+<area shape="rect" id="node3" href="$core_8h.html" title="Basic types shared by several primitives. " alt="" coords="89,95,253,136"/>
+<area shape="rect" id="node4" href="$radixsort_8h.html" title="Radix&#45;sort interface. " alt="" coords="45,184,212,225"/>
+<area shape="rect" id="node5" href="$reduce_8h.html" title="Reduce primitive. " alt="" coords="236,184,400,225"/>
+<area shape="rect" id="node6" href="$scan_8h.html" title="Scan primitive. " alt="" coords="424,184,588,225"/>
+<area shape="rect" id="node7" href="$tune_8h.html" title="Control over tuning policy. " alt="" coords="329,95,493,136"/>
+</map>

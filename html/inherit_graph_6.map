@@ -1,0 +1,5 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node2" href="$classclogs_1_1InternalError.html" title="Exception thrown on internal errors that are not the user&#39;s fault. " alt="" coords="152,31,284,57"/>
+<area shape="rect" id="node3" href="$classclogs_1_1CacheError.html" title="Exception thrown when the autotuning cache could not be read. " alt="" coords="332,5,459,32"/>
+<area shape="rect" id="node4" href="$classclogs_1_1TuneError.html" title="Exception thrown when a configuration could not be tuned at all. " alt="" coords="336,56,455,83"/>
+</map>

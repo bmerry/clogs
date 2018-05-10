@@ -1,0 +1,367 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>CLOGS User Manual</title><link rel="stylesheet" type="text/css" href="clogs-user.css" /><meta name="generator" content="DocBook XSL Stylesheets V1.79.1" /></head><body><div class="book"><div class="titlepage"><div><div><h1 class="title"><a id="idm45823245056672"></a>CLOGS User Manual</h1></div><div><div class="author"><h3 class="author"><span class="firstname">Bruce</span> <span class="surname">Merry</span></h3><code class="email">&lt;<a class="email" href="mailto:bmerry@users.sourceforge.net">bmerry@users.sourceforge.net</a>&gt;</code></div></div><div><p class="releaseinfo">
+        </p></div><div><p class="copyright">Copyright © 2012, 2013, 2014 University of Cape Town</p></div><div><p class="copyright">Copyright © 2014, 2015, 2018 Bruce Merry</p></div></div><hr /></div><div class="toc"><p><strong>Table of Contents</strong></p><dl class="toc"><dt><span class="chapter"><a href="#introduction">1. Introduction</a></span></dt><dt><span class="chapter"><a href="#installation">2. Installation</a></span></dt><dd><dl><dt><span class="section"><a href="#installation.requirements">2.1. Requirements</a></span></dt><dt><span class="section"><a href="#Compiling">2.2. Compiling CLOGS</a></span></dt><dt><span class="section"><a href="#installation.install">2.3. Installing CLOGS</a></span></dt><dt><span class="section"><a href="#installation.tune">2.4. Autotuning</a></span></dt></dl></dd><dt><span class="chapter"><a href="#using">3. Using CLOGS</a></span></dt><dd><dl><dt><span class="section"><a href="#using.example">3.1. Examples</a></span></dt><dt><span class="section"><a href="#using.benchmark">3.2. Benchmark application</a></span></dt><dt><span class="section"><a href="#using.reentrance">3.3. Reentrance</a></span></dt><dt><span class="section"><a href="#using.nobindings">3.4. Avoiding the OpenCL C++ bindings</a></span></dt><dt><span class="section"><a href="#using.errors">3.5. Error handling</a></span></dt><dt><span class="section"><a href="#using.memory">3.6. Memory management</a></span></dt><dt><span class="section"><a href="#using.profile">3.7. Profiling</a></span></dt><dt><span class="section"><a href="#using.tunepolicy">3.8. Tuning policy</a></span></dt></dl></dd><dt><span class="chapter"><a href="#reference">4. Reference manual</a></span></dt><dt><span class="chapter"><a href="#performance">5. Performance</a></span></dt><dt><span class="chapter"><a href="#license">6. License</a></span></dt><dd><dl><dt><span class="section"><a href="#idm45823240886528">6.1. SQLite 3</a></span></dt></dl></dd></dl></div><div class="chapter"><div class="titlepage"><div><div><h1 class="title"><a id="introduction"></a>Chapter 1. Introduction</h1></div></div></div><p>
+            CLOGS is a library for higher-level operations on top of the OpenCL
+            C++ API. It is designed to integrate with other OpenCL code, including
+            synchronization using OpenCL events.
+        </p><p>
+            Currently only three operations are supported: radix sorting, reduction, and
+            exclusive scan. Radix sort supports all the unsigned
+            integral types as keys, and all the built-in scalar and vector
+            types suitable for storage in buffers as values. Scan supports
+            all the integral types. It also supports vector types, which
+            allows for limited multi-scan capabilities. Reduction supports all
+            the built-in types, but the floating-point types are not tested.
+        </p></div><div class="chapter"><div class="titlepage"><div><div><h1 class="title"><a id="installation"></a>Chapter 2. Installation</h1></div></div></div><div class="toc"><p><strong>Table of Contents</strong></p><dl class="toc"><dt><span class="section"><a href="#installation.requirements">2.1. Requirements</a></span></dt><dt><span class="section"><a href="#Compiling">2.2. Compiling CLOGS</a></span></dt><dt><span class="section"><a href="#installation.install">2.3. Installing CLOGS</a></span></dt><dt><span class="section"><a href="#installation.tune">2.4. Autotuning</a></span></dt></dl></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="installation.requirements"></a>2.1. Requirements</h2></div></div></div><p>
+                At present CLOGS is only supported with GCC and Clang on
+                GNU/Linux. It has also been used with Visual C++ on Windows,
+                but the author no longer has a Windows installation and so it
+                is unknown if it still works (if it doesn't, you can submit a
+                patch). The code for the library
+                itself is portable, but some aspects of the build system and
+                test suite require porting.
+            </p><p>
+                It has been tested on an NVIDIA GeForce 480 GTX, an AMD R9 270
+                and on a CPU using the AMD APP SDK. The Intel SDK for OpenCL
+                Applications is not supported as it has numerous bugs. Other
+                OpenCL implementations are expected to work, but they are
+                untested and unlikely to have optimal performance.
+            </p><p>
+                The following dependencies are required to build CLOGS. Where a
+                minimum version is given, this is just the minimum version that
+                is tested; older versions may still work.
+            </p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p>
+                        An OpenCL implementation and headers, including a recent
+                        version of <code class="filename">CL/cl.hpp</code>.
+                        If you have compilation problems, it might be that your
+                        vendor SDK is providing an old version. You can
+                        download the latest from the <a class="ulink" href="http://www.khronos.org/registry/cl" target="_top">registry</a>. Note
+                        that you should use the version for the latest version of OpenCL
+                        (currently 1.2), even if you are targeting an older
+                        OpenCL version.
+                </p></li><li class="listitem"><p>
+                        A C++ compiler supporting C++11. GCC 4.8 and Visual C++
+                        2013 have been tested. The public interface does not
+                        rely on any C++11 features, so it might not be
+                        necessary to build against clogs in C++11 mode,
+                        although ABI changes in classes like std::string may
+                        cause issues.
+                </p></li><li class="listitem"><p>
+                        The Boost headers. No dynamic libraries are needed to
+                        use the CLOGS library, but the
+                        <span class="application">boost::program_options</span>
+                        library is needed for the CLOGS test suite and
+                        benchmark application. Boost headers are only
+                        required when building the library, not when building
+                        code against it.
+                </p></li><li class="listitem"><p>
+                        <span class="application">Doxygen</span> is required to
+                        build the reference documentation (optional).
+                </p></li><li class="listitem"><p>
+                        <span class="application">xsltproc</span> is required to
+                        build the user manual (optional). It is best to also
+                        install the DocBook XSL stylesheets so that they will
+                        be sourced locally rather than from the internet,
+                        which can be extremely slow.
+                </p></li><li class="listitem"><p>
+                        <span class="application">Python</span> 2.7.
+                </p></li><li class="listitem"><p>
+                        <span class="application">CppUnit</span> is required to
+                        build and run the test suite (optional).
+                </p></li></ul></div></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="Compiling"></a>2.2. Compiling CLOGS</h2></div></div></div><p>
+                CLOGS uses the <a class="ulink" href="waf.googlecode.com/svn/docs/wafbook/single.html" target="_top">waf</a>
+                build system. The build system is included in the
+                distribution, so you do not need to download it separately.
+            </p><p>
+                The first step is to configure the build. This is done by
+                running
+            </p><pre class="screen"><code class="prompt">$ </code><strong class="userinput"><code>python waf configure</code></strong></pre><p>
+                This will check that the necessary headers can be found.
+                OpenCL headers are not always installed in the normal include
+                paths. You can explicitly specify the location for them by
+                running
+            </p><pre class="screen"><code class="prompt">$ </code><strong class="userinput"><code>python waf configure --cl-headers=<em class="replaceable"><code>path</code></em></code></strong></pre><p>
+                Note that <code class="filename"><em class="replaceable"><code>path</code></em></code> should
+                be the directory containing the <code class="filename">CL</code>
+                directory. If other libraries also need to be added to the
+                include or link paths, you should use compiler-specific
+                environment variables, such as <code class="envar">INCLUDE</code> and
+                <code class="envar">LIBPATH</code> for MSVC or <code class="envar">CPATH</code> and
+                <code class="envar">LIBRARY_PATH</code> for GCC.
+            </p><p>
+                You can control where CLOGS will be installed by using
+                <code class="option">--prefix</code>, as well as the other standard
+                <span class="application">autoconf</span> options (run <strong class="userinput"><code>waf
+                    --help</code></strong> for a list).
+            </p><p>
+                The configuration will automatically detect whether
+                <span class="application">doxygen</span> and
+                <span class="application">xsltproc</span> are present. However, you
+                can disable them with <code class="option">--without-doxygen</code> and
+                <code class="option">--without-xsltproc</code>.
+            </p><p>
+                If you need to debug into CLOGS, you can pass
+                <code class="option">--variant=debug</code> at configuration time to
+                create a debug build, or <code class="option">--variant=optimized</code>
+                to create an optimized build with debug symbols.
+            </p></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="installation.install"></a>2.3. Installing CLOGS</h2></div></div></div><p>
+                Installation is done by running <strong class="userinput"><code>python waf
+                    install</code></strong>. Unless you have changed the
+                installation directory, you will probably need to be root to do
+                this, and you will also need to run
+                <strong class="userinput"><code>ldconfig</code></strong> afterwards on a GNU system.
+            </p><p>
+                <span class="application">waf</span> also supports a
+                <code class="option">--destdir</code> option that allows the entire
+                directory tree to be placed into a subdirectory rather than
+                the root of the filesystem. This is intended for use with
+                package management tools.
+            </p></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="installation.tune"></a>2.4. Autotuning</h2></div></div></div><p>
+                CLOGS uses autotuning to choose good tuning parameters for each
+                device. In previous versions of CLOGS one had to run a separate
+                <span class="command"><strong>clogs-tune</strong></span> command to do autotuning in
+                advance, but current versions do autotuning on-demand.
+            </p><p>
+                On UNIX-like systems, the results of autotuning are stored in
+                <code class="filename"><code class="envar">$HOME</code>/.cache/clogs/cache.sqlite</code>
+                by default. On Windows, they are stored in the local
+                application data directory. You can override the setting by
+                setting <code class="envar">CLOGS_CACHE_DIR</code>, or on UNIX-like systems
+                by setting <code class="envar">XDG_CACHE_HOME</code>. You can delete this
+                database to force retuning, or to clean out stale tuning
+                results (for example, for older versions of drivers) that are
+                taking up space.
+            </p></div></div><div class="chapter"><div class="titlepage"><div><div><h1 class="title"><a id="using"></a>Chapter 3. Using CLOGS</h1></div></div></div><div class="toc"><p><strong>Table of Contents</strong></p><dl class="toc"><dt><span class="section"><a href="#using.example">3.1. Examples</a></span></dt><dt><span class="section"><a href="#using.benchmark">3.2. Benchmark application</a></span></dt><dt><span class="section"><a href="#using.reentrance">3.3. Reentrance</a></span></dt><dt><span class="section"><a href="#using.nobindings">3.4. Avoiding the OpenCL C++ bindings</a></span></dt><dt><span class="section"><a href="#using.errors">3.5. Error handling</a></span></dt><dt><span class="section"><a href="#using.memory">3.6. Memory management</a></span></dt><dt><span class="section"><a href="#using.profile">3.7. Profiling</a></span></dt><dt><span class="section"><a href="#using.tunepolicy">3.8. Tuning policy</a></span></dt></dl></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="using.example"></a>3.1. Examples</h2></div></div></div><p>
+                We start with a simple example showing how to do a scan
+                (prefix sum) operation. This operation is typically
+                combined with an algorithm that produces a variable amount of
+                output per work item, to allocate positions in an output
+                buffer. In a first pass, each work-item writes the number of
+                output elements to a buffer, which we'll call
+                <code class="varname">counts</code>. A prefix sum is then run over
+                <code class="varname">counts</code>, which replaces each value with
+                the sum of all values strictly before it.  The second pass of
+                the algorithm then uses the values in
+                <code class="varname">counts</code> as the initial positions to start
+                writing output to another buffer.
+            </p><p>
+                In the sample code, we assume that an OpenCL context, device and
+                command queue have already been created using the C++
+                bindings, and that the <code class="varname">counts</code> array has
+                already been written.
+            </p><pre class="programlisting">
+#include &lt;clogs/clogs.h&gt;
+...
+clogs::ScanProblem problem;
+problem.setType(clogs::TYPE_UINT);
+clogs::Scan scanner(context, device, problem);
+...
+scanner.enqueue(queue, inBuffer, outBuffer, numElements);</pre><p>
+                The above code starts by specifying the variation of the
+                algorithm: in this case, the type of elements to scan will be
+                <span class="type">cl_uint</span>. It then creates an object (<code class="varname">scanner</code>)
+                that can be used to
+                perform scans. The constructor handles loading of the
+                internal kernels and allocation of internal storage. These
+                objects are quite slow to create and should be reused where
+                possible.
+            </p><p>
+                The last line enqueues to <code class="varname">queue</code> the kernel
+                launches needed to perform the scan. There are several
+                optional parameters we have not shown. These include a vector
+                of events to wait for, and an output parameter which returns
+                an event that is signaled when the scan is complete. These
+                work in the same way as the other enqueuing functions in
+                the OpenCL C++ API, and allow scans to be combined with other
+                kernel launches in a dependency graph.
+            </p><p>
+                This is an out-of-place scan, where the output is stored
+                separately from the input. It is also possible to a scan
+                in-place by passing the same value for both buffers.
+            </p><p>
+                Now let us look at a slightly more complex sorting example.
+                Suppose we have unsigned 20-bit keys (stored in
+                <span class="type">uint</span>s), and <span class="type">float4</span>
+                values. In CLOGS, keys and values must be held in separate
+                buffers (which reduces overall bandwidth), so let us say that
+                keys are in <code class="varname">keys</code> and values in
+                <code class="varname">values</code>. Furthermore, let us suppose that the
+                vector <code class="varname">wait</code> contains a list of events for
+                work that will generate the keys and values, and that we want
+                an event that will be signaled when the sort is complete. Then
+                the code we want is
+            </p><pre class="programlisting">
+#include &lt;clogs/clogs.h&gt;
+...
+clogs::RadixsortProblem problem;
+problem.setKeyType(clogs::TYPE_UINT);
+problem.setValueType(clogs::Type(clogs::TYPE_FLOAT, 4));
+clogs::Radixsort sorter(context, device, problem);
+sorter.enqueue(queue, keys, values, numElements, 20, &amp;wait, &amp;event);
+</pre><p>
+                Notice that we used <span class="type">clogs::Type</span> to specify the
+                type of the values. This is a C++ type that encodes an OpenCL
+                built-in type. In this case we specified the base type
+                (<span class="type">float</span>) and vector length (4). We could also do
+                this for the key type, but it was not necessarily since there
+                is an implicit conversion from
+                <span class="symbol">clogs::TYPE_UINT</span> to <span class="type">clogs::Type</span>.
+            </p><p>
+                Also notice that we explicitly specified how many bits are
+                used in the key. This parameter is optional (passing zero
+                is the same as not passing it), but specifying it may reduce
+                the number of passes and hence improve performance.
+            </p><p>
+                Both of the classes we have covered so far have additional
+                features, which are described in the reference manual.
+            </p></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="using.benchmark"></a>3.2. Benchmark application</h2></div></div></div><p>
+                For a complete example of using the API, refer to
+                <code class="filename">tools/clogs-benchmark.cpp</code>, which is a tool
+                for benchmarking the performance of CLOGS. This tool
+                is also installed when you install CLOGS, so you can obtain
+                estimates of sorting performance from the command-line.
+            </p></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="using.reentrance"></a>3.3. Reentrance</h2></div></div></div><p>
+                The classes in this API (<span class="type">clogs::Scan</span>,
+                <span class="type">clogs::Reduce</span> and
+                <span class="type">clogs::Radixsort</span>) store internal state that is
+                used by the enqueued work. There are two limitations on
+                reentrance:
+            </p><div class="orderedlist"><ol class="orderedlist" type="1"><li class="listitem"><p>
+                        It is not safe for two host threads to call the
+                        <code class="function">enqueue</code> method on the same object
+                        at the same time.
+                </p></li><li class="listitem"><p>
+                        It is not safe for the work enqueued by two calls to
+                        <code class="function">enqueue</code> on the same object to be
+                        executed at the same time. Thus, if two calls specify
+                        different command queues or specify the same queue but
+                        it is in out-of-order execution mode, then events
+                        or other synchronization primitives need to be used to
+                        ensure that the work does not overlap.
+                </p></li></ol></div></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="using.nobindings"></a>3.4. Avoiding the OpenCL C++ bindings</h2></div></div></div><p>
+                The examples all show the interfaces using the classes defined
+                in the OpenCL C++ bindings, such as
+                <span class="type">cl::CommandQueue</span>. However, interfaces are also
+                provided that use the plain C bindings e.g.,
+                <span class="type">cl_command_queue</span>. Using the C bindings may be very
+                slightly faster (on the CPU) since it avoids some extra
+                reference counting.
+            </p></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="using.errors"></a>3.5. Error handling</h2></div></div></div><p>
+                Errors are reported exclusively via exceptions. OpenCL errors
+                are reported with exceptions of type
+                <span class="type">clogs::Error</span>. If
+                <span class="symbol">__CL_ENABLE_EXCEPTIONS</span> is defined, then this
+                is a typedef of <span class="type">cl::Error</span>; otherwise, it is a
+                type with the same interface, which inherits from
+                <span class="type">std::runtime_error</span>. Additionally, the reference
+                documentation lists some higher-level conditions which
+                will be signaled by throwing <span class="type">clogs::Error</span> (for
+                example, if <em class="replaceable"><code>numElements</code></em> was
+                too large and would have overflowed the buffer).
+            </p><p>
+                Out-of-memory conditions may be reported either with
+                <span class="type">clogs::Error</span> (if it is the OpenCL implementation
+                that failed to allocate memory) or
+                <span class="type">std::bad_alloc</span> (if it is CLOGS that fails to
+                allocate memory).
+            </p><p>
+                The other type of exception that may occur is
+                <span class="type">clogs::InternalError</span>. This is only thrown for
+                unexpected errors with the implementation, such as when
+                the source for one of the kernels fails to compile. Errors
+                related to the tuning cache are reported as
+                <span class="type">clogs::CacheError</span> (a subclass of
+                <span class="type">clogs::InternalError</span>).
+            </p></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="using.memory"></a>3.6. Memory management</h2></div></div></div><p>
+                Each object allocated through the API allocates a small
+                amount of OpenCL memory, whose size depends only on the arguments to
+                the constructor. Additionally, <span class="type">clogs::Radixsort</span>
+                allocates temporary buffers as part of
+                <code class="function">enqueue</code> to hold partially-sorted copies
+                of the keys and values.
+            </p><p>
+                For some uses, it is desirable to avoid repeatedly allocating
+                and freeing these temporary buffers, and so it is possible for
+                the user to specify buffers to use by calling
+                <code class="function">setTemporaryBuffers</code> (see the reference
+                documentation for details).
+            </p><p>
+                The algorithm objects are non-copyable, to avoid
+                accidently triggering expensive copies of OpenCL objects.
+                However, they are default-constructible, swappable, and
+                moveable.
+            </p></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="using.profile"></a>3.7. Profiling</h2></div></div></div><p>
+                The event returned by the various <code class="function">enqueue</code>
+                commands is suitable for event ordering, but it does not work
+                well with OpenCL event profiling functions to determine how much
+                time is spent on the GPU. For this purpose, one should call
+                <code class="function">setEventCallback</code> on the
+                <span class="type">clogs::Radixsort</span> or similar
+                object. The registered callback will be called once for each
+                CL command enqueued, passing the associated event. Note that
+                the callback is called during the <code class="function">enqueue</code>
+                call, rather than when the event completes; it is up to you to
+                defer querying the profiling information until the event is
+                complete.
+            </p></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="using.tunepolicy"></a>3.8. Tuning policy</h2></div></div></div><p>
+                By default, tuning progress is reported to standard output. In some
+                cases one might want to redirect the output (for example, to a log
+                file) or suppress it entirely. One can control the output stream
+                and the verbosity using a <span class="type">clogs::TunePolicy</span>. Here is
+                an example:
+            </p><pre class="programlisting">
+#include &lt;clogs/clogs.h&gt;
+...
+clogs::TunePolicy policy;
+policy.setOutput(std::cerr);
+policy.setVerbosity(clogs::TUNE_VERBOSITY_TERSE);
+clogs::RadixsortProblem problem;
+problem.setTunePolicy(policy);
+...
+</pre><p>
+                Refer to the reference manual for the possible verbosity
+                levels. If more control is required over how the progress
+                report is handled, you can implement a custom output stream
+                type (Boost.Iostreams greatly simplifies this).
+            </p><p>
+                It is also possible to disable on-the-fly tuning, by calling
+                <code class="function">setEnable</code> on the policy. If the problem
+                configuration has not already been tuned, attempting to
+                construct the algorithm object will throw a
+                <span class="type">clogs::CacheError</span> instead of doing tuning.
+            </p></div></div><div class="chapter"><div class="titlepage"><div><div><h1 class="title"><a id="reference"></a>Chapter 4. Reference manual</h1></div></div></div><p>
+            The reference manual is in a <a class="ulink" href="html/index.html" target="_top">separate document</a>.
+        </p></div><div class="chapter"><div class="titlepage"><div><div><h1 class="title"><a id="performance"></a>Chapter 5. Performance</h1></div></div></div><p>
+            While the code is heavily optimized, CLOGS has had relatively
+            little device-specific performance tuning. The radix sort
+            has been tuned on NVIDIA Fermi and GCN architectures, and the scan
+            has only be tuned on Fermi. It is not yet as fast as some CUDA
+            implementations. The graph below gives an indication of sorting
+            rates. Note that the Y axis is the rate, not the
+            time: it needs a <span class="emphasis"><em>lot</em></span> of input to achieve maximum
+            throughput.
+        </p><div class="informalfigure"><div class="mediaobject"><object type="image/svg+xml" data="images/clogs-benchmark.svg"></object></div></div></div><div class="chapter"><div class="titlepage"><div><div><h1 class="title"><a id="license"></a>Chapter 6. License</h1></div></div></div><div class="toc"><p><strong>Table of Contents</strong></p><dl class="toc"><dt><span class="section"><a href="#idm45823240886528">6.1. SQLite 3</a></span></dt></dl></div><p>
+            Copyright (c) 2012-2014 University of Cape Town
+            Copyright (c) 2014, 2015, 2018 Bruce Merry
+        </p><p>
+            Permission is hereby granted, free of charge, to any person obtaining a copy
+            of this software and associated documentation files (the "Software"), to deal
+            in the Software without restriction, including without limitation the rights
+            to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+            copies of the Software, and to permit persons to whom the Software is
+            furnished to do so, subject to the following conditions:
+        </p><p>
+            The above copyright notice and this permission notice shall be included in
+            all copies or substantial portions of the Software.
+        </p><p>
+            THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+            IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+            FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+            AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+            LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+            OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+            SOFTWARE.
+        </p><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="idm45823240886528"></a>6.1. SQLite 3</h2></div></div></div><p>
+                This software includes SQLite 3.8.5, which is in the public
+                domain. For details, refer to the <a class="ulink" href="http://sqlite.org/copyright.html" target="_top">website</a>.
+            </p></div></div></div></body></html>
