@@ -505,7 +505,7 @@ problem.setTunePolicy(policy);
         <informalfigure>
             <mediaobject>
                 <imageobject>
-                    <imagedata format="SVG" fileref="clogs-benchmark.svg"/>
+                    <imagedata fileref="clogs-benchmark.svg"/>
                 </imageobject>
             </mediaobject>
         </informalfigure>
