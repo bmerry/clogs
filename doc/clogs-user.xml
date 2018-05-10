@@ -482,6 +482,14 @@ problem.setTunePolicy(policy);
         </section>
     </chapter>
 
+    <chapter id="reference">
+        <title>Reference manual</title>
+        <para>
+            The reference manual is in a <ulink
+                url="html/index.html">separate document</ulink>.
+        </para>
+    </chapter>
+
     <chapter id="performance">
         <title>Performance</title>
         <para>

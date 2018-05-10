@@ -272,7 +272,7 @@ def build(bld):
     if bld.env['XSLTPROC']:
         bld(rule='${XSLTPROC} --xinclude --stringparam clogs.version ' + VERSION + ' -o ${TGT} ${SRC}',
             source=['doc/clogs-user-xml.xsl', 'doc/clogs-user.xml'],
-            target='doc/clogs-user.html')
+            target='doc/index.html')
         bld(rule=simple_copy,
             source='doc/clogs-user.in.css',
             target='doc/clogs-user.css')
