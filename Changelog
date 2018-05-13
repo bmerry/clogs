@@ -1,7 +1,8 @@
-Development version
--------------------
+1.5.2
+-----
 * Remove some uses of TR1/Boost in favour of C++11
 * Make C++11 mandatory
+* Move to Github
 
 1.5.1
 -----
